@@ -7,8 +7,9 @@ import java.io.InputStream
 class SSHConnection(
     private val host: String,
     private val username: String,
-    private val password: String,
-    private val port: Int = 22
+    private val password: String? = null,
+    private val port: Int = 22,
+    private val privateKeyPath: String? = null
 ) {
     private val jsch = JSch()
     private var session: Session? = null
@@ -21,7 +22,17 @@ class SSHConnection(
     fun connect() {
         try {
             session = jsch.getSession(username, host, port)
-            session?.setPassword(password)
+            
+            if (privateKeyPath != null) {
+                // Use private key authentication
+                jsch.addIdentity(privateKeyPath)
+            } else if (password != null) {
+                // Use password authentication
+                session?.setPassword(password)
+            } else {
+                throw IOException("No authentication method provided")
+            }
+            
             session?.connect()
         } catch (e: JSchException) {
             throw IOException("Failed to connect to $host: ${e.message}", e)
@@ -107,18 +118,10 @@ class SSHConnection(
         }
     }
 
-    private fun readStream(input: InputStream?): String {
-        if (input == null) return ""
-        
-        val buffer = ByteArray(1024)
-        val output = StringBuilder()
-        var bytesRead: Int
-        
-        while (input.read(buffer).also { bytesRead = it } != -1) {
-            output.append(String(buffer, 0, bytesRead))
-        }
-        
-        return output.toString()
+    private fun readStream(inputStream: InputStream?): String {
+        if (inputStream == null) return ""
+        val reader = inputStream.bufferedReader()
+        return reader.use { it.readText() }
     }
 
     fun close() {
