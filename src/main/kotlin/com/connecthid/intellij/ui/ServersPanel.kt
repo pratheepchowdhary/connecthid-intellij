@@ -3,6 +3,7 @@ package com.connecthid.intellij.ui
 import com.connecthid.intellij.services.AuthenticationMethod
 import com.connecthid.intellij.services.ServerConnection
 import com.connecthid.intellij.services.ServerConnectionService
+import com.intellij.icons.AllIcons
 import com.intellij.openapi.fileChooser.FileChooserDescriptor
 import com.intellij.openapi.fileChooser.FileChooserFactory
 import com.intellij.openapi.project.Project
@@ -13,7 +14,12 @@ import com.intellij.util.ui.JBUI
 import java.awt.*
 import java.awt.event.MouseEvent
 import javax.swing.*
+import javax.swing.border.Border
 import javax.swing.border.EmptyBorder
+import javax.swing.border.LineBorder
+import java.awt.image.BufferedImage
+import javax.imageio.ImageIO
+import javax.swing.border.CompoundBorder
 
 class ServersPanel(private val project: Project) : JPanel() {
     private val connectionService = ServerConnectionService(project)
@@ -26,7 +32,13 @@ class ServersPanel(private val project: Project) : JPanel() {
         cellRenderer = ServerListCellRenderer()
     }
 
+    // Cache for OS icons
+    private val osIcons = mutableMapOf<String, ImageIcon>()
+
     init {
+        // Load OS icons
+        loadOsIcons()
+
         layout = BorderLayout(10, 10)
         border = EmptyBorder(10, 10, 10, 10)
 
@@ -44,23 +56,34 @@ class ServersPanel(private val project: Project) : JPanel() {
         // Add mouse listener for list item actions
         serverList.addMouseListener(object : java.awt.event.MouseAdapter() {
             override fun mouseClicked(e: MouseEvent) {
-                val list = e.source as JBList<*>
+                @Suppress("UNCHECKED_CAST")
+                val list = e.source as JBList<ServerConnection>
                 val index = list.locationToIndex(e.point)
                 if (index >= 0) {
-                    val server = serverListModel.getElementAt(index) as ServerConnection
+                    val server = list.model.getElementAt(index)
                     val cellBounds = list.getCellBounds(index, index)
                     
-                    // Check if click is in the buttons area (right side)
-                    if (e.x > cellBounds.width - 200) { // Adjust based on button width
-                        val isConnected = connectionService.isConnected(server.host)
-                        if (e.x > cellBounds.width - 100) { // Edit button
-                            showServerDialog(server)
-                        } else if (isConnected) { // Disconnect button
-                            connectionService.disconnect(server.host)
-                            updateServerList()
-                            statusLabel.text = "Disconnected from ${server.host}"
-                        } else { // Connect button
-                            showConnectDialog(server.host, server.username, server.port, server.authMethod)
+                    // Get the renderer component to find button bounds
+                    val renderer = (list.cellRenderer as ServerListCellRenderer).apply {
+                        getListCellRendererComponent(list, server, index, false, false)
+                    }
+                    
+                    // Calculate button positions relative to cell
+                    val moreButtonBounds = renderer.moreButton.bounds
+                    val consoleButtonBounds = renderer.consoleButton.bounds
+                    
+                    // Adjust bounds to cell position
+                    moreButtonBounds.translate(cellBounds.width - moreButtonBounds.x - moreButtonBounds.width - 20, cellBounds.y)
+                    consoleButtonBounds.translate(cellBounds.width - consoleButtonBounds.x - consoleButtonBounds.width - moreButtonBounds.width - 25, cellBounds.y)
+                    
+                    when {
+                        moreButtonBounds.contains(e.point) -> {
+                            val popup = renderer.createPopupMenu(server)
+                            popup.show(list, e.x, e.y)
+                        }
+                        consoleButtonBounds.contains(e.point) -> {
+                            // Handle console button click
+                            // Implement console opening logic here
                         }
                     }
                 }
@@ -76,37 +99,167 @@ class ServersPanel(private val project: Project) : JPanel() {
         updateServerList()
     }
 
-    private fun updateServerList() {
-        serverListModel.clear()
-        connectionService.getSavedConnections().forEach { server ->
-            serverListModel.addElement(server)
+    private fun loadOsIcons() {
+        val iconSize = 24
+        try {
+            // Load OS icons from resources and make them circular
+            listOf("ubuntu", "debian", "fedora", "windows", "linux").forEach { os ->
+                val resource = javaClass.getResourceAsStream("/icons/$os.png")
+                if (resource != null) {
+                    val originalIcon = ImageIO.read(resource)
+                    
+                    // Create circular icon
+                    val circleImage = BufferedImage(iconSize, iconSize, BufferedImage.TYPE_INT_ARGB)
+                    val g2 = circleImage.createGraphics()
+                    
+                    // Enable antialiasing
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+                    
+                    // Draw white circle background
+                    g2.color = Color(245, 245, 245)
+                    g2.fillOval(0, 0, iconSize, iconSize)
+                    
+                    // Scale and draw the icon
+                    val scaled = originalIcon.getScaledInstance(iconSize - 8, iconSize - 8, Image.SCALE_SMOOTH)
+                    g2.drawImage(scaled, 4, 4, null)
+                    
+                    g2.dispose()
+                    osIcons[os] = ImageIcon(circleImage)
+                }
+            }
+        } catch (e: Exception) {
+            // Handle icon loading errors silently
         }
-        serverList.repaint()
+    }
+
+    private fun confirmDelete(server: ServerConnection): Boolean {
+        return Messages.showYesNoDialog(
+            project,
+            "Are you sure you want to remove ${server.host}?",
+            "Confirm Server Removal",
+            "Remove",
+            "Cancel",
+            Messages.getQuestionIcon()
+        ) == Messages.YES
+    }
+
+    private fun getOsIcon(osName: String): ImageIcon {
+        val normalizedOs = osName.toLowerCase()
+        return when {
+            normalizedOs.contains("ubuntu") -> osIcons["ubuntu"]
+            normalizedOs.contains("debian") -> osIcons["debian"]
+            normalizedOs.contains("fedora") -> osIcons["fedora"]
+            normalizedOs.contains("windows") -> osIcons["windows"]
+            else -> osIcons["linux"]
+        } ?: ImageIcon() // Return empty icon if not found
     }
 
     // Custom cell renderer for server list items
     private inner class ServerListCellRenderer : JPanel(), ListCellRenderer<ServerConnection> {
-        private val hostLabel = JLabel()
-        private val usernameLabel = JLabel()
-        private val statusLabel = JLabel()
-        private val connectButton = JButton("Connect")
-        private val disconnectButton = JButton("Disconnect")
-        private val editButton = JButton("Edit")
+        private val osIconLabel = JLabel()
+        private val nameLabel = JLabel()
+        private val specsLabel = JLabel()
+        val consoleButton = JButton().apply {
+            icon = AllIcons.Actions.Execute
+            isOpaque = true
+            background = Color(240, 240, 240)
+            foreground = Color(23, 92, 230)
+            border = JBUI.Borders.empty(6, 12)
+            preferredSize = Dimension(32, 32)
+            toolTipText = "Open Console"
+        }
+        val moreButton = JButton().apply {
+            icon = AllIcons.Actions.More
+            isOpaque = false
+            border = JBUI.Borders.empty(6, 12)
+            toolTipText = "More Actions"
+        }
+
+        fun createPopupMenu(server: ServerConnection): JPopupMenu {
+            return JPopupMenu().apply {
+                val isConnected = connectionService.isConnected(server.host)
+                
+                // Connect/Disconnect option
+                add(JMenuItem(if (isConnected) "Disconnect" else "Connect").apply {
+                    icon = if (isConnected) AllIcons.Actions.Suspend else AllIcons.Actions.Execute
+                    addActionListener {
+                        if (isConnected) {
+                            connectionService.disconnect(server.host)
+                            updateServerList()
+                            statusLabel.text = "Disconnected from ${server.host}"
+                        } else {
+                            showConnectDialog(server.host, server.username, server.port, server.authMethod)
+                        }
+                    }
+                })
+
+                // Edit option
+                add(JMenuItem("Edit").apply {
+                    icon = AllIcons.Actions.Edit
+                    addActionListener {
+                        showServerDialog(server)
+                    }
+                })
+
+                // Refresh connection option
+                add(JMenuItem("Refresh Connection").apply {
+                    icon = AllIcons.Actions.Refresh
+                    isEnabled = isConnected
+                    addActionListener {
+                        // Implement refresh logic here
+                        connectionService.disconnect(server.host)
+                        showConnectDialog(server.host, server.username, server.port, server.authMethod)
+                    }
+                })
+
+                // Separator before delete
+                addSeparator()
+
+                // Delete option
+                add(JMenuItem("Delete").apply {
+                    icon = AllIcons.Actions.GC
+                    foreground = Color(200, 50, 50) // Red color for delete
+                    addActionListener {
+                        if (confirmDelete(server)) {
+                            connectionService.disconnect(server.host)
+                            connectionService.removeServerConnection(server.host)
+                            updateServerList()
+                            statusLabel.text = "Removed ${server.host}"
+                        }
+                    }
+                })
+            }
+        }
 
         init {
-            layout = BorderLayout(10, 0)
-            border = JBUI.Borders.empty(10)
+            layout = BorderLayout(JBUI.scale(10), 0)
+            border = CompoundBorder(
+                LineBorder(Color(230, 230, 230), 1),
+                JBUI.Borders.empty(12)
+            )
 
-            val infoPanel = JPanel(GridLayout(2, 1, 0, 2)).apply {
-                add(hostLabel)
-                add(usernameLabel)
+            // Left panel with icon
+            val leftPanel = JPanel(BorderLayout(JBUI.scale(10), 0)).apply {
+                isOpaque = false
+                add(osIconLabel, BorderLayout.WEST)
             }
-            add(infoPanel, BorderLayout.CENTER)
 
-            val buttonsPanel = JPanel(FlowLayout(FlowLayout.RIGHT, 5, 0))
-            buttonsPanel.add(connectButton)
-            buttonsPanel.add(disconnectButton)
-            buttonsPanel.add(editButton)
+            // Center panel with server info
+            val infoPanel = JPanel(GridLayout(2, 1, 0, JBUI.scale(2))).apply {
+                isOpaque = false
+                add(nameLabel)
+                add(specsLabel)
+            }
+            leftPanel.add(infoPanel, BorderLayout.CENTER)
+
+            add(leftPanel, BorderLayout.CENTER)
+
+            // Right panel with buttons
+            val buttonsPanel = JPanel(FlowLayout(FlowLayout.RIGHT, JBUI.scale(5), 0)).apply {
+                isOpaque = false
+                add(consoleButton)
+                add(moreButton)
+            }
             add(buttonsPanel, BorderLayout.EAST)
 
             // Make panel opaque for proper rendering
@@ -120,28 +273,61 @@ class ServersPanel(private val project: Project) : JPanel() {
             isSelected: Boolean,
             cellHasFocus: Boolean
         ): Component {
-            val isConnected = connectionService.isConnected(server.host)
+            // Set OS icon
+            osIconLabel.icon = getOsIcon(server.systemInfo.osName)
             
-            // Update labels
-            hostLabel.text = server.host
-            hostLabel.font = hostLabel.font.deriveFont(Font.BOLD)
-            usernameLabel.text = "${server.username}@${server.host}:${server.port}"
+            // Update labels with modern styling
+            nameLabel.text = "<html><span style='font-size: 13px;'><b>${server.host}</b></span></html>"
             
-            // Update button visibility
-            connectButton.isVisible = !isConnected
-            disconnectButton.isVisible = isConnected
+            // Format specs line
+            val specs = StringBuilder()
+            specs.append(server.systemInfo.totalRam)
+            specs.append(" / ")
+            specs.append(server.systemInfo.totalStorage)
+            specs.append(" Disk / ")
+            if (server.systemInfo.osName.isNotEmpty()) {
+                specs.append(server.systemInfo.osName)
+                if (server.systemInfo.osVersion.isNotEmpty()) {
+                    specs.append(" ${server.systemInfo.osVersion}")
+                }
+            }
+            specs.append(" x64")
+            
+            specsLabel.text = "<html><span style='color: #666666; font-size: 12px;'>$specs</span></html>"
 
             // Update colors based on selection
             if (isSelected) {
-                background = list.selectionBackground
-                foreground = list.selectionForeground
+                background = Color(245, 245, 245)
             } else {
-                background = list.background
-                foreground = list.foreground
+                background = Color.WHITE
             }
 
             return this
         }
+    }
+
+    // Helper class for circular border
+    private class CircularBorder(private val size: Int) : Border {
+        override fun getBorderInsets(c: Component?): Insets = Insets(2, 2, 2, 2)
+        
+        override fun isBorderOpaque(): Boolean = true
+        
+        override fun paintBorder(c: Component?, g: Graphics?, x: Int, y: Int, width: Int, height: Int) {
+            if (g == null) return
+            val g2 = g.create() as Graphics2D
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+            g2.color = Color(230, 230, 230)
+            g2.fillOval(x, y, size, size)
+            g2.dispose()
+        }
+    }
+
+    private fun updateServerList() {
+        serverListModel.clear()
+        connectionService.getSavedConnections().forEach { server ->
+            serverListModel.addElement(server)
+        }
+        serverList.repaint()
     }
 
     private fun showServerDialog(server: ServerConnection? = null) {

@@ -15,12 +15,23 @@ enum class AuthenticationMethod {
     PRIVATE_KEY
 }
 
+data class SystemInfo(
+    val osName: String = "",
+    val osVersion: String = "",
+    val cpuType: String = "",
+    val totalRam: String = "",
+    val usedRam: String = "",
+    val totalStorage: String = "",
+    val usedStorage: String = ""
+)
+
 data class ServerConnection(
     val host: String,
     val username: String,
     val port: Int = 22,
     val authMethod: AuthenticationMethod = AuthenticationMethod.PASSWORD,
-    val privateKeyPath: String? = null
+    val privateKeyPath: String? = null,
+    var systemInfo: SystemInfo = SystemInfo()
 )
 
 data class ServerConnectionState(
@@ -47,7 +58,56 @@ class ServerConnectionService(private val project: Project) : PersistentStateCom
         privateKeyPath: String? = null
     ) {
         if (!state.connections.any { it.host == host }) {
-            state.connections.add(ServerConnection(host, username, port, authMethod, privateKeyPath))
+            val connection = ServerConnection(host, username, port, authMethod, privateKeyPath)
+            state.connections.add(connection)
+            updateSystemInfo(connection)
+        }
+    }
+
+    private fun updateSystemInfo(server: ServerConnection) {
+        val sshConnection = connections[server.host] ?: return
+        try {
+            // Get OS information
+            val osInfo = sshConnection.execute("cat /etc/os-release").split("\n")
+                .associate { line -> 
+                    val parts = line.split("=")
+                    if (parts.size == 2) parts[0] to parts[1].trim('"') else "" to ""
+                }
+            
+            // Get CPU information
+            val cpuInfo = sshConnection.execute("cat /proc/cpuinfo | grep 'model name' | head -n1")
+                .substringAfter(":").trim()
+
+            // Get RAM information
+            val memInfo = sshConnection.execute("free -h").split("\n")[1]
+                .split("\\s+".toRegex())
+            val totalRam = memInfo[1]
+            val usedRam = memInfo[2]
+
+            // Get Storage information
+            val dfOutput = sshConnection.execute("df -h /").split("\n")[1]
+                .split("\\s+".toRegex())
+            val totalStorage = dfOutput[1]
+            val usedStorage = dfOutput[2]
+
+            // Update system info
+            val systemInfo = SystemInfo(
+                osName = osInfo["NAME"] ?: "",
+                osVersion = osInfo["VERSION_ID"] ?: "",
+                cpuType = cpuInfo,
+                totalRam = totalRam,
+                usedRam = usedRam,
+                totalStorage = totalStorage,
+                usedStorage = usedStorage
+            )
+
+            // Find and update the connection in state
+            val index = state.connections.indexOfFirst { it.host == server.host }
+            if (index != -1) {
+                state.connections[index] = server.copy(systemInfo = systemInfo)
+            }
+        } catch (e: Exception) {
+            // Handle error silently - system info will remain empty
         }
     }
 
@@ -70,10 +130,25 @@ class ServerConnectionService(private val project: Project) : PersistentStateCom
             val connection = SSHConnection(host, username, password, port, privateKeyPath)
             connection.connect()
             connections[host] = connection
-            addServerConnection(host, username, port, 
-                if (privateKeyPath != null) AuthenticationMethod.PRIVATE_KEY else AuthenticationMethod.PASSWORD,
-                privateKeyPath
-            )
+            
+            // Add or update server connection
+            val existingConnection = state.connections.find { it.host == host }
+            if (existingConnection != null) {
+                val index = state.connections.indexOf(existingConnection)
+                state.connections[index] = existingConnection.copy(
+                    username = username,
+                    port = port,
+                    authMethod = if (privateKeyPath != null) AuthenticationMethod.PRIVATE_KEY else AuthenticationMethod.PASSWORD,
+                    privateKeyPath = privateKeyPath
+                )
+                updateSystemInfo(state.connections[index])
+            } else {
+                addServerConnection(host, username, port, 
+                    if (privateKeyPath != null) AuthenticationMethod.PRIVATE_KEY else AuthenticationMethod.PASSWORD,
+                    privateKeyPath
+                )
+            }
+            
             return true
         } catch (e: IOException) {
             return false
