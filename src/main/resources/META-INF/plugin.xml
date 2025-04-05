@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
+<idea-plugin>
+  <!-- Unique identifier of the plugin. It should be FQN. It cannot be changed between the plugin versions. -->
+  <id>com.connecthid.intellij</id>
+
+  <!-- Public plugin name should be written in Title Case.
+       Guidelines: https://plugins.jetbrains.com/docs/marketplace/plugin-overview-page.html#plugin-name -->
+  <name>ConnectHID</name>
+
+  <!-- A displayed Vendor name or Organization ID displayed on the Plugins Page. -->
+  <vendor email="support@connecthid.com" url="https://connecthid.com">ConnectHID</vendor>
+
+  <!-- Description of the plugin displayed on the Plugin Page and IDE Plugin Manager.
+       Simple HTML elements (text formatting, paragraphs, and lists) can be added inside of <![CDATA[ ]]> tag.
+       Guidelines: https://plugins.jetbrains.com/docs/marketplace/plugin-overview-page.html#plugin-description -->
+  <description><![CDATA[
+    ConnectHID is an IntelliJ IDEA plugin for cloud and server management.
+    Features include:
+    - Two-way code synchronization
+    - Server monitoring
+    - Docker container management
+    - Script management
+    - Cron job management
+    - Database management
+    - Application deployment
+  ]]></description>
+
+  <!-- Product and plugin compatibility requirements.
+       Read more: https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->
+  <depends>com.intellij.modules.platform</depends>
+  <depends>com.intellij.modules.lang</depends>
+<!--  <depends>com.intellij.modules.remote</depends>-->
+<!--  <depends>com.intellij.modules.docker</depends>-->
+<!--  <depends>com.intellij.modules.database</depends>-->
+<!--  <depends>com.intellij.terminal</depends>-->
+
+  <!-- Extension points defined by the plugin.
+       Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
+  <extensions defaultExtensionNs="com.intellij">
+<!--    <projectService serviceImplementation="com.connecthid.intellij.services.ServerConnectionService"/>-->
+<!--    <projectService serviceImplementation="com.connecthid.intellij.services.ServerMonitoringService"/>-->
+<!--    <projectService serviceImplementation="com.connecthid.intellij.services.DockerService"/>-->
+<!--    <projectService serviceImplementation="com.connecthid.intellij.services.ScriptService"/>-->
+<!--    <projectService serviceImplementation="com.connecthid.intellij.services.CronService"/>-->
+<!--    <projectService serviceImplementation="com.connecthid.intellij.services.DatabaseService"/>-->
+<!--    <projectService serviceImplementation="com.connecthid.intellij.services.DeploymentService"/>-->
+    <toolWindow id="Connect HID" icon="AllIcons.RunConfigurations.Remote" anchor="right" factoryClass="com.connecthid.intellij.ConnectHIDPlugin"/>
+  </extensions>
+
+  <actions>
+    <group id="ConnectHID.MainMenu" text="ConnectHID" description="ConnectHID menu">
+      <add-to-group group-id="ToolsMenu" anchor="last"/>
+      <action id="ConnectHID.ShowToolWindow" class="com.connecthid.intellij.actions.ShowToolWindowAction" text="Show ASOP Tools" description="Show ASOP Tools window"/>
+      <action id="ConnectHID.ConnectServer" class="com.connecthid.intellij.actions.ConnectServerAction" text="Connect to Server" description="Connect to a remote server"/>
+      <action id="ConnectHID.SyncFiles" class="com.connecthid.intellij.actions.SyncFilesAction" text="Sync Files" description="Synchronize files with remote server"/>
+      <action id="ConnectHID.OpenTerminal" class="com.connecthid.intellij.actions.OpenTerminalAction" text="Open Terminal" description="Open SSH terminal to server"/>
+      <separator/>
+      <action id="ConnectHID.ManageDocker" class="com.connecthid.intellij.actions.ManageDockerAction" text="Manage Docker" description="Manage Docker containers and images"/>
+      <action id="ConnectHID.MonitorServer" class="com.connecthid.intellij.actions.MonitorServerAction" text="Monitor Server" description="Monitor server metrics and performance"/>
+      <action id="ConnectHID.ManageScripts" class="com.connecthid.intellij.actions.ManageScriptsAction" text="Manage Scripts" description="Manage server scripts"/>
+      <action id="ConnectHID.ManageCron" class="com.connecthid.intellij.actions.ManageCronAction" text="Manage Cron Jobs" description="Manage cron jobs"/>
+      <action id="ConnectHID.ManageDatabase" class="com.connecthid.intellij.actions.ManageDatabaseAction" text="Manage Database" description="Manage databases"/>
+      <action id="ConnectHID.DeployApplication" class="com.connecthid.intellij.actions.DeployApplicationAction" text="Deploy Application" description="Deploy applications to server"/>
+    </group>
+  </actions>
+
+  <application-components>
+    <component>
+      <implementation-class>com.connecthid.intellij.ConnectHIDPlugin</implementation-class>
+    </component>
+  </application-components>
+</idea-plugin>
