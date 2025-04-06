@@ -1,5 +1,6 @@
 package com.connecthid.intellij.services
 
+import com.connecthid.intellij.utils.toImageIcon
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.Service
@@ -25,7 +26,8 @@ data class SystemInfo(
     val totalRam: String = "",
     val usedRam: String = "",
     val totalStorage: String = "",
-    val usedStorage: String = ""
+    val usedStorage: String = "",
+    val hostName: String = ""
 )
 
 data class ServerConnection(
@@ -36,7 +38,7 @@ data class ServerConnection(
     val privateKeyPath: String? = null,
     var systemInfo: SystemInfo = SystemInfo(),
     var isInProgress: Boolean=false,
-    var icon: Icon = AllIcons.Actions.Install,
+    var icon: Icon = systemInfo.osName.toImageIcon(),
     var buttonType: Int=1
 )
 

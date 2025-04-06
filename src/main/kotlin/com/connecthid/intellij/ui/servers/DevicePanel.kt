@@ -2,11 +2,7 @@ package com.connecthid.intellij.ui.servers
 
 import com.connecthid.intellij.PluginBundle
 import com.connecthid.intellij.services.ServerConnection
-import com.connecthid.intellij.ui.views.Button
-import com.connecthid.intellij.ui.views.IconButton
-import com.connecthid.intellij.utils.flowPanel
 import com.connecthid.intellij.utils.makeBold
-import com.connecthid.intellij.utils.panel
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.ui.JBMenuItem
 import com.intellij.openapi.ui.JBPopupMenu
@@ -20,9 +16,8 @@ import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
-import javax.swing.JComponent
+import javax.swing.JButton
 import javax.swing.JProgressBar
-import javax.swing.SwingConstants
 
 class DevicePanel(device: ServerConnection) : JBPanel<DevicePanel>(GridBagLayout()) {
 
@@ -39,13 +34,17 @@ class DevicePanel(device: ServerConnection) : JBPanel<DevicePanel>(GridBagLayout
     }
 
     init {
-        background = JBColor.background()
+        background = JBColor.RED
 
         minimumSize = Dimension(0, LIST_ITEM_HEIGHT)
         maximumSize = Dimension(Int.MAX_VALUE, LIST_ITEM_HEIGHT)
         preferredSize = Dimension(0, LIST_ITEM_HEIGHT)
 
-        val iconLabel = JBLabel(device.icon)
+
+
+        val iconLabel = JBLabel(device.icon).apply {
+            preferredSize = Dimension(50, 50) // Set desired size for the icon
+        }
         add(
             iconLabel,
             GridBagConstraints().apply {
@@ -55,7 +54,7 @@ class DevicePanel(device: ServerConnection) : JBPanel<DevicePanel>(GridBagLayout
                 gridheight = 2
                 fill = GridBagConstraints.VERTICAL
                 weighty = 1.0
-                insets = JBUI.insets(0, 10)
+                insets = JBUI.insets(0, 20)
             }
         )
 
@@ -82,6 +81,10 @@ class DevicePanel(device: ServerConnection) : JBPanel<DevicePanel>(GridBagLayout
             }
         )
 
+
+
+
+
         if (device.isInProgress) {
             val progressBar = JProgressBar()
             progressBar.isIndeterminate = true
@@ -93,100 +96,64 @@ class DevicePanel(device: ServerConnection) : JBPanel<DevicePanel>(GridBagLayout
                 GridBagConstraints().apply {
                     gridx = 2
                     gridy = 0
-                    gridwidth = 2
+                    gridwidth = 1
+                    gridheight = 2
                     weighty = 1.0
-                    insets = JBUI.insets(vInset, 10, vInset, 10)
+                    insets = JBUI.insets(vInset, 0, vInset, 20)
+                    anchor = GridBagConstraints.LINE_END
                 }
             )
         } else {
-            val button = when (device.buttonType) {
-                1 -> Button.connectButton()
-                2 -> Button.connectButton(false)
-                3-> Button.disconnectButton()
-                else -> {Button.disconnectButton()}
+            val consoleButton = JButton().apply {
+                icon = AllIcons.Actions.Execute
+                isOpaque = true
+                border = JBUI.Borders.empty(6, 12)
+                preferredSize = Dimension(32, 32)
+                toolTipText = "Open Console"
+                isFocusable = false
             }
-            val vInset = (BUTTON_CELL_HEIGHT - button.preferredSize.height) / 2
-            button.addActionListener {
-                when (device.buttonType) {
-                    1, 2 -> listener?.onConnectButtonClicked(device)
-                    3 -> listener?.onDisconnectButtonClicked(device)
-                }
+            consoleButton.addActionListener {
+
             }
-            button.addMouseListener(hoverListener)
+            consoleButton.addMouseListener(hoverListener)
             add(
-                button,
+                consoleButton,
                 GridBagConstraints().apply {
-                    gridx = 2
+                    gridx = 4
                     gridy = 0
-                    gridwidth = 2
-                    weighty = 1.0
-                    insets = JBUI.insets(vInset, 10, vInset, 10)
+                    gridwidth = 10
+                    gridheight = 3
+                    weightx = 1.0
+                    insets = JBUI.insetsRight(20)
+                    anchor = GridBagConstraints.LINE_END
                 }
             )
         }
 
-        val actionButtons = arrayListOf<JComponent>()
-
-//        if (device.isShareScreenButtonVisible) {
-//            val shareScreenButton = IconButton(Icons.SHARE_SCREEN, PluginBundle.message("shareScreenTooltip"))
-//            shareScreenButton.onClickedListener = {
-//                listener?.onShareScreenClicked(device)
-//                shareScreenButton.showProgressFor(2000)
-//            }
-//            shareScreenButton.addMouseListener(hoverListener)
-//            actionButtons.add(shareScreenButton)
-//        }
-//
-//        if (device.isRemoveButtonVisible) {
-//            val removeButton = IconButton(Icons.DELETE, PluginBundle.message("removeDeviceTooltip"))
-//            removeButton.onClickedListener = {
-//                listener?.onRemoveDeviceClicked(device)
-//            }
-//            removeButton.addMouseListener(hoverListener)
-//            actionButtons.add(removeButton)
-//        }
-
-        val menuButton = IconButton(AllIcons.Actions.More)
-        menuButton.onClickedListener = { event ->
-            openDeviceMenu(device, event)
+        val moreButton = JButton().apply {
+            icon = AllIcons.Actions.More
+            isOpaque = true
+            border = JBUI.Borders.empty(6, 12)
+            preferredSize = Dimension(32, 32)
+            toolTipText = "More"
+            isFocusable = false
         }
-        menuButton.addMouseListener(hoverListener)
-        actionButtons.add(menuButton)
-
-        val actionsPanel = flowPanel(*actionButtons.toTypedArray(), menuButton, hgap = 10)
-        actionsPanel.isOpaque = false
         add(
-            actionsPanel,
+            moreButton,
             GridBagConstraints().apply {
-                gridx = 3
-                gridy = 1
-                gridwidth = 1
-                gridheight = 1
-                anchor = GridBagConstraints.LINE_END
-            }
-        )
-
-        val subtitleLabel = JBLabel(device.host)
-        subtitleLabel.icon = AllIcons.Actions.More
-        subtitleLabel.horizontalTextPosition = SwingConstants.LEFT
-        subtitleLabel.componentStyle = UIUtil.ComponentStyle.REGULAR
-        subtitleLabel.fontColor = UIUtil.FontColor.BRIGHTER
-        add(
-            panel(top = subtitleLabel),
-            GridBagConstraints().apply {
-                gridx = 1
-                gridy = 1
-                gridwidth = 3
-                fill = GridBagConstraints.BOTH
-                anchor = GridBagConstraints.PAGE_END
+                gridx = 2
+                gridy = 0
                 weightx = 1.0
                 weighty = 1.0
-                insets = JBUI.insetsRight(actionsPanel.preferredSize.width)
-            }
-        )
+                gridwidth = 10
+                gridheight = 3
+                insets = JBUI.insetsRight(20)
+                anchor = GridBagConstraints.LINE_END
+            })
+
+
 
         addMouseListener(hoverListener)
-        actionsPanel.addMouseListener(hoverListener)
     }
 
     private fun openDeviceMenu(device: ServerConnection, event: MouseEvent) {
@@ -232,7 +199,7 @@ class DevicePanel(device: ServerConnection) : JBPanel<DevicePanel>(GridBagLayout
     private companion object {
         private const val LIST_ITEM_HEIGHT = 71
         private const val BUTTON_CELL_HEIGHT = 32
-        private val HOVER_COLOR = JBColor.namedColor(
+        val HOVER_COLOR = JBColor.namedColor(
             "Plugins.lightSelectionBackground",
             JBColor(0xF5F9FF, 0x36393B)
         )

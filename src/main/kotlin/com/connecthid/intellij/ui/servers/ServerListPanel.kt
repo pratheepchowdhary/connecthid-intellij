@@ -126,7 +126,8 @@ class ServerListPanel( project: Project): JBPanel<ServerListPanel>(), DevicePane
                     totalRam = "32GB",
                     usedRam = "12GB",
                     totalStorage = "1TB",
-                    usedStorage = "456GB"
+                    usedStorage = "456GB",
+                    hostName = "ubuntu-s-1vcpu-512mb-10gb-sgp1-01"
                 )
             ),
             ServerConnection(
@@ -141,7 +142,8 @@ class ServerListPanel( project: Project): JBPanel<ServerListPanel>(), DevicePane
                     totalRam = "64GB",
                     usedRam = "48GB",
                     totalStorage = "2TB",
-                    usedStorage = "1.2TB"
+                    usedStorage = "1.2TB",
+                    hostName = "debian-s-1vcpu-2gb-20gb-fra1-01"
                 )
             ),
             ServerConnection(
@@ -156,7 +158,8 @@ class ServerListPanel( project: Project): JBPanel<ServerListPanel>(), DevicePane
                     totalRam = "128GB",
                     usedRam = "64GB",
                     totalStorage = "4TB",
-                    usedStorage = "2.8TB"
+                    usedStorage = "2.8TB",
+                    hostName = "fedora-s-2vcpu-16gb-40gb-fra1-01"
                 )
             ),
             ServerConnection(
@@ -165,13 +168,14 @@ class ServerListPanel( project: Project): JBPanel<ServerListPanel>(), DevicePane
                 port = 22,
                 authMethod = AuthenticationMethod.PASSWORD,
                 systemInfo = SystemInfo(
-                    osName = "Windows Server",
+                    osName = "Windows",
                     osVersion = "2022",
                     cpuType = "Intel Xeon Gold 6330",
                     totalRam = "256GB",
                     usedRam = "180GB",
                     totalStorage = "8TB",
-                    usedStorage = "5.6TB"
+                    usedStorage = "5.6TB",
+                    hostName = "windows-s-2vcpu-16gb-40gb-fra1-01"
                 )
             ),
             ServerConnection(
@@ -180,13 +184,14 @@ class ServerListPanel( project: Project): JBPanel<ServerListPanel>(), DevicePane
                 port = 22,
                 authMethod = AuthenticationMethod.PRIVATE_KEY,
                 systemInfo = SystemInfo(
-                    osName = "CentOS",
+                    osName = "Linux",
                     osVersion = "8",
                     cpuType = "AMD EPYC 7763",
                     totalRam = "512GB",
                     usedRam = "384GB",
                     totalStorage = "16TB",
-                    usedStorage = "10.4TB"
+                    usedStorage = "10.4TB",
+                    hostName = "linux-s-4vcpu-16gb-100gb-fra1-01"
                 )
             )
         )
