@@ -4,6 +4,7 @@ import com.connecthid.intellij.services.AuthenticationMethod
 import com.connecthid.intellij.services.ServerConnection
 import com.connecthid.intellij.services.ServerConnectionService
 import com.connecthid.intellij.services.SystemInfo
+import com.connecthid.intellij.ui.dialog.AddServerDialog
 import com.connecthid.intellij.utils.removeIf
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.project.Project
@@ -13,10 +14,12 @@ import com.intellij.ui.components.JBPanel
 import com.intellij.ui.components.panels.OpaquePanel
 import com.intellij.util.ui.JBUI
 import java.awt.Dimension
+import java.awt.Font
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
 import javax.swing.BorderFactory
 import javax.swing.BoxLayout
+import javax.swing.JButton
 import javax.swing.JPanel
 
 class ServerListPanel( project: Project): JBPanel<ServerListPanel>(), DevicePanel.Listener  {
@@ -28,7 +31,7 @@ class ServerListPanel( project: Project): JBPanel<ServerListPanel>(), DevicePane
         }
     private var header: JPanel? = null
     private var headerLabel: JBLabel? = null
-    private var headerIcon: JBLabel? = null
+    private var newConnectionButton: JButton? = null
 
     init {
         layout = BoxLayout(this, BoxLayout.PAGE_AXIS)
@@ -41,7 +44,7 @@ class ServerListPanel( project: Project): JBPanel<ServerListPanel>(), DevicePane
     private fun rebuildUi() {
         header?.border = HEADER_BORDER_EXPANDED
         headerLabel?.text = "$title (${devices.size})"
-        headerIcon?.icon = ICON_EXPANDED
+
 
         removeIf { child -> child is DevicePanel }
         for (device in devices) {
@@ -70,9 +73,16 @@ class ServerListPanel( project: Project): JBPanel<ServerListPanel>(), DevicePane
             }
         )
 
-        headerIcon = JBLabel(AllIcons.General.ArrowUp)
+        newConnectionButton = JButton("New Connection").apply {
+           icon = AllIcons.General.Add
+        }
+        newConnectionButton!!.addActionListener {
+            val addServerDialog = AddServerDialog()
+            addServerDialog.show()
+
+        }
         header.add(
-            headerIcon!!,
+            newConnectionButton,
             GridBagConstraints().apply {
                 gridx = 1
                 gridy = 0
@@ -205,7 +215,7 @@ class ServerListPanel( project: Project): JBPanel<ServerListPanel>(), DevicePane
 
 
     private companion object {
-        private const val HEADER_HEIGHT = 28
+        private const val HEADER_HEIGHT = 50
         private val HEADER_BACKGROUND_COLOR = JBColor.namedColor(
             "Plugins.lightSelectionBackground",
             JBColor(0xF5F9FF, 0x36393B)

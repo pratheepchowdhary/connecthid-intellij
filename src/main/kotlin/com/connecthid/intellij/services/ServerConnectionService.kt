@@ -14,9 +14,9 @@ import java.util.concurrent.ConcurrentHashMap
 import javax.swing.Icon
 import javax.swing.ImageIcon
 
-enum class AuthenticationMethod {
-    PASSWORD,
-    PRIVATE_KEY
+enum class AuthenticationMethod(val type: String ) {
+    PASSWORD("Password"),
+    PRIVATE_KEY("Private Key");
 }
 
 data class SystemInfo(

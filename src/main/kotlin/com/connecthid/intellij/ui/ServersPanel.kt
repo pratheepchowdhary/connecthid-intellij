@@ -29,8 +29,6 @@ class ServersPanel(private val project: Project) : JPanel() {
     private val statusLabel = JLabel("Status: Ready")
     private val serverListModel = DefaultListModel<ServerConnection>()
     private val serverList = ServerList()
-    private val moreButtonBounds: MutableMap<Int, Rectangle> = HashMap()
-    private val consoleButtonBounds: MutableMap<Int, Rectangle?> = HashMap()
 
     // Cache for OS icons
     private val osIcons = mutableMapOf<String, ImageIcon>()
@@ -56,10 +54,7 @@ class ServersPanel(private val project: Project) : JPanel() {
         val scrollPane = JBScrollPane(serverList)
         add(scrollPane, BorderLayout.CENTER)
 
-        // Add action listener for add button
-        addButton.addActionListener {
-            showServerDialog()
-        }
+
 
         // Initial list update
         updateServerList()
