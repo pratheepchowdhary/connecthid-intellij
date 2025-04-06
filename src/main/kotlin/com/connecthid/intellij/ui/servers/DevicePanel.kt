@@ -105,12 +105,13 @@ class DevicePanel(device: ServerConnection) : JBPanel<DevicePanel>(GridBagLayout
             )
         } else {
             val consoleButton = JButton().apply {
-                icon = AllIcons.Actions.Execute
-                isOpaque = true
+                icon = AllIcons.Debugger.Console
+                isOpaque = false
                 border = JBUI.Borders.empty(6, 12)
                 preferredSize = Dimension(32, 32)
                 toolTipText = "Open Console"
                 isFocusable = false
+                setContentAreaFilled(false)
             }
             consoleButton.addActionListener {
 
@@ -119,37 +120,40 @@ class DevicePanel(device: ServerConnection) : JBPanel<DevicePanel>(GridBagLayout
             add(
                 consoleButton,
                 GridBagConstraints().apply {
-                    gridx = 4
+                    gridx = 2
                     gridy = 0
-                    gridwidth = 10
-                    gridheight = 3
-                    weightx = 1.0
-                    insets = JBUI.insetsRight(20)
-                    anchor = GridBagConstraints.LINE_END
+                    gridwidth = 1
+                    gridheight = 2
+                    weightx = 0.0
+                    weighty = 1.0
+                    insets = JBUI.insets(0, 0, 0, 5)
+                    anchor = GridBagConstraints.CENTER
                 }
             )
         }
 
         val moreButton = JButton().apply {
             icon = AllIcons.Actions.More
-            isOpaque = true
+            isOpaque = false
             border = JBUI.Borders.empty(6, 12)
             preferredSize = Dimension(32, 32)
             toolTipText = "More"
             isFocusable = false
+            setContentAreaFilled(false)
         }
         add(
             moreButton,
             GridBagConstraints().apply {
-                gridx = 2
+                gridx = 3
                 gridy = 0
-                weightx = 1.0
+                gridwidth = 1
+                gridheight = 2
+                weightx = 0.0
                 weighty = 1.0
-                gridwidth = 10
-                gridheight = 3
-                insets = JBUI.insetsRight(20)
-                anchor = GridBagConstraints.LINE_END
-            })
+                insets = JBUI.insets(0, 0, 0, 20)
+                anchor = GridBagConstraints.CENTER
+            }
+        )
 
 
 
