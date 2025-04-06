@@ -3,6 +3,7 @@ package com.connecthid.intellij.ui
 import com.connecthid.intellij.services.AuthenticationMethod
 import com.connecthid.intellij.services.ServerConnection
 import com.connecthid.intellij.services.ServerConnectionService
+import com.connecthid.intellij.services.SystemInfo
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.fileChooser.FileChooserDescriptor
 import com.intellij.openapi.fileChooser.FileChooserFactory
@@ -55,35 +56,99 @@ class ServersPanel(private val project: Project) : JPanel() {
 
         // Add mouse listener for list item actions
         serverList.addMouseListener(object : java.awt.event.MouseAdapter() {
-            override fun mouseClicked(e: MouseEvent) {
-                @Suppress("UNCHECKED_CAST")
-                val list = e.source as JBList<ServerConnection>
-                val index = list.locationToIndex(e.point)
+            override fun mousePressed(e: MouseEvent) {
+                handleMouseEvent(e)
+            }
+
+            override fun mouseReleased(e: MouseEvent) {
+                handleMouseEvent(e)
+            }
+
+            private fun handleMouseEvent(e: MouseEvent) {
+                val index = serverList.locationToIndex(e.point)
                 if (index >= 0) {
-                    val server = list.model.getElementAt(index)
-                    val cellBounds = list.getCellBounds(index, index)
+                    val server = serverListModel.getElementAt(index)
+                    val cellBounds = serverList.getCellBounds(index, index)
+
+                    // Calculate relative click position within the cell
+                    val relativeX = e.x - cellBounds.x
+                    val relativeY = e.y - cellBounds.y
+
+                    // Define button areas (right side of the cell)
+                    val buttonWidth = 32
+                    val buttonSpacing = 5
+                    val rightPadding = 12
+                    val topPadding = 12
+                    val buttonHeight = 32
                     
-                    // Get the renderer component to find button bounds
-                    val renderer = (list.cellRenderer as ServerListCellRenderer).apply {
-                        getListCellRendererComponent(list, server, index, false, false)
-                    }
-                    
-                    // Calculate button positions relative to cell
-                    val moreButtonBounds = renderer.moreButton.bounds
-                    val consoleButtonBounds = renderer.consoleButton.bounds
-                    
-                    // Adjust bounds to cell position
-                    moreButtonBounds.translate(cellBounds.width - moreButtonBounds.x - moreButtonBounds.width - 20, cellBounds.y)
-                    consoleButtonBounds.translate(cellBounds.width - consoleButtonBounds.x - consoleButtonBounds.width - moreButtonBounds.width - 25, cellBounds.y)
-                    
-                    when {
-                        moreButtonBounds.contains(e.point) -> {
-                            val popup = renderer.createPopupMenu(server)
-                            popup.show(list, e.x, e.y)
-                        }
-                        consoleButtonBounds.contains(e.point) -> {
-                            // Handle console button click
-                            // Implement console opening logic here
+                    // Calculate button positions from right edge
+                    val moreButtonX = cellBounds.width - buttonWidth - rightPadding
+                    val consoleButtonX = moreButtonX - buttonWidth - buttonSpacing
+
+                    // Check if click is in button areas
+                    if (relativeY in topPadding..(topPadding + buttonHeight)) {
+                        when {
+                            // More button clicked
+                            relativeX in moreButtonX..(moreButtonX + buttonWidth) -> {
+                                val popup = JPopupMenu().apply {
+                                    val isConnected = connectionService.isConnected(server.host)
+                                    
+                                    // Connect/Disconnect option
+                                    add(JMenuItem(if (isConnected) "Disconnect" else "Connect").apply {
+                                        icon = if (isConnected) AllIcons.Actions.Suspend else AllIcons.Actions.Execute
+                                        addActionListener {
+                                            if (isConnected) {
+                                                connectionService.disconnect(server.host)
+                                                updateServerList()
+                                                statusLabel.text = "Disconnected from ${server.host}"
+                                            } else {
+                                                showConnectDialog(server.host, server.username, server.port, server.authMethod)
+                                            }
+                                        }
+                                    })
+
+                                    // Edit option
+                                    add(JMenuItem("Edit").apply {
+                                        icon = AllIcons.Actions.Edit
+                                        addActionListener {
+                                            showServerDialog(server)
+                                        }
+                                    })
+
+                                    // Refresh connection option
+                                    add(JMenuItem("Refresh Connection").apply {
+                                        icon = AllIcons.Actions.Refresh
+                                        isEnabled = isConnected
+                                        addActionListener {
+                                            connectionService.disconnect(server.host)
+                                            showConnectDialog(server.host, server.username, server.port, server.authMethod)
+                                        }
+                                    })
+
+                                    // Separator before delete
+                                    addSeparator()
+
+                                    // Delete option
+                                    add(JMenuItem("Delete").apply {
+                                        icon = AllIcons.Actions.GC
+                                        foreground = Color(200, 50, 50) // Red color for delete
+                                        addActionListener {
+                                            if (confirmDelete(server)) {
+                                                connectionService.disconnect(server.host)
+                                                connectionService.removeServerConnection(server.host)
+                                                updateServerList()
+                                                statusLabel.text = "Removed ${server.host}"
+                                            }
+                                        }
+                                    })
+                                }
+                                popup.show(serverList, e.x, e.y)
+                            }
+                            // Console button clicked
+                            relativeX in consoleButtonX..(consoleButtonX + buttonWidth) -> {
+                                // Handle console button click
+                                // Implement console opening logic here
+                            }
                         }
                     }
                 }
@@ -159,7 +224,7 @@ class ServersPanel(private val project: Project) : JPanel() {
         private val osIconLabel = JLabel()
         private val nameLabel = JLabel()
         private val specsLabel = JLabel()
-        val consoleButton = JButton().apply {
+        private val consoleButton = JButton().apply {
             icon = AllIcons.Actions.Execute
             isOpaque = true
             background = Color(240, 240, 240)
@@ -168,67 +233,11 @@ class ServersPanel(private val project: Project) : JPanel() {
             preferredSize = Dimension(32, 32)
             toolTipText = "Open Console"
         }
-        val moreButton = JButton().apply {
+        private val moreButton = JButton().apply {
             icon = AllIcons.Actions.More
             isOpaque = false
             border = JBUI.Borders.empty(6, 12)
             toolTipText = "More Actions"
-        }
-
-        fun createPopupMenu(server: ServerConnection): JPopupMenu {
-            return JPopupMenu().apply {
-                val isConnected = connectionService.isConnected(server.host)
-                
-                // Connect/Disconnect option
-                add(JMenuItem(if (isConnected) "Disconnect" else "Connect").apply {
-                    icon = if (isConnected) AllIcons.Actions.Suspend else AllIcons.Actions.Execute
-                    addActionListener {
-                        if (isConnected) {
-                            connectionService.disconnect(server.host)
-                            updateServerList()
-                            statusLabel.text = "Disconnected from ${server.host}"
-                        } else {
-                            showConnectDialog(server.host, server.username, server.port, server.authMethod)
-                        }
-                    }
-                })
-
-                // Edit option
-                add(JMenuItem("Edit").apply {
-                    icon = AllIcons.Actions.Edit
-                    addActionListener {
-                        showServerDialog(server)
-                    }
-                })
-
-                // Refresh connection option
-                add(JMenuItem("Refresh Connection").apply {
-                    icon = AllIcons.Actions.Refresh
-                    isEnabled = isConnected
-                    addActionListener {
-                        // Implement refresh logic here
-                        connectionService.disconnect(server.host)
-                        showConnectDialog(server.host, server.username, server.port, server.authMethod)
-                    }
-                })
-
-                // Separator before delete
-                addSeparator()
-
-                // Delete option
-                add(JMenuItem("Delete").apply {
-                    icon = AllIcons.Actions.GC
-                    foreground = Color(200, 50, 50) // Red color for delete
-                    addActionListener {
-                        if (confirmDelete(server)) {
-                            connectionService.disconnect(server.host)
-                            connectionService.removeServerConnection(server.host)
-                            updateServerList()
-                            statusLabel.text = "Removed ${server.host}"
-                        }
-                    }
-                })
-            }
         }
 
         init {
@@ -306,27 +315,100 @@ class ServersPanel(private val project: Project) : JPanel() {
         }
     }
 
-    // Helper class for circular border
-    private class CircularBorder(private val size: Int) : Border {
-        override fun getBorderInsets(c: Component?): Insets = Insets(2, 2, 2, 2)
-        
-        override fun isBorderOpaque(): Boolean = true
-        
-        override fun paintBorder(c: Component?, g: Graphics?, x: Int, y: Int, width: Int, height: Int) {
-            if (g == null) return
-            val g2 = g.create() as Graphics2D
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
-            g2.color = Color(230, 230, 230)
-            g2.fillOval(x, y, size, size)
-            g2.dispose()
-        }
-    }
-
     private fun updateServerList() {
         serverListModel.clear()
+        
+        // Add actual connections
         connectionService.getSavedConnections().forEach { server ->
             serverListModel.addElement(server)
         }
+
+        // Add mock data for demonstration
+        val mockServers = listOf(
+            ServerConnection(
+                host = "ubuntu-server-01",
+                username = "admin",
+                port = 22,
+                authMethod = AuthenticationMethod.PRIVATE_KEY,
+                systemInfo = SystemInfo(
+                    osName = "Ubuntu",
+                    osVersion = "22.04 LTS",
+                    cpuType = "AMD Ryzen 9 5950X",
+                    totalRam = "32GB",
+                    usedRam = "12GB",
+                    totalStorage = "1TB",
+                    usedStorage = "456GB"
+                )
+            ),
+            ServerConnection(
+                host = "debian-web-server",
+                username = "webadmin",
+                port = 22,
+                authMethod = AuthenticationMethod.PASSWORD,
+                systemInfo = SystemInfo(
+                    osName = "Debian",
+                    osVersion = "11",
+                    cpuType = "Intel Xeon E5-2680",
+                    totalRam = "64GB",
+                    usedRam = "48GB",
+                    totalStorage = "2TB",
+                    usedStorage = "1.2TB"
+                )
+            ),
+            ServerConnection(
+                host = "fedora-dev-01",
+                username = "developer",
+                port = 22,
+                authMethod = AuthenticationMethod.PRIVATE_KEY,
+                systemInfo = SystemInfo(
+                    osName = "Fedora",
+                    osVersion = "39",
+                    cpuType = "Intel i9-13900K",
+                    totalRam = "128GB",
+                    usedRam = "64GB",
+                    totalStorage = "4TB",
+                    usedStorage = "2.8TB"
+                )
+            ),
+            ServerConnection(
+                host = "windows-server-2022",
+                username = "administrator",
+                port = 22,
+                authMethod = AuthenticationMethod.PASSWORD,
+                systemInfo = SystemInfo(
+                    osName = "Windows Server",
+                    osVersion = "2022",
+                    cpuType = "Intel Xeon Gold 6330",
+                    totalRam = "256GB",
+                    usedRam = "180GB",
+                    totalStorage = "8TB",
+                    usedStorage = "5.6TB"
+                )
+            ),
+            ServerConnection(
+                host = "linux-db-server",
+                username = "dbadmin",
+                port = 22,
+                authMethod = AuthenticationMethod.PRIVATE_KEY,
+                systemInfo = SystemInfo(
+                    osName = "CentOS",
+                    osVersion = "8",
+                    cpuType = "AMD EPYC 7763",
+                    totalRam = "512GB",
+                    usedRam = "384GB",
+                    totalStorage = "16TB",
+                    usedStorage = "10.4TB"
+                )
+            )
+        )
+
+        // Add mock servers if no real connections exist
+        if (serverListModel.isEmpty) {
+            mockServers.forEach { server ->
+                serverListModel.addElement(server)
+            }
+        }
+
         serverList.repaint()
     }
 
