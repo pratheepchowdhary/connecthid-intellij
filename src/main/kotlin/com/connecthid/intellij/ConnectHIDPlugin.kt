@@ -2,6 +2,7 @@ package com.connecthid.intellij
 
 import com.connecthid.intellij.services.ServerConnectionService
 import com.connecthid.intellij.ui.*
+import com.connecthid.intellij.ui.servers.ServerListPanel
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
@@ -17,7 +18,7 @@ class ConnectHIDPlugin : ToolWindowFactory {
         val tabbedPane = JBTabbedPane()
 
         // Add panels to tabs with required services
-        tabbedPane.addTab("Servers", ServersPanel(project))
+        tabbedPane.addTab("Servers", ServerListPanel(project))
         tabbedPane.addTab("File Sync", FileSyncPanel(project))
         //tabbedPane.addTab("Docker", DockerPanel(project))
        // tabbedPane.addTab("Monitoring", MonitoringPanel(project))

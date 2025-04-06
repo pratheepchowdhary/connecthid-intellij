@@ -1,5 +1,6 @@
 package com.connecthid.intellij.services
 
+import com.intellij.icons.AllIcons
 import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.State
@@ -9,6 +10,8 @@ import com.jcraft.jsch.Session
 import java.io.IOException
 import java.net.Socket
 import java.util.concurrent.ConcurrentHashMap
+import javax.swing.Icon
+import javax.swing.ImageIcon
 
 enum class AuthenticationMethod {
     PASSWORD,
@@ -31,7 +34,10 @@ data class ServerConnection(
     val port: Int = 22,
     val authMethod: AuthenticationMethod = AuthenticationMethod.PASSWORD,
     val privateKeyPath: String? = null,
-    var systemInfo: SystemInfo = SystemInfo()
+    var systemInfo: SystemInfo = SystemInfo(),
+    var isInProgress: Boolean=false,
+    var icon: Icon = AllIcons.Actions.Install,
+    var buttonType: Int=1
 )
 
 data class ServerConnectionState(

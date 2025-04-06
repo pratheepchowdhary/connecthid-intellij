@@ -12,6 +12,14 @@ repositories {
     defaultRepositories()
   }
 }
+kotlin {
+  sourceSets {
+    main {
+      kotlin.srcDir("build/generated/src/")
+    }
+  }
+}
+
 
 dependencies {
   implementation("com.jcraft:jsch:0.1.55")

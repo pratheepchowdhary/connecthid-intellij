@@ -14,13 +14,12 @@ import com.intellij.ui.components.JBScrollPane
 import com.intellij.util.ui.JBUI
 import java.awt.*
 import java.awt.event.MouseEvent
-import javax.swing.*
-import javax.swing.border.Border
-import javax.swing.border.EmptyBorder
-import javax.swing.border.LineBorder
 import java.awt.image.BufferedImage
 import javax.imageio.ImageIO
+import javax.swing.*
 import javax.swing.border.CompoundBorder
+import javax.swing.border.LineBorder
+
 
 class ServersPanel(private val project: Project) : JPanel() {
     private val connectionService = ServerConnectionService(project)
@@ -29,9 +28,9 @@ class ServersPanel(private val project: Project) : JPanel() {
     }
     private val statusLabel = JLabel("Status: Ready")
     private val serverListModel = DefaultListModel<ServerConnection>()
-    private val serverList = JBList(serverListModel).apply {
-        cellRenderer = ServerListCellRenderer()
-    }
+    private val serverList = ServerList()
+    private val moreButtonBounds: MutableMap<Int, Rectangle> = HashMap()
+    private val consoleButtonBounds: MutableMap<Int, Rectangle?> = HashMap()
 
     // Cache for OS icons
     private val osIcons = mutableMapOf<String, ImageIcon>()
@@ -41,7 +40,10 @@ class ServersPanel(private val project: Project) : JPanel() {
         loadOsIcons()
 
         layout = BorderLayout(10, 10)
-        border = EmptyBorder(10, 10, 10, 10)
+        border = JBUI.Borders.empty(10)
+
+        // Initialize the list with custom implementation
+        serverList.model = serverListModel
 
         // Top panel with add button aligned to right
         val topPanel = JPanel(BorderLayout()).apply {
@@ -53,107 +55,6 @@ class ServersPanel(private val project: Project) : JPanel() {
         // Server list in scroll pane
         val scrollPane = JBScrollPane(serverList)
         add(scrollPane, BorderLayout.CENTER)
-
-        // Add mouse listener for list item actions
-        serverList.addMouseListener(object : java.awt.event.MouseAdapter() {
-            override fun mousePressed(e: MouseEvent) {
-                handleMouseEvent(e)
-            }
-
-            override fun mouseReleased(e: MouseEvent) {
-                handleMouseEvent(e)
-            }
-
-            private fun handleMouseEvent(e: MouseEvent) {
-                val index = serverList.locationToIndex(e.point)
-                if (index >= 0) {
-                    val server = serverListModel.getElementAt(index)
-                    val cellBounds = serverList.getCellBounds(index, index)
-
-                    // Calculate relative click position within the cell
-                    val relativeX = e.x - cellBounds.x
-                    val relativeY = e.y - cellBounds.y
-
-                    // Define button areas (right side of the cell)
-                    val buttonWidth = 32
-                    val buttonSpacing = 5
-                    val rightPadding = 12
-                    val topPadding = 12
-                    val buttonHeight = 32
-                    
-                    // Calculate button positions from right edge
-                    val moreButtonX = cellBounds.width - buttonWidth - rightPadding
-                    val consoleButtonX = moreButtonX - buttonWidth - buttonSpacing
-
-                    // Check if click is in button areas
-                    if (relativeY in topPadding..(topPadding + buttonHeight)) {
-                        when {
-                            // More button clicked
-                            relativeX in moreButtonX..(moreButtonX + buttonWidth) -> {
-                                val popup = JPopupMenu().apply {
-                                    val isConnected = connectionService.isConnected(server.host)
-                                    
-                                    // Connect/Disconnect option
-                                    add(JMenuItem(if (isConnected) "Disconnect" else "Connect").apply {
-                                        icon = if (isConnected) AllIcons.Actions.Suspend else AllIcons.Actions.Execute
-                                        addActionListener {
-                                            if (isConnected) {
-                                                connectionService.disconnect(server.host)
-                                                updateServerList()
-                                                statusLabel.text = "Disconnected from ${server.host}"
-                                            } else {
-                                                showConnectDialog(server.host, server.username, server.port, server.authMethod)
-                                            }
-                                        }
-                                    })
-
-                                    // Edit option
-                                    add(JMenuItem("Edit").apply {
-                                        icon = AllIcons.Actions.Edit
-                                        addActionListener {
-                                            showServerDialog(server)
-                                        }
-                                    })
-
-                                    // Refresh connection option
-                                    add(JMenuItem("Refresh Connection").apply {
-                                        icon = AllIcons.Actions.Refresh
-                                        isEnabled = isConnected
-                                        addActionListener {
-                                            connectionService.disconnect(server.host)
-                                            showConnectDialog(server.host, server.username, server.port, server.authMethod)
-                                        }
-                                    })
-
-                                    // Separator before delete
-                                    addSeparator()
-
-                                    // Delete option
-                                    add(JMenuItem("Delete").apply {
-                                        icon = AllIcons.Actions.GC
-                                        foreground = Color(200, 50, 50) // Red color for delete
-                                        addActionListener {
-                                            if (confirmDelete(server)) {
-                                                connectionService.disconnect(server.host)
-                                                connectionService.removeServerConnection(server.host)
-                                                updateServerList()
-                                                statusLabel.text = "Removed ${server.host}"
-                                            }
-                                        }
-                                    })
-                                }
-                                popup.show(serverList, e.x, e.y)
-                            }
-                            // Console button clicked
-                            relativeX in consoleButtonX..(consoleButtonX + buttonWidth) -> {
-                                // Handle console button click
-                                // Implement console opening logic here
-                            }
-                        }
-                    }
-                }
-            }
-        })
 
         // Add action listener for add button
         addButton.addActionListener {
@@ -219,6 +120,109 @@ class ServersPanel(private val project: Project) : JPanel() {
         } ?: ImageIcon() // Return empty icon if not found
     }
 
+    // Custom list that handles button clicks
+    private inner class ServerList : JBList<ServerConnection>() {
+        init {
+            cellRenderer = ServerListCellRenderer()
+            
+            addMouseListener(object : java.awt.event.MouseAdapter() {
+                override fun mouseClicked(e: MouseEvent) {
+                    val index = locationToIndex(e.point)
+                    if (index >= 0) {
+                        val server = model.getElementAt(index)
+                        val cellBounds = getCellBounds(index, index)
+                        
+                        // Calculate relative click position within the cell
+                        val relativeX = e.x - cellBounds.x
+                        val relativeY = e.y - cellBounds.y
+                        
+                        // Define button areas (right side of the cell)
+                        val buttonWidth = 32
+                        val buttonSpacing = 5
+                        val rightPadding = 12
+                        val topPadding = 12
+                        val buttonHeight = 32
+                        
+                        // Calculate button positions from right edge
+                        val moreButtonX = cellBounds.width - buttonWidth - rightPadding
+                        val consoleButtonX = moreButtonX - buttonWidth - buttonSpacing
+                        
+                        // Check if click is in button areas
+                        if (relativeY >= topPadding && relativeY <= topPadding + buttonHeight) {
+                            if (relativeX >= moreButtonX && relativeX <= moreButtonX + buttonWidth) {
+                                // More button clicked
+                                createServerPopupMenu(server).show(this@ServerList, e.x, e.y)
+                            } else if (relativeX >= consoleButtonX && relativeX <= consoleButtonX + buttonWidth) {
+                                // Console button clicked
+                                // Handle console button click
+                                // Implement console opening logic here
+                            }
+                        }
+                    }
+                }
+            })
+        }
+    }
+
+    private fun createServerPopupMenu(server: ServerConnection): JPopupMenu {
+        return JPopupMenu().apply {
+            val isConnected = connectionService.isConnected(server.host)
+            
+            // Connect/Disconnect option
+            add(createMenuItem(
+                if (isConnected) "Disconnect" else "Connect",
+                if (isConnected) AllIcons.Actions.Suspend else AllIcons.Actions.Execute
+            ) {
+                if (isConnected) {
+                    connectionService.disconnect(server.host)
+                    updateServerList()
+                    statusLabel.text = "Disconnected from ${server.host}"
+                } else {
+                    showConnectDialog(server.host, server.username, server.port, server.authMethod)
+                }
+            })
+
+            // Edit option
+            add(createMenuItem("Edit", AllIcons.Actions.Edit) {
+                showServerDialog(server)
+            })
+
+            // Refresh connection option
+            add(createMenuItem("Refresh Connection", AllIcons.Actions.Refresh, isEnabled = isConnected) {
+                connectionService.disconnect(server.host)
+                showConnectDialog(server.host, server.username, server.port, server.authMethod)
+            })
+
+            // Separator before delete
+            addSeparator()
+
+            // Delete option
+            add(createMenuItem("Delete", AllIcons.Actions.GC, foreground = Color(200, 50, 50)) {
+                if (confirmDelete(server)) {
+                    connectionService.disconnect(server.host)
+                    connectionService.removeServerConnection(server.host)
+                    updateServerList()
+                    statusLabel.text = "Removed ${server.host}"
+                }
+            })
+        }
+    }
+
+    private fun createMenuItem(
+        text: String,
+        icon: Icon,
+        isEnabled: Boolean = true,
+        foreground: Color? = null,
+        action: () -> Unit
+    ): JMenuItem {
+        return JMenuItem(text).apply {
+            this.icon = icon
+            this.isEnabled = isEnabled
+            foreground?.let { this.foreground = it }
+            addActionListener { action() }
+        }
+    }
+
     // Custom cell renderer for server list items
     private inner class ServerListCellRenderer : JPanel(), ListCellRenderer<ServerConnection> {
         private val osIconLabel = JLabel()
@@ -232,13 +236,17 @@ class ServersPanel(private val project: Project) : JPanel() {
             border = JBUI.Borders.empty(6, 12)
             preferredSize = Dimension(32, 32)
             toolTipText = "Open Console"
+            isFocusable = false
         }
         private val moreButton = JButton().apply {
             icon = AllIcons.Actions.More
             isOpaque = false
             border = JBUI.Borders.empty(6, 12)
             toolTipText = "More Actions"
+            isFocusable = false
         }
+        
+        private var currentServer: ServerConnection? = null
 
         init {
             layout = BorderLayout(JBUI.scale(10), 0)
@@ -282,6 +290,9 @@ class ServersPanel(private val project: Project) : JPanel() {
             isSelected: Boolean,
             cellHasFocus: Boolean
         ): Component {
+            // Store the current server
+            currentServer = server
+            
             // Set OS icon
             osIconLabel.icon = getOsIcon(server.systemInfo.osName)
             
