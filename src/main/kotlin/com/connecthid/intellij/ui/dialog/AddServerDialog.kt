@@ -4,17 +4,21 @@ import com.connecthid.intellij.services.AuthenticationMethod
 import com.connecthid.intellij.services.ServerConnection
 import com.connecthid.intellij.services.SystemInfo
 import com.intellij.openapi.observable.properties.PropertyGraph
+import com.intellij.openapi.ui.DialogPanel
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.ValidationInfo
+import com.intellij.openapi.wm.impl.welcomeScreen.learnIde.coursesInProgress.mainBackgroundColor
+import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBTextField
 import com.intellij.ui.components.fields.IntegerField
-import com.intellij.ui.dsl.builder.*
-import com.intellij.ui.dsl.gridLayout.HorizontalAlign
+import com.intellij.ui.dsl.builder.panel
 import com.intellij.util.ui.JBUI
 import org.jetbrains.annotations.ApiStatus
 import java.awt.Dimension
-import javax.swing.JComponent
 import javax.swing.JPasswordField
+import com.intellij.ui.dsl.builder.*
+import java.awt.Component.CENTER_ALIGNMENT
+
 @ApiStatus.Experimental
 class AddServerDialog : DialogWrapper(true) {
     private val hostField = JBTextField()
@@ -31,45 +35,38 @@ class AddServerDialog : DialogWrapper(true) {
         init()
     }
 
-    override fun createCenterPanel(): JComponent {
+    override fun createCenterPanel(): DialogPanel {
 
         return panel {
             row("Host:") {
-                cell(hostField)
-                    .focused()
-                    .validationOnInput { validateHost() }
-                    .resizableColumn()
+                textField()
             }
             row("Username:") {
-                cell(usernameField)
-                    .validationOnInput { validateUsername() }
-                    .resizableColumn()
+                textField()
             }
             row("Port:") {
-                cell(portField)
-                    .validationOnInput { validatePort() }
-                    .resizableColumn()
+                textField()
             }
-            row("Authentication:") {
-                segmentedButton(AuthenticationMethod.entries) { text = it.type }
-                    .bind(selectedMethod)
-                    .resizableColumn()
-            }
+            var radioButtonValue = 2
+            buttonsGroup {
+                row("Authentication:") {
+                    radioButton("Password", 1)
+                    radioButton("Private key", 2)
+                }
+            }.bind({ radioButtonValue }, { radioButtonValue = it })
             row("Password:") {
-                cell(passwordField)
-                    .enabled(authMethod == AuthenticationMethod.PASSWORD)
-                    .validationOnInput { validatePassword() }
-                    .resizableColumn()
+                passwordField().applyToComponent { text = "password" }
             }
             row("Private Key:") {
-                cell(privateKeyPathField)
-                    .enabled(authMethod == AuthenticationMethod.PRIVATE_KEY)
-                    .validationOnInput { validatePrivateKey() }
-                    .resizableColumn()
+                textField()
             }
+
         }.apply {
-            preferredSize = Dimension(600, 300)
+            preferredSize = Dimension(400, 200)
+            maximumSize = Dimension(400, 200)
+            
             border = JBUI.Borders.empty(10)
+            alignmentX = CENTER_ALIGNMENT
         }
     }
 
