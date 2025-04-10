@@ -1,7 +1,6 @@
 package com.connecthid.intellij.services
 
-import com.connecthid.intellij.utils.toImageIcon
-import com.intellij.icons.AllIcons
+import com.connecthid.intellij.utils.toIcon
 import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.State
@@ -12,7 +11,6 @@ import java.io.IOException
 import java.net.Socket
 import java.util.concurrent.ConcurrentHashMap
 import javax.swing.Icon
-import javax.swing.ImageIcon
 
 enum class AuthenticationMethod(val type: String ) {
     PASSWORD("Password"),
@@ -38,7 +36,7 @@ data class ServerConnection(
     val privateKeyPath: String? = null,
     var systemInfo: SystemInfo = SystemInfo(),
     var isInProgress: Boolean=false,
-    var icon: Icon = systemInfo.osName.toImageIcon(),
+    var icon: Icon = systemInfo.osName.toIcon(),
     var buttonType: Int=1
 )
 
@@ -125,6 +123,22 @@ class ServerConnectionService(private val project: Project) : PersistentStateCom
 
     fun getSavedConnections(): List<ServerConnection> {
         return state.connections.toList()
+    }
+    fun isValidSshConnection(
+        host: String,
+        username: String,
+        password: String? = null,
+        port: Int = 22,
+        privateKeyPath: String? = null
+    ): Boolean {
+
+        try {
+            val connection = SSHConnection(host, username, password, port, privateKeyPath)
+            connection.connect()
+            return true
+        } catch (e: Exception) {
+            return false
+        }
     }
 
     fun connect(

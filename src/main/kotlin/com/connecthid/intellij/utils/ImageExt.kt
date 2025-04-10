@@ -48,6 +48,6 @@ object ImageExt{
     }
 }
 
-fun String.toImageIcon(): ImageIcon {
+fun String.toIcon(): ImageIcon {
     return ImageExt.osImages[this.lowercase()] ?: ImageIcon()
 }

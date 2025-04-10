@@ -1,112 +1,132 @@
 package com.connecthid.intellij.ui.dialog
 
+import com.connecthid.intellij.PluginBundle
 import com.connecthid.intellij.services.AuthenticationMethod
 import com.connecthid.intellij.services.ServerConnection
 import com.connecthid.intellij.services.SystemInfo
+import com.intellij.openapi.fileChooser.FileChooserDescriptor
 import com.intellij.openapi.observable.properties.PropertyGraph
 import com.intellij.openapi.ui.DialogPanel
 import com.intellij.openapi.ui.DialogWrapper
-import com.intellij.openapi.ui.ValidationInfo
-import com.intellij.openapi.wm.impl.welcomeScreen.learnIde.coursesInProgress.mainBackgroundColor
-import com.intellij.ui.JBColor
-import com.intellij.ui.components.JBTextField
-import com.intellij.ui.components.fields.IntegerField
+import com.intellij.ui.components.JBPasswordField
+import com.intellij.ui.dsl.builder.bind
+import com.intellij.ui.dsl.builder.bindText
 import com.intellij.ui.dsl.builder.panel
+import com.intellij.ui.layout.selected
 import com.intellij.util.ui.JBUI
 import org.jetbrains.annotations.ApiStatus
+import org.jetbrains.annotations.NotNull
 import java.awt.Dimension
-import javax.swing.JPasswordField
-import com.intellij.ui.dsl.builder.*
-import java.awt.Component.CENTER_ALIGNMENT
+import java.awt.event.ActionEvent
+import javax.swing.*
+import kotlin.collections.contains
+
 
 @ApiStatus.Experimental
-class AddServerDialog : DialogWrapper(true) {
-    private val hostField = JBTextField()
-    private val usernameField = JBTextField()
-    private val passwordField = JPasswordField()
-    private val portField = IntegerField("22",1, 65535) // min 1, max 65535
-    private val privateKeyPathField = JBTextField()
-    private var authMethod = AuthenticationMethod.PASSWORD
+class AddServerDialog(host: String? = null, username: String = "root", password: String? = null, port: Int = 22, privateKeyPath: String? = null) : DialogWrapper(true) {
     val propertyGraph = PropertyGraph()
-    private val selectedMethod = propertyGraph.property(AuthenticationMethod.PASSWORD)
+    private val selectedHost = propertyGraph.property(host ?: "")
+    private val selectedUsername = propertyGraph.property(username)
+    private val selectedPort = propertyGraph.property(port.toString())
+    private val selectedPassword = propertyGraph.property(password ?: "")
+    private val selectedPrivateKeyPath = propertyGraph.property(privateKeyPath ?: "")
+    private var selectedMethod: String = if(privateKeyPath != null) "PRIVATE_KEY" else "PASSWORD"
+    private lateinit var jbPasswordField: JBPasswordField
+    private lateinit var jbPrivateKeyField: JTextField
+    private lateinit var passwordRadioButton: JRadioButton
+    private lateinit var privateKeyRadioButton: JRadioButton
+    val fileDescriptor = FileChooserDescriptor(true, false, false, false, false, false)
+        .withFileFilter { file -> file.extension in listOf("pem", "ppk", "rsa") }
 
     init {
         title = "Add Server"
         init()
     }
 
-    override fun createCenterPanel(): DialogPanel {
+    private fun updateFields() {
 
-        return panel {
+        jbPasswordField.isEnabled = passwordRadioButton.isSelected
+        jbPrivateKeyField.isEnabled = privateKeyRadioButton.isSelected
+        selectedMethod = if(passwordRadioButton.isSelected) "PASSWORD" else "PRIVATE_KEY"
+    }
+
+    override fun createCenterPanel(): DialogPanel {
+        val panel = panel {
             row("Host:") {
                 textField()
+                    .bindText(selectedHost)
             }
             row("Username:") {
                 textField()
+                    .bindText(selectedUsername)
             }
             row("Port:") {
                 textField()
+                    .bindText(selectedPort)
             }
-            var radioButtonValue = 2
+            
             buttonsGroup {
                 row("Authentication:") {
-                    radioButton("Password", 1)
-                    radioButton("Private key", 2)
+                    radioButton("Password", "PASSWORD")
+                        .also { passwordRadioButton = it.component }
+                    radioButton("Private key", "PRIVATE_KEY")
+                        .also { privateKeyRadioButton = it.component }
                 }
-            }.bind({ radioButtonValue }, { radioButtonValue = it })
+            }.bind({ selectedMethod }, { selectedMethod = it })
+
             row("Password:") {
-                passwordField().applyToComponent { text = "password" }
+                passwordField()
+                    .bindText(selectedPassword)
+                    .enabledIf(passwordRadioButton.selected)
+                    .apply { jbPasswordField = component }
             }
+            
             row("Private Key:") {
-                textField()
+                textFieldWithBrowseButton("Select Private Key File", fileChooserDescriptor = fileDescriptor){
+                    selectedPrivateKeyPath.set(it.path)
+                    return@textFieldWithBrowseButton it.path
+                }.bindText(selectedPrivateKeyPath)
+                    .enabledIf(privateKeyRadioButton.selected)
+                    .apply { jbPrivateKeyField = component.textField }
             }
 
         }.apply {
             preferredSize = Dimension(400, 200)
             maximumSize = Dimension(400, 200)
-            
             border = JBUI.Borders.empty(10)
-            alignmentX = CENTER_ALIGNMENT
         }
-    }
+        passwordRadioButton.addChangeListener {
+            updateFields()
+        }
+        passwordRadioButton.addChangeListener {
+            updateFields()
+        }
 
-    private fun validateHost(): ValidationInfo? {
-        return if (hostField.text.isNullOrBlank()) {
-            ValidationInfo("Host is required", hostField)
-        } else null
-    }
 
-    private fun validateUsername(): ValidationInfo? {
-        return if (usernameField.text.isNullOrBlank()) {
-            ValidationInfo("Username is required", usernameField)
-        } else null
+        return panel
     }
+    override fun createLeftSideActions(): Array<Action> {
+        return arrayOf<Action>(object : AbstractAction(PluginBundle.message("testconnection")) {
+            override fun actionPerformed(@NotNull e: ActionEvent) {
 
-    private fun validatePort(): ValidationInfo? {
-        return if (portField.value < 1 || portField.value > 65535) {
-            ValidationInfo("Port must be between 1 and 65535", portField)
-        } else null
+
+            }
+        })
     }
-
-    private fun validatePassword(): ValidationInfo? {
-        return if (authMethod == AuthenticationMethod.PASSWORD && passwordField.password.isEmpty()) {
-            ValidationInfo("Password is required", passwordField)
-        } else null
+    override fun doOKAction() {
+        super.doOKAction()
     }
-
-    private fun validatePrivateKey(): ValidationInfo? {
-        return if (authMethod == AuthenticationMethod.PRIVATE_KEY && privateKeyPathField.text.isNullOrBlank()) {
-            ValidationInfo("Private key path is required", privateKeyPathField)
-        } else null
+    override fun doCancelAction(){
+       super.doCancelAction()
     }
 
     fun getServerConnection(): ServerConnection {
         return ServerConnection(
-            host = hostField.text,
-            username = usernameField.text,
-            port = portField.value,
-            authMethod = authMethod,
-            privateKeyPath = if (authMethod == AuthenticationMethod.PRIVATE_KEY) privateKeyPathField.text else null,
+            host = selectedHost.get(),
+            username = selectedUsername.get(),
+            port = selectedPort.get().toInt(),
+            authMethod = AuthenticationMethod.valueOf(selectedMethod),
+            privateKeyPath = if (selectedMethod == "PRIVATE_KEY") selectedPrivateKeyPath.get() else null,
             systemInfo = SystemInfo()
         )
     }

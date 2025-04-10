@@ -1,5 +1,6 @@
 package com.connecthid.intellij.toolwindow
 
+import com.connecthid.intellij.services.ServerConnectionService
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
@@ -20,6 +21,7 @@ class ASOPToolsToolWindowFactory : ToolWindowFactory {
         val contentFactory = ContentFactory.getInstance()
         val mainPanel = JPanel()
         val tabbedPane = JTabbedPane()
+        val connectionService = ServerConnectionService(project)
 
         // Add all feature panels
         tabbedPane.addTab("Server Connection", ServerConnectionPanel(project))
