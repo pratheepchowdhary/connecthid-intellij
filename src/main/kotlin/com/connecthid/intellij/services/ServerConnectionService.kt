@@ -2,10 +2,8 @@ package com.connecthid.intellij.services
 
 import com.connecthid.intellij.utils.toIcon
 import com.intellij.openapi.components.PersistentStateComponent
-import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.State
 import com.intellij.openapi.components.Storage
-import com.intellij.openapi.project.Project
 import com.jcraft.jsch.Session
 import java.io.IOException
 import java.net.Socket
@@ -45,8 +43,7 @@ data class ServerConnectionState(
 )
 
 @State(name = "ServerConnectionService", storages = [Storage("server-connections.xml")])
-@Service(Service.Level.PROJECT)
-class ServerConnectionService(private val project: Project) : PersistentStateComponent<ServerConnectionState> {
+class ServerConnectionService() : PersistentStateComponent<ServerConnectionState> {
     private val connections = ConcurrentHashMap<String, SSHConnection>()
     private var state = ServerConnectionState()
 

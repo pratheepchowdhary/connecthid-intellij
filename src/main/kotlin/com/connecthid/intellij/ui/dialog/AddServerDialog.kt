@@ -1,13 +1,17 @@
 package com.connecthid.intellij.ui.dialog
 
 import com.connecthid.intellij.PluginBundle
+import com.connecthid.intellij.getAppService
 import com.connecthid.intellij.services.AuthenticationMethod
 import com.connecthid.intellij.services.ServerConnection
 import com.connecthid.intellij.services.SystemInfo
+import com.intellij.icons.AllIcons
 import com.intellij.openapi.fileChooser.FileChooserDescriptor
 import com.intellij.openapi.observable.properties.PropertyGraph
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogPanel
 import com.intellij.openapi.ui.DialogWrapper
+import com.intellij.platform.ide.progress.runWithModalProgressBlocking
 import com.intellij.ui.components.JBPasswordField
 import com.intellij.ui.dsl.builder.bind
 import com.intellij.ui.dsl.builder.bindText
@@ -19,11 +23,10 @@ import org.jetbrains.annotations.NotNull
 import java.awt.Dimension
 import java.awt.event.ActionEvent
 import javax.swing.*
-import kotlin.collections.contains
 
 
 @ApiStatus.Experimental
-class AddServerDialog(host: String? = null, username: String = "root", password: String? = null, port: Int = 22, privateKeyPath: String? = null) : DialogWrapper(true) {
+class AddServerDialog(val project: Project, host: String? = null, username: String = "root", password: String? = null, port: Int = 22, privateKeyPath: String? = null) : DialogWrapper(true) {
     val propertyGraph = PropertyGraph()
     private val selectedHost = propertyGraph.property(host ?: "")
     private val selectedUsername = propertyGraph.property(username)
@@ -35,8 +38,12 @@ class AddServerDialog(host: String? = null, username: String = "root", password:
     private lateinit var jbPrivateKeyField: JTextField
     private lateinit var passwordRadioButton: JRadioButton
     private lateinit var privateKeyRadioButton: JRadioButton
+    private lateinit var loaderLabel: JLabel
     val fileDescriptor = FileChooserDescriptor(true, false, false, false, false, false)
         .withFileFilter { file -> file.extension in listOf("pem", "ppk", "rsa") }
+
+
+    val serverConnection = project.getAppService()
 
     init {
         title = "Add Server"
@@ -82,12 +89,20 @@ class AddServerDialog(host: String? = null, username: String = "root", password:
             }
             
             row("Private Key:") {
-                textFieldWithBrowseButton("Select Private Key File", fileChooserDescriptor = fileDescriptor){
+                textFieldWithBrowseButton("Select Private Key File", fileChooserDescriptor = fileDescriptor) {
                     selectedPrivateKeyPath.set(it.path)
                     return@textFieldWithBrowseButton it.path
                 }.bindText(selectedPrivateKeyPath)
                     .enabledIf(privateKeyRadioButton.selected)
                     .apply { jbPrivateKeyField = component.textField }
+            }
+            row{
+                label("").also {
+                     loaderLabel = it.component
+                     loaderLabel.isVisible = false
+                }
+
+
             }
 
         }.apply {
@@ -108,13 +123,56 @@ class AddServerDialog(host: String? = null, username: String = "root", password:
     override fun createLeftSideActions(): Array<Action> {
         return arrayOf<Action>(object : AbstractAction(PluginBundle.message("testconnection")) {
             override fun actionPerformed(@NotNull e: ActionEvent) {
-
-
+                //show loader while testing connection inside a dialog like circular progress bar inside a dialog
+                testConnection()
             }
         })
     }
+    private fun testConnection() {
+        val result = runWithModalProgressBlocking(project = project, title = "Testing Connection") {
+            return@runWithModalProgressBlocking serverConnection.getServerConnectionService().isValidSshConnection(
+                host = selectedHost.get(),
+                username = selectedUsername.get(),
+                port = selectedPort.get().toInt(),
+                password = if (selectedMethod == "PASSWORD") selectedPassword.get() else null,
+                privateKeyPath = if (selectedMethod == "PRIVATE_KEY") selectedPrivateKeyPath.get() else null
+            )
+        }
+        if (result) {
+            loaderLabel.isVisible = true
+            loaderLabel.text = "Connection Successful"
+            loaderLabel.icon = AllIcons.General.Information
+        } else {
+            loaderLabel.isVisible = true
+            loaderLabel.text = "Connection Failed"
+            loaderLabel.icon = AllIcons.General.Error
+        }
+
+
+    }
+
+
+
     override fun doOKAction() {
-        super.doOKAction()
+        val result = runWithModalProgressBlocking(project = project, title = "Connecting to Server") {
+            return@runWithModalProgressBlocking serverConnection.getServerConnectionService().connect(
+                host = selectedHost.get(),
+                username = selectedUsername.get(),
+                port = selectedPort.get().toInt(),
+                password = if (selectedMethod == "PASSWORD") selectedPassword.get() else null,
+                privateKeyPath = if (selectedMethod == "PRIVATE_KEY") selectedPrivateKeyPath.get() else null
+            )
+
+        }
+        if (result) {
+            super.doOKAction()
+            JOptionPane.showMessageDialog(null, "Server Connected Successfully")
+        } else {
+            loaderLabel.isVisible = true
+            loaderLabel.text = "Connection Failed"
+            loaderLabel.icon = AllIcons.General.Error
+        }
+
     }
     override fun doCancelAction(){
        super.doCancelAction()

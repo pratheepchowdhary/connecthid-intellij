@@ -38,14 +38,12 @@
   <!-- Extension points defined by the plugin.
        Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
   <extensions defaultExtensionNs="com.intellij">
-<!--    <projectService serviceImplementation="com.connecthid.intellij.services.ServerConnectionService"/>-->
-<!--    <projectService serviceImplementation="com.connecthid.intellij.services.ServerMonitoringService"/>-->
-<!--    <projectService serviceImplementation="com.connecthid.intellij.services.DockerService"/>-->
-<!--    <projectService serviceImplementation="com.connecthid.intellij.services.ScriptService"/>-->
-<!--    <projectService serviceImplementation="com.connecthid.intellij.services.CronService"/>-->
-<!--    <projectService serviceImplementation="com.connecthid.intellij.services.DatabaseService"/>-->
-<!--    <projectService serviceImplementation="com.connecthid.intellij.services.DeploymentService"/>-->
+    <applicationService
+                serviceImplementation="com.connecthid.intellij.services.ConnectHidServiceImpl"/>
     <toolWindow id="Connect HID" icon="AllIcons.RunConfigurations.Remote" anchor="right" factoryClass="com.connecthid.intellij.ConnectHIDPlugin"/>
+    <notificationGroup
+            id="notification.groupId.connecthid"
+            displayType="BALLOON" />
   </extensions>
 
   <actions>

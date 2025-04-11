@@ -22,7 +22,7 @@ import javax.swing.border.LineBorder
 
 
 class ServersPanel(private val project: Project) : JPanel() {
-    private val connectionService = ServerConnectionService(project)
+    lateinit var  connectionService:ServerConnectionService
     private val addButton = JButton("New Connection").apply {
         font = font.deriveFont(Font.BOLD)
     }

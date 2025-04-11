@@ -13,7 +13,7 @@ import javax.swing.border.EmptyBorder
 class FileSyncPanel(
     private val project: Project
 ) : JPanel() {
-    private val connectionService = ServerConnectionService(project)
+//    private val connectionService = ServerConnectionService(project)
     private val hostField = JTextField(20)
     private val localPathField = JTextField(20)
     private val remotePathField = JTextField(20)
@@ -102,10 +102,10 @@ class FileSyncPanel(
                 return@addActionListener
             }
 
-            if (!connectionService.checkConnection(host)) {
-                Messages.showErrorDialog(project, "Cannot connect to host", "Error")
-                return@addActionListener
-            }
+//            if (!connectionService.checkConnection(host)) {
+//                Messages.showErrorDialog(project, "Cannot connect to host", "Error")
+//                return@addActionListener
+//            }
 
             val direction = syncDirectionCombo.selectedItem as String
             statusLabel.text = "Status: Syncing ${if (direction == "Local to Remote") "to" else "from"} remote..."

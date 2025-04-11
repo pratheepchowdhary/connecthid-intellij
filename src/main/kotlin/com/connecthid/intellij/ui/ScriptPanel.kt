@@ -14,7 +14,7 @@ import java.awt.event.ActionListener
 
 class ScriptPanel(private val project: Project) : JPanel() {
     private val scriptService = ScriptService(project)
-    private val connectionService = ServerConnectionService(project)
+    lateinit var  connectionService : ServerConnectionService
     private val hostField = JTextField(20)
     private val scriptNameField = JTextField(20)
     private val scriptContentArea = JTextArea(10, 40)

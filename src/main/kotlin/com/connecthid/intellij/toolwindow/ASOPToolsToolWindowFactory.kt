@@ -21,7 +21,6 @@ class ASOPToolsToolWindowFactory : ToolWindowFactory {
         val contentFactory = ContentFactory.getInstance()
         val mainPanel = JPanel()
         val tabbedPane = JTabbedPane()
-        val connectionService = ServerConnectionService(project)
 
         // Add all feature panels
         tabbedPane.addTab("Server Connection", ServerConnectionPanel(project))

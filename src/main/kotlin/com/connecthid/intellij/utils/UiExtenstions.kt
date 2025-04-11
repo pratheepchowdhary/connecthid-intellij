@@ -57,7 +57,7 @@ fun HyperlinkLabel.setFontSize(size: Float) {
     this.font = oldFont.deriveFont(size)
 }
 
-inline fun Container.removeIf(shouldRemove: (child: Component) -> Boolean) {
+inline fun Container.removeI(shouldRemove: (child: Component) -> Boolean) {
     for (child in this.components) {
         if (shouldRemove(child)) {
             this.remove(child)
