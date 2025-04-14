@@ -9,7 +9,7 @@ import javax.swing.*
 import javax.swing.border.EmptyBorder
 
 class ServerConnectionPanel(private val project: Project) : JPanel() {
-    private val connectionService = ServerConnectionService(project)
+    private val connectionService = ServerConnectionService()
     private val hostField = JTextField(20)
     private val usernameField = JTextField(20)
     private val passwordField = JPasswordField(20)

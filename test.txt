@@ -1,0 +1,60 @@
+import com.intellij.util.xmlb.Converter
+import com.intellij.util.xmlb.annotations.OptionTag
+
+class SystemInfoConverter : Converter<SystemInfo>() {
+    override fun toString(value: SystemInfo): String? {
+        return "${value.osName}|${value.osVersion}|${value.cpuType}|${value.totalRam}|" +
+               "${value.usedRam}|${value.totalStorage}|${value.usedStorage}|${value.hostName}"
+    }
+
+    override fun fromString(value: String): SystemInfo? {
+        if (value.isBlank()) return SystemInfo()
+        val parts = value.split("|")
+        return if (parts.size == 8) {
+            SystemInfo(
+                osName = parts[0],
+                osVersion = parts[1],
+                cpuType = parts[2],
+                totalRam = parts[3],
+                usedRam = parts[4],
+                totalStorage = parts[5],
+                usedStorage = parts[6],
+                hostName = parts[7]
+            )
+        } else {
+            SystemInfo()
+        }
+    }
+}
+
+data class SystemInfo(
+    var osName: String = "",
+    var osVersion: String = "",
+    var cpuType: String = "",
+    var totalRam: String = "",
+    var usedRam: String = "",
+    var totalStorage: String = "",
+    var usedStorage: String = "",
+    var hostName: String = ""
+)
+
+data class ServerConnection(
+    var host: String = "localhost",
+    var username: String = "root",
+    var port: Int = 22,
+    var authMethod: AuthenticationMethod = AuthenticationMethod.PASSWORD,
+    var privateKeyPath: String? = null,
+    @OptionTag(converter = SystemInfoConverter::class)
+    var systemInfo: SystemInfo = SystemInfo(),
+    var isInProgress: Boolean = false,
+    @Transient
+    var icon: Icon? = null,
+    var buttonType: Int = 1
+) {
+    fun getIcon(): Icon {
+        if (icon == null) {
+            icon = systemInfo.osName.toIcon()
+        }
+        return icon!!
+    }
+}

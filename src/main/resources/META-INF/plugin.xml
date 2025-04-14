@@ -40,6 +40,8 @@
   <extensions defaultExtensionNs="com.intellij">
     <applicationService
                 serviceImplementation="com.connecthid.intellij.services.ConnectHidServiceImpl"/>
+    <applicationService
+            serviceImplementation="com.connecthid.intellij.services.ServerConnectionService"/>
     <toolWindow id="Connect HID" icon="AllIcons.RunConfigurations.Remote" anchor="right" factoryClass="com.connecthid.intellij.ConnectHIDPlugin"/>
     <notificationGroup
             id="notification.groupId.connecthid"

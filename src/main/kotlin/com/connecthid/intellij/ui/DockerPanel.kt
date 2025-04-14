@@ -14,7 +14,7 @@ class DockerPanel(
     private val project: Project
 ) : JPanel() {
     private val dockerService = DockerService(project)
-    private val connectionService = ServerConnectionService(project)
+    private val connectionService = ServerConnectionService()
     private val hostField = JTextField(20)
     private val refreshButton = JButton("Refresh")
     private val startButton = JButton("Start")

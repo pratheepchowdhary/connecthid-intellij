@@ -1,9 +1,9 @@
 package com.connecthid.intellij.ui
 
-import com.connecthid.intellij.services.AuthenticationMethod
-import com.connecthid.intellij.services.ServerConnection
+import com.connecthid.intellij.models.AuthenticationMethod
+import com.connecthid.intellij.models.Server
+import com.connecthid.intellij.models.SystemInfo
 import com.connecthid.intellij.services.ServerConnectionService
-import com.connecthid.intellij.services.SystemInfo
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.fileChooser.FileChooserDescriptor
 import com.intellij.openapi.fileChooser.FileChooserFactory
@@ -27,7 +27,7 @@ class ServersPanel(private val project: Project) : JPanel() {
         font = font.deriveFont(Font.BOLD)
     }
     private val statusLabel = JLabel("Status: Ready")
-    private val serverListModel = DefaultListModel<ServerConnection>()
+    private val serverListModel = DefaultListModel<Server>()
     private val serverList = ServerList()
 
     // Cache for OS icons
@@ -93,7 +93,7 @@ class ServersPanel(private val project: Project) : JPanel() {
         }
     }
 
-    private fun confirmDelete(server: ServerConnection): Boolean {
+    private fun confirmDelete(server: Server): Boolean {
         return Messages.showYesNoDialog(
             project,
             "Are you sure you want to remove ${server.host}?",
@@ -116,7 +116,7 @@ class ServersPanel(private val project: Project) : JPanel() {
     }
 
     // Custom list that handles button clicks
-    private inner class ServerList : JBList<ServerConnection>() {
+    private inner class ServerList : JBList<Server>() {
         init {
             cellRenderer = ServerListCellRenderer()
             
@@ -159,7 +159,7 @@ class ServersPanel(private val project: Project) : JPanel() {
         }
     }
 
-    private fun createServerPopupMenu(server: ServerConnection): JPopupMenu {
+    private fun createServerPopupMenu(server: Server): JPopupMenu {
         return JPopupMenu().apply {
             val isConnected = connectionService.isConnected(server.host)
             
@@ -219,7 +219,7 @@ class ServersPanel(private val project: Project) : JPanel() {
     }
 
     // Custom cell renderer for server list items
-    private inner class ServerListCellRenderer : JPanel(), ListCellRenderer<ServerConnection> {
+    private inner class ServerListCellRenderer : JPanel(), ListCellRenderer<Server> {
         private val osIconLabel = JLabel()
         private val nameLabel = JLabel()
         private val specsLabel = JLabel()
@@ -241,7 +241,7 @@ class ServersPanel(private val project: Project) : JPanel() {
             isFocusable = false
         }
         
-        private var currentServer: ServerConnection? = null
+        private var currentServer: Server? = null
 
         init {
             layout = BorderLayout(JBUI.scale(10), 0)
@@ -279,8 +279,8 @@ class ServersPanel(private val project: Project) : JPanel() {
         }
 
         override fun getListCellRendererComponent(
-            list: JList<out ServerConnection>,
-            server: ServerConnection,
+            list: JList<out Server>,
+            server: Server,
             index: Int,
             isSelected: Boolean,
             cellHasFocus: Boolean
@@ -331,7 +331,7 @@ class ServersPanel(private val project: Project) : JPanel() {
 
         // Add mock data for demonstration
         val mockServers = listOf(
-            ServerConnection(
+            Server(
                 host = "ubuntu-server-01",
                 username = "admin",
                 port = 22,
@@ -346,7 +346,7 @@ class ServersPanel(private val project: Project) : JPanel() {
                     usedStorage = "456GB"
                 )
             ),
-            ServerConnection(
+            Server(
                 host = "debian-web-server",
                 username = "webadmin",
                 port = 22,
@@ -361,7 +361,7 @@ class ServersPanel(private val project: Project) : JPanel() {
                     usedStorage = "1.2TB"
                 )
             ),
-            ServerConnection(
+            Server(
                 host = "fedora-dev-01",
                 username = "developer",
                 port = 22,
@@ -376,7 +376,7 @@ class ServersPanel(private val project: Project) : JPanel() {
                     usedStorage = "2.8TB"
                 )
             ),
-            ServerConnection(
+            Server(
                 host = "windows-server-2022",
                 username = "administrator",
                 port = 22,
@@ -391,7 +391,7 @@ class ServersPanel(private val project: Project) : JPanel() {
                     usedStorage = "5.6TB"
                 )
             ),
-            ServerConnection(
+            Server(
                 host = "linux-db-server",
                 username = "dbadmin",
                 port = 22,
@@ -418,7 +418,7 @@ class ServersPanel(private val project: Project) : JPanel() {
         serverList.repaint()
     }
 
-    private fun showServerDialog(server: ServerConnection? = null) {
+    private fun showServerDialog(server: Server? = null) {
         val dialog = JDialog()
         dialog.title = "Add Server"
         dialog.modalityType = Dialog.ModalityType.APPLICATION_MODAL

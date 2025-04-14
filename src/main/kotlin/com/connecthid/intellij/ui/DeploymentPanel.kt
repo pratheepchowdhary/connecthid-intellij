@@ -16,7 +16,7 @@ class DeploymentPanel(
     private val project: Project
 ) : JPanel() {
     private val deploymentService = DeploymentService(project)
-    private val connectionService = ServerConnectionService(project)
+    private val connectionService = ServerConnectionService()
     private val hostField = JTextField(20)
     private val appNameField = JTextField(20)
     private val versionField = JTextField(20)

@@ -1,7 +1,7 @@
 package com.connecthid.intellij.ui.servers
 
 import com.connecthid.intellij.PluginBundle
-import com.connecthid.intellij.services.ServerConnection
+import com.connecthid.intellij.models.Server
 import com.connecthid.intellij.utils.makeBold
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.ui.JBMenuItem
@@ -19,7 +19,7 @@ import java.awt.event.MouseEvent
 import javax.swing.JButton
 import javax.swing.JProgressBar
 
-class DevicePanel(device: ServerConnection) : JBPanel<DevicePanel>(GridBagLayout()) {
+class DevicePanel(device: Server) : JBPanel<DevicePanel>(GridBagLayout()) {
 
     var listener: Listener? = null
 
@@ -34,7 +34,7 @@ class DevicePanel(device: ServerConnection) : JBPanel<DevicePanel>(GridBagLayout
     }
 
     init {
-        background = JBColor.RED
+        background = JBColor.background()
 
         minimumSize = Dimension(0, LIST_ITEM_HEIGHT)
         maximumSize = Dimension(Int.MAX_VALUE, LIST_ITEM_HEIGHT)
@@ -58,7 +58,7 @@ class DevicePanel(device: ServerConnection) : JBPanel<DevicePanel>(GridBagLayout
             }
         )
 
-        val titleLabel = JBLabel(device.host)
+        val titleLabel = JBLabel(device.systemInfo.hostName)
         titleLabel.componentStyle = UIUtil.ComponentStyle.LARGE
         titleLabel.makeBold()
         titleLabel.addMouseListener(object : MouseAdapter() {
@@ -74,15 +74,52 @@ class DevicePanel(device: ServerConnection) : JBPanel<DevicePanel>(GridBagLayout
                 gridx = 1
                 gridy = 0
                 gridwidth = 1
+                gridheight = 2
                 fill = GridBagConstraints.BOTH
-                anchor = GridBagConstraints.PAGE_START
+                anchor = GridBagConstraints.CENTER
                 weightx = 1.0
-                insets = JBUI.insetsTop(5)
+                weighty = 1.0
+                insets = JBUI.insetsBottom(20)
+            }
+        )
+        val descriptionLabel = JBLabel(hostDescription())
+        descriptionLabel.componentStyle = UIUtil.ComponentStyle.SMALL
+        descriptionLabel.addMouseListener(hoverListener)
+        add(
+            descriptionLabel,
+            GridBagConstraints().apply {
+                gridx = 1
+                gridy = 1
+                gridwidth = 1
+                gridheight = 2
+                fill = GridBagConstraints.BOTH
+                anchor = GridBagConstraints.CENTER
+                weightx = 1.0
+                weighty = 1.0
+                insets = JBUI.insetsTop(20)
             }
         )
 
+        // show host right side of the description label and title label and verticaly center
 
-
+         val hostLabel = JBLabel(device.host)
+         hostLabel.componentStyle = UIUtil.ComponentStyle.SMALL
+         hostLabel.addMouseListener(hoverListener)
+         add(
+            hostLabel,
+            GridBagConstraints().apply {
+                gridx = 2
+                gridy = 0
+                gridwidth = 1
+                gridheight = 2
+                fill = GridBagConstraints.VERTICAL
+                anchor = GridBagConstraints.CENTER
+                weightx = 0.0
+                weighty = 1.0
+                insets = JBUI.insets(0, 10, 0, 0)
+            }
+        )   
+        
 
 
         if (device.isInProgress) {
@@ -94,7 +131,7 @@ class DevicePanel(device: ServerConnection) : JBPanel<DevicePanel>(GridBagLayout
             add(
                 progressBar,
                 GridBagConstraints().apply {
-                    gridx = 2
+                    gridx = 3
                     gridy = 0
                     gridwidth = 1
                     gridheight = 2
@@ -120,7 +157,7 @@ class DevicePanel(device: ServerConnection) : JBPanel<DevicePanel>(GridBagLayout
             add(
                 consoleButton,
                 GridBagConstraints().apply {
-                    gridx = 2
+                    gridx = 3
                     gridy = 0
                     gridwidth = 1
                     gridheight = 2
@@ -144,7 +181,7 @@ class DevicePanel(device: ServerConnection) : JBPanel<DevicePanel>(GridBagLayout
         add(
             moreButton,
             GridBagConstraints().apply {
-                gridx = 3
+                gridx = 4
                 gridy = 0
                 gridwidth = 1
                 gridheight = 2
@@ -154,13 +191,24 @@ class DevicePanel(device: ServerConnection) : JBPanel<DevicePanel>(GridBagLayout
                 anchor = GridBagConstraints.CENTER
             }
         )
+        moreButton.addMouseListener(object : MouseAdapter() {
+            override fun mouseClicked(e: MouseEvent) {
+                if (e.clickCount == 1) {
+                    openDeviceMenu(device, e)
+                }
+            }
+        })
 
 
 
         addMouseListener(hoverListener)
     }
 
-    private fun openDeviceMenu(device: ServerConnection, event: MouseEvent) {
+    private fun hostDescription(): String{
+        return  "512 MB / 10 GB Disk / SGP1 - Ubuntu 24.10 x64\n"
+    }
+
+    private fun openDeviceMenu(device: Server, event: MouseEvent) {
         val menu = JBPopupMenu()
 
         val editDevice = JBMenuItem(PluginBundle.message("edit"), AllIcons.Actions.Edit)
@@ -193,11 +241,11 @@ class DevicePanel(device: ServerConnection) : JBPanel<DevicePanel>(GridBagLayout
     }
 
     interface Listener {
-        fun onConnectButtonClicked(device: ServerConnection)
-        fun onDisconnectButtonClicked(device: ServerConnection)
-        fun onOpenConsoleButtonClicked(device: ServerConnection)
-        fun onRemoveDeviceClicked(device: ServerConnection)
-        fun onEditDeviceClicked(device: ServerConnection)
+        fun onConnectButtonClicked(device: Server)
+        fun onDisconnectButtonClicked(device: Server)
+        fun onOpenConsoleButtonClicked(device: Server)
+        fun onRemoveDeviceClicked(device: Server)
+        fun onEditDeviceClicked(device: Server)
     }
 
     private companion object {

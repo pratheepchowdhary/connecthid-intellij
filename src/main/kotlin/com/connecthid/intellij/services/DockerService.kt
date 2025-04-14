@@ -16,7 +16,7 @@ import java.util.concurrent.ConcurrentHashMap
 @Service(Service.Level.PROJECT)
 class DockerService(private val project: Project) {
     private val dockerClients = ConcurrentHashMap<String, DockerClient>()
-    private val connectionService = ServerConnectionService(project)
+    private val connectionService = ServerConnectionService()
 
     data class ContainerInfo(
         val id: String,

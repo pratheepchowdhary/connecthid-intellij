@@ -1,6 +1,7 @@
 package com.connecthid.intellij
 
 import com.connecthid.intellij.services.ConnectHidServiceImpl
+import com.connecthid.intellij.services.ServerConnectionService
 import com.connecthid.intellij.ui.FileSyncPanel
 import com.connecthid.intellij.ui.ScriptPanel
 import com.connecthid.intellij.ui.servers.ServerListPanel
@@ -11,6 +12,7 @@ import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.ui.components.JBTabbedPane
 import com.intellij.ui.content.ContentFactory
 val service by lazy { ApplicationManager.getApplication().getService(ConnectHidServiceImpl::class.java) }
+val sshService by lazy { ApplicationManager.getApplication().getService(ServerConnectionService::class.java) }
 class ConnectHIDPlugin : ToolWindowFactory {
 
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
@@ -28,3 +30,6 @@ class ConnectHIDPlugin : ToolWindowFactory {
     }
 }
 fun Project.getAppService(): ConnectHidServiceImpl = service
+fun Project.getSSHService(): ServerConnectionService = sshService
+
+

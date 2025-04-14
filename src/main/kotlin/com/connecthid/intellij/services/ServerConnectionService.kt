@@ -1,6 +1,8 @@
 package com.connecthid.intellij.services
 
-import com.connecthid.intellij.utils.toIcon
+import com.connecthid.intellij.models.AuthenticationMethod
+import com.connecthid.intellij.models.Server
+import com.connecthid.intellij.models.SystemInfo
 import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.State
 import com.intellij.openapi.components.Storage
@@ -8,38 +10,10 @@ import com.jcraft.jsch.Session
 import java.io.IOException
 import java.net.Socket
 import java.util.concurrent.ConcurrentHashMap
-import javax.swing.Icon
 
-enum class AuthenticationMethod(val type: String ) {
-    PASSWORD("Password"),
-    PRIVATE_KEY("Private Key");
-}
-
-data class SystemInfo(
-    val osName: String = "",
-    val osVersion: String = "",
-    val cpuType: String = "",
-    val totalRam: String = "",
-    val usedRam: String = "",
-    val totalStorage: String = "",
-    val usedStorage: String = "",
-    val hostName: String = ""
-)
-
-data class ServerConnection(
-    val host: String,
-    val username: String,
-    val port: Int = 22,
-    val authMethod: AuthenticationMethod = AuthenticationMethod.PASSWORD,
-    val privateKeyPath: String? = null,
-    var systemInfo: SystemInfo = SystemInfo(),
-    var isInProgress: Boolean=false,
-    var icon: Icon = systemInfo.osName.toIcon(),
-    var buttonType: Int=1
-)
 
 data class ServerConnectionState(
-    var connections: MutableList<ServerConnection> = mutableListOf()
+    var connections: MutableList<Server> = mutableListOf()
 )
 
 @State(name = "ServerConnectionService", storages = [Storage("server-connections.xml")])
@@ -61,13 +35,13 @@ class ServerConnectionService() : PersistentStateComponent<ServerConnectionState
         privateKeyPath: String? = null
     ) {
         if (!state.connections.any { it.host == host }) {
-            val connection = ServerConnection(host, username, port, authMethod, privateKeyPath)
+            val connection = Server(host=host, username=username, port=port, authMethod=authMethod, privateKeyPath=privateKeyPath)
             state.connections.add(connection)
             updateSystemInfo(connection)
         }
     }
 
-    private fun updateSystemInfo(server: ServerConnection) {
+    private fun updateSystemInfo(server: Server) {
         val sshConnection = connections[server.host] ?: return
         try {
             // Get OS information
@@ -103,22 +77,24 @@ class ServerConnectionService() : PersistentStateComponent<ServerConnectionState
                 totalStorage = totalStorage,
                 usedStorage = usedStorage
             )
-
             // Find and update the connection in state
             val index = state.connections.indexOfFirst { it.host == server.host }
             if (index != -1) {
                 state.connections[index] = server.copy(systemInfo = systemInfo)
             }
         } catch (e: Exception) {
+            e.printStackTrace()
             // Handle error silently - system info will remain empty
         }
     }
 
     fun removeServerConnection(host: String) {
         state.connections.removeIf { it.host == host }
+        // Trigger state change to ensure persistence
+        state = state.copy(connections = state.connections.toMutableList())
     }
 
-    fun getSavedConnections(): List<ServerConnection> {
+    fun getSavedConnections(): List<Server> {
         return state.connections.toList()
     }
     fun isValidSshConnection(

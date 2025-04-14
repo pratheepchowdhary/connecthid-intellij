@@ -15,7 +15,7 @@ import javax.swing.JOptionPane
 class ConnectServerAction : AnAction() {
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
-        val connectionService = ServerConnectionService(project)
+        val connectionService = ServerConnectionService()
 
         val panel = JPanel(GridBagLayout())
         val gbc = GridBagConstraints()

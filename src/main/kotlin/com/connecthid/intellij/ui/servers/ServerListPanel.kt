@@ -1,9 +1,9 @@
 package com.connecthid.intellij.ui.servers
 
-import com.connecthid.intellij.getAppService
-import com.connecthid.intellij.services.AuthenticationMethod
-import com.connecthid.intellij.services.ServerConnection
-import com.connecthid.intellij.services.SystemInfo
+import com.connecthid.intellij.getSSHService
+import com.connecthid.intellij.models.AuthenticationMethod
+import com.connecthid.intellij.models.Server
+import com.connecthid.intellij.models.SystemInfo
 import com.connecthid.intellij.ui.dialog.AddServerDialog
 import com.connecthid.intellij.utils.removeI
 import com.intellij.icons.AllIcons
@@ -22,8 +22,8 @@ import javax.swing.JButton
 import javax.swing.JPanel
 
 class ServerListPanel internal constructor(val project: Project): JBPanel<ServerListPanel>(), DevicePanel.Listener  {
-    private val connectionService = project.getAppService().getServerConnectionService()
-    var devices: MutableList<ServerConnection> = emptyList<ServerConnection>().toMutableList()
+    private val connectionService = project.getSSHService()
+    var devices: MutableList<Server> = emptyList<Server>().toMutableList()
         set(value) {
             field = value
             rebuildUi()
@@ -76,9 +76,19 @@ class ServerListPanel internal constructor(val project: Project): JBPanel<Server
            icon = AllIcons.General.Add
         }
         newConnectionButton!!.addActionListener {
-            val addServerDialog = AddServerDialog(project = project)
+            val addServerDialog =  AddServerDialog(project = project)
+            addServerDialog.window.addWindowListener(object : java.awt.event.WindowAdapter() {
+                override fun windowClosed(e: java.awt.event.WindowEvent?) {
+                    updateServerList()
+                }
+                override fun windowClosing(e: java.awt.event.WindowEvent?) {
+
+                }
+            })
             addServerDialog.show()
         }
+
+
         header.add(
             newConnectionButton!!,
             GridBagConstraints().apply {
@@ -96,33 +106,34 @@ class ServerListPanel internal constructor(val project: Project): JBPanel<Server
 
     }
 
-    override fun onConnectButtonClicked(device: ServerConnection) {
+    override fun onConnectButtonClicked(device: Server) {
         TODO("Not yet implemented")
     }
 
-    override fun onDisconnectButtonClicked(device: ServerConnection) {
+    override fun onDisconnectButtonClicked(device: Server) {
         TODO("Not yet implemented")
     }
 
-    override fun onOpenConsoleButtonClicked(device: ServerConnection) {
+    override fun onOpenConsoleButtonClicked(device: Server) {
         TODO("Not yet implemented")
     }
 
-    override fun onRemoveDeviceClicked(device: ServerConnection) {
+    override fun onRemoveDeviceClicked(device: Server) {
         TODO("Not yet implemented")
     }
 
-    override fun onEditDeviceClicked(device: ServerConnection) {
+    override fun onEditDeviceClicked(device: Server) {
         TODO("Not yet implemented")
     }
 
     private fun updateServerList() {
-        var  devices: MutableList<ServerConnection> = connectionService.getSavedConnections().toMutableList()
+
+        var  devices: MutableList<Server> = connectionService.getSavedConnections().toMutableList()
 
 
         // Add mock data for demonstration
         val mockServers = listOf(
-            ServerConnection(
+            Server(
                 host = "ubuntu-server-01",
                 username = "admin",
                 port = 22,
@@ -138,7 +149,7 @@ class ServerListPanel internal constructor(val project: Project): JBPanel<Server
                     hostName = "ubuntu-s-1vcpu-512mb-10gb-sgp1-01"
                 )
             ),
-            ServerConnection(
+            Server(
                 host = "debian-web-server",
                 username = "webadmin",
                 port = 22,
@@ -154,7 +165,7 @@ class ServerListPanel internal constructor(val project: Project): JBPanel<Server
                     hostName = "debian-s-1vcpu-2gb-20gb-fra1-01"
                 )
             ),
-            ServerConnection(
+            Server(
                 host = "fedora-dev-01",
                 username = "developer",
                 port = 22,
@@ -170,7 +181,7 @@ class ServerListPanel internal constructor(val project: Project): JBPanel<Server
                     hostName = "fedora-s-2vcpu-16gb-40gb-fra1-01"
                 )
             ),
-            ServerConnection(
+            Server(
                 host = "windows-server-2022",
                 username = "administrator",
                 port = 22,
@@ -186,7 +197,7 @@ class ServerListPanel internal constructor(val project: Project): JBPanel<Server
                     hostName = "windows-s-2vcpu-16gb-40gb-fra1-01"
                 )
             ),
-            ServerConnection(
+            Server(
                 host = "linux-db-server",
                 username = "dbadmin",
                 port = 22,
@@ -206,7 +217,7 @@ class ServerListPanel internal constructor(val project: Project): JBPanel<Server
 
         // Add mock servers if no real connections exist
         if (devices.isEmpty()) {
-            devices.addAll(mockServers)
+            //devices.addAll(mockServers)
         }
         this.devices = devices
     }

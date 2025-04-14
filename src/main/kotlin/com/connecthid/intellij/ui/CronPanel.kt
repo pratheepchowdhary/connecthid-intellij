@@ -14,7 +14,7 @@ import java.awt.event.ActionListener
 
 class CronPanel(private val project: Project) : JPanel() {
     private val cronService = CronService(project)
-    private val connectionService = ServerConnectionService(project)
+    private val connectionService = ServerConnectionService()
     private val hostField = JTextField(20)
     private val scheduleField = JTextField(20)
     private val commandField = JTextField(40)

@@ -1,10 +1,10 @@
 package com.connecthid.intellij.ui.dialog
 
 import com.connecthid.intellij.PluginBundle
-import com.connecthid.intellij.getAppService
-import com.connecthid.intellij.services.AuthenticationMethod
-import com.connecthid.intellij.services.ServerConnection
-import com.connecthid.intellij.services.SystemInfo
+import com.connecthid.intellij.getSSHService
+import com.connecthid.intellij.models.AuthenticationMethod
+import com.connecthid.intellij.models.Server
+import com.connecthid.intellij.models.SystemInfo
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.fileChooser.FileChooserDescriptor
 import com.intellij.openapi.observable.properties.PropertyGraph
@@ -26,7 +26,7 @@ import javax.swing.*
 
 
 @ApiStatus.Experimental
-class AddServerDialog(val project: Project, host: String? = null, username: String = "root", password: String? = null, port: Int = 22, privateKeyPath: String? = null) : DialogWrapper(true) {
+open class AddServerDialog(val project: Project, host: String? = null, username: String = "root", password: String? = null, port: Int = 22, privateKeyPath: String? = null) : DialogWrapper(true) {
     val propertyGraph = PropertyGraph()
     private val selectedHost = propertyGraph.property(host ?: "")
     private val selectedUsername = propertyGraph.property(username)
@@ -42,8 +42,7 @@ class AddServerDialog(val project: Project, host: String? = null, username: Stri
     val fileDescriptor = FileChooserDescriptor(true, false, false, false, false, false)
         .withFileFilter { file -> file.extension in listOf("pem", "ppk", "rsa") }
 
-
-    val serverConnection = project.getAppService()
+    val sshConnection =project.getSSHService()
 
     init {
         title = "Add Server"
@@ -130,7 +129,7 @@ class AddServerDialog(val project: Project, host: String? = null, username: Stri
     }
     private fun testConnection() {
         val result = runWithModalProgressBlocking(project = project, title = "Testing Connection") {
-            return@runWithModalProgressBlocking serverConnection.getServerConnectionService().isValidSshConnection(
+            return@runWithModalProgressBlocking sshConnection.isValidSshConnection(
                 host = selectedHost.get(),
                 username = selectedUsername.get(),
                 port = selectedPort.get().toInt(),
@@ -155,7 +154,7 @@ class AddServerDialog(val project: Project, host: String? = null, username: Stri
 
     override fun doOKAction() {
         val result = runWithModalProgressBlocking(project = project, title = "Connecting to Server") {
-            return@runWithModalProgressBlocking serverConnection.getServerConnectionService().connect(
+            return@runWithModalProgressBlocking sshConnection.connect(
                 host = selectedHost.get(),
                 username = selectedUsername.get(),
                 port = selectedPort.get().toInt(),
@@ -178,8 +177,8 @@ class AddServerDialog(val project: Project, host: String? = null, username: Stri
        super.doCancelAction()
     }
 
-    fun getServerConnection(): ServerConnection {
-        return ServerConnection(
+    fun getServerConnection(): Server {
+        return Server(
             host = selectedHost.get(),
             username = selectedUsername.get(),
             port = selectedPort.get().toInt(),

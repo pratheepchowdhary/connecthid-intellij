@@ -13,7 +13,7 @@ import java.util.concurrent.ConcurrentHashMap
 
 @Service(Service.Level.PROJECT)
 class MonitoringService(private val project: Project) {
-    private val connectionService = ServerConnectionService(project)
+    private val connectionService = ServerConnectionService()
     private val meterRegistries = ConcurrentHashMap<String, MeterRegistry>()
     private val monitoringStatus = ConcurrentHashMap<String, Boolean>()
 

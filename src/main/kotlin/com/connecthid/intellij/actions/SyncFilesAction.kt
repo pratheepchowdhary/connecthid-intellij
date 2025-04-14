@@ -21,7 +21,7 @@ class SyncFilesAction : AnAction() {
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
         val syncService = FileSyncService(project)
-        val connectionService = ServerConnectionService(project)
+        val connectionService = ServerConnectionService()
 
         val panel = JPanel(GridBagLayout())
         val gbc = GridBagConstraints()

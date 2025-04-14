@@ -14,7 +14,7 @@ import java.awt.event.ActionListener
 
 class DatabasePanel(private val project: Project) : JPanel() {
     private val databaseService = DatabaseService(project)
-    private val connectionService = ServerConnectionService(project)
+    private val connectionService = ServerConnectionService()
     private val hostField = JTextField(20)
     private val dbTypeCombo = JComboBox(arrayOf("MySQL", "PostgreSQL", "MongoDB"))
     private val dbNameField = JTextField(20)
