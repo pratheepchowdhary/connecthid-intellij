@@ -43,6 +43,7 @@
     <applicationService
             serviceImplementation="com.connecthid.intellij.services.ServerConnectionService"/>
     <toolWindow id="Connect HID" icon="AllIcons.RunConfigurations.Remote" anchor="right" factoryClass="com.connecthid.intellij.ConnectHIDPlugin"/>
+    <toolWindow id="Tools Menu" icon="AllIcons.General.GearPlain" anchor="right" factoryClass="com.connecthid.intellij.SSHToolsWindowFactory"/>
     <notificationGroup
             id="notification.groupId.connecthid"
             displayType="BALLOON" />
