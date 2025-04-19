@@ -7,10 +7,11 @@ import com.connecthid.intellij.ui.ScriptPanel
 import com.connecthid.intellij.ui.servers.ServerListPanel
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.wm.ToolWindow
-import com.intellij.openapi.wm.ToolWindowFactory
+import com.intellij.openapi.wm.*
 import com.intellij.ui.components.JBTabbedPane
 import com.intellij.ui.content.ContentFactory
+import javax.swing.JComponent
+
 val service by lazy { ApplicationManager.getApplication().getService(ConnectHidServiceImpl::class.java) }
 val sshService by lazy { ApplicationManager.getApplication().getService(ServerConnectionService::class.java) }
 class ConnectHIDPlugin : ToolWindowFactory {
@@ -32,5 +33,25 @@ class ConnectHIDPlugin : ToolWindowFactory {
 }
 fun Project.getAppService(): ConnectHidServiceImpl = service
 fun Project.getSSHService(): ServerConnectionService = sshService
+fun Project.addWindow(component: JComponent){
+    val manager = ToolWindowManager.getInstance(this)
+    if (manager.getToolWindow(component.javaClass.name) == null) {
+        val toolWindow = manager.registerToolWindow(
+            RegisterToolWindowTask(
+                id = component.javaClass.name, anchor = ToolWindowAnchor.RIGHT, canCloseContent = true
+            )
+        )
+        val contentFactory = ContentFactory.getInstance()
+        val content = contentFactory.createContent(component, "", false)
+        toolWindow.contentManager.addContent(content)
+        toolWindow.show()
+    }
+
+}
+fun Project.remove(component: JComponent){
+    val manager = ToolWindowManager.getInstance(this)
+    manager.unregisterToolWindow(component.javaClass.name)
+
+}
 
 

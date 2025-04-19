@@ -47,11 +47,6 @@
             id="notification.groupId.connecthid"
             displayType="BALLOON" />
 
-    <toolWindow id="Connect HID Tools" icon="AllIcons.RunConfigurations.RemoteDebug" anchor="right" factoryClass="com.connecthid.intellij.ConnectHIDPlugin"/>
-
-
-
-
   </extensions>
 
   <actions>
@@ -60,7 +55,7 @@
             class="com.connecthid.intellij.actions.ToolsMenuAction"
             text="Tools Menu"
             description="Show tools menu"
-            icon="AllIcons.General.GearPlain">
+            icon="AllIcons.RunConfigurations.RemoteDebug">
       <add-to-group group-id="MainToolbarRight" anchor="last"/>
     </action>
   </actions>

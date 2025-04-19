@@ -7,6 +7,7 @@ import com.connecthid.intellij.ui.menu.MenuItemRenderer
 import com.connecthid.intellij.utils.makeBol
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.ui.popup.JBPopupFactory
+import com.intellij.openapi.ui.popup.PopupChooserBuilder
 import com.intellij.ui.Gray
 import com.intellij.ui.JBColor
 import com.intellij.ui.awt.RelativePoint
@@ -15,7 +16,6 @@ import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBPanel
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
-import java.awt.Color
 import java.awt.Dimension
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
@@ -26,7 +26,7 @@ import javax.swing.JButton
 import javax.swing.JProgressBar
 
 
-class DevicePanel(val device: Server) : JBPanel<DevicePanel>(GridBagLayout()) {
+class ServerItem(val device: Server) : JBPanel<ServerItem>(GridBagLayout()) {
 
     var listener: Listener? = null
 
@@ -232,11 +232,28 @@ class DevicePanel(val device: Server) : JBPanel<DevicePanel>(GridBagLayout()) {
         list.setBackground(Gray._243)
         list.setBorder(null)
 
-        val popup = JBPopupFactory.getInstance()
-            .createListPopupBuilder<MenuItem?>(list)
+
+        val popup = PopupChooserBuilder(list)
             .setRequestFocus(true)
             .createPopup()
-        popup.show(RelativePoint(event.component, event.point))
+        listener?.onConnectButtonClicked(device)
+      //  popup.show(RelativePoint(event.component, event.point))
+
+        list.addMouseListener(object : MouseAdapter() {
+            override fun mouseClicked(e: MouseEvent) {
+                if (e.clickCount == 2) {
+                    val selectedItem = list.selectedValue
+                    if (selectedItem != null) {
+                        // Handle selection
+                        println("Selected: ${selectedItem.text}")
+                        listener?.onConnectButtonClicked(device)
+                        popup.cancel()
+
+
+                    }
+                }
+            }
+        })
     }
 
     interface Listener {

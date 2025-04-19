@@ -9,6 +9,7 @@ import com.connecthid.intellij.utils.removeI
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.project.Project
 import com.connecthid.intellij.terminal.SshTerminalUtils
+import com.connecthid.intellij.ui.filemanager.openSFTP
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPanel
@@ -22,7 +23,7 @@ import javax.swing.BoxLayout
 import javax.swing.JButton
 import javax.swing.JPanel
 
-class ServerListPanel internal constructor(val project: Project): JBPanel<ServerListPanel>(), DevicePanel.Listener  {
+class ServerListPanel internal constructor(val project: Project): JBPanel<ServerListPanel>(), ServerItem.Listener  {
     private val connectionService = project.getSSHService()
     var devices: MutableList<Server> = emptyList<Server>().toMutableList()
         set(value) {
@@ -46,9 +47,9 @@ class ServerListPanel internal constructor(val project: Project): JBPanel<Server
         headerLabel?.text = "$title (${devices.size})"
 
 
-        removeI { child -> child is DevicePanel }
+        removeI { child -> child is ServerItem }
         for (device in devices) {
-            val devicePanel = DevicePanel(device)
+            val devicePanel = ServerItem(device)
             devicePanel.listener = this
             add(devicePanel)
         }
@@ -108,7 +109,7 @@ class ServerListPanel internal constructor(val project: Project): JBPanel<Server
     }
 
     override fun onConnectButtonClicked(device: Server) {
-        TODO("Not yet implemented")
+        project.openSFTP(device)
     }
 
     override fun onDisconnectButtonClicked(device: Server) {
@@ -117,9 +118,7 @@ class ServerListPanel internal constructor(val project: Project): JBPanel<Server
 
     override fun onOpenConsoleButtonClicked(device: Server) {
         // open terminal in side intellij ide  with ssh connection using TerminalWidget
-        //SshTerminalUtils.executeInTerminal(project, "ssh ${device.username}@${device.host}",device.systemInfo.hostName)
         SshTerminalUtils.openSshSession(project,device.host,device.username,"aA1pradeep",device.privateKeyPath,device.port)
-
         
     }
 
