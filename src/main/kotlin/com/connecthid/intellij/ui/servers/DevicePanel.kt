@@ -19,7 +19,8 @@ import java.awt.event.MouseEvent
 import javax.swing.JButton
 import javax.swing.JProgressBar
 
-class DevicePanel(device: Server) : JBPanel<DevicePanel>(GridBagLayout()) {
+
+class DevicePanel(val device: Server) : JBPanel<DevicePanel>(GridBagLayout()) {
 
     var listener: Listener? = null
 
@@ -150,10 +151,13 @@ class DevicePanel(device: Server) : JBPanel<DevicePanel>(GridBagLayout()) {
                 isFocusable = false
                 setContentAreaFilled(false)
             }
-            consoleButton.addActionListener {
-
-            }
-            consoleButton.addMouseListener(hoverListener)
+            
+            consoleButton.addMouseListener(object : MouseAdapter() {
+                override fun mouseClicked(e: MouseEvent) {
+                    // open terminal in side intellij ide  with ssh connection
+                    listener?.onOpenConsoleButtonClicked(device)
+                }
+            })
             add(
                 consoleButton,
                 GridBagConstraints().apply {
@@ -205,7 +209,9 @@ class DevicePanel(device: Server) : JBPanel<DevicePanel>(GridBagLayout()) {
     }
 
     private fun hostDescription(): String{
-        return  "512 MB / 10 GB Disk / SGP1 - Ubuntu 24.10 x64\n"
+
+        //need this formate  512 MB Memory / 10 GB Disk / SGP1 - Ubuntu 24.10 x64
+        return "${device.systemInfo.totalRam} / ${device.systemInfo.totalStorage} - ${device.systemInfo.osName} ${device.systemInfo.osVersion} ${device.systemInfo.architecture}"
     }
 
     private fun openDeviceMenu(device: Server, event: MouseEvent) {

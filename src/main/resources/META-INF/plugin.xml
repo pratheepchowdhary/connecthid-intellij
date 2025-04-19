@@ -30,10 +30,10 @@
        Read more: https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->
   <depends>com.intellij.modules.platform</depends>
   <depends>com.intellij.modules.lang</depends>
+  <depends>org.jetbrains.plugins.terminal</depends>
 <!--  <depends>com.intellij.modules.remote</depends>-->
 <!--  <depends>com.intellij.modules.docker</depends>-->
 <!--  <depends>com.intellij.modules.database</depends>-->
-<!--  <depends>com.intellij.terminal</depends>-->
 
   <!-- Extension points defined by the plugin.
        Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->

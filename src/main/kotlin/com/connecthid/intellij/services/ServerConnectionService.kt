@@ -50,10 +50,14 @@ class ServerConnectionService() : PersistentStateComponent<ServerConnectionState
                     val parts = line.split("=")
                     if (parts.size == 2) parts[0] to parts[1].trim('"') else "" to ""
                 }
+             
+             val hostName = sshConnection.execute("hostname")
+            
             
             // Get CPU information
             val cpuInfo = sshConnection.execute("cat /proc/cpuinfo | grep 'model name' | head -n1")
                 .substringAfter(":").trim()
+           val architecture = sshConnection.execute("uname -m")
 
             // Get RAM information
             val memInfo = sshConnection.execute("free -h").split("\n")[1]
@@ -72,10 +76,12 @@ class ServerConnectionService() : PersistentStateComponent<ServerConnectionState
                 osName = osInfo["NAME"] ?: "",
                 osVersion = osInfo["VERSION_ID"] ?: "",
                 cpuType = cpuInfo,
+                architecture = architecture,
                 totalRam = totalRam,
                 usedRam = usedRam,
                 totalStorage = totalStorage,
-                usedStorage = usedStorage
+                usedStorage = usedStorage,
+                hostName = hostName ?: ""
             )
             // Find and update the connection in state
             val index = state.connections.indexOfFirst { it.host == server.host }

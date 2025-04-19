@@ -8,6 +8,7 @@ import com.connecthid.intellij.ui.dialog.AddServerDialog
 import com.connecthid.intellij.utils.removeI
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.project.Project
+import com.connecthid.intellij.terminal.SshTerminalUtils
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPanel
@@ -115,7 +116,11 @@ class ServerListPanel internal constructor(val project: Project): JBPanel<Server
     }
 
     override fun onOpenConsoleButtonClicked(device: Server) {
-        TODO("Not yet implemented")
+        // open terminal in side intellij ide  with ssh connection using TerminalWidget
+        //SshTerminalUtils.executeInTerminal(project, "ssh ${device.username}@${device.host}",device.systemInfo.hostName)
+        SshTerminalUtils.openSshSession(project,device.host,device.username,"aA1pradeep",device.privateKeyPath,device.port)
+
+        
     }
 
     override fun onRemoveDeviceClicked(device: Server) {
@@ -220,6 +225,10 @@ class ServerListPanel internal constructor(val project: Project): JBPanel<Server
             //devices.addAll(mockServers)
         }
         this.devices = devices
+    }
+
+    fun createTerminal(){
+
     }
 
 

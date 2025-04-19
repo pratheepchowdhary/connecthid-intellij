@@ -6,6 +6,7 @@ data class SystemInfo(
     val osName: String = "",
     val osVersion: String = "",
     val cpuType: String = "",
+    val architecture: String = "",
     val totalRam: String = "",
     val usedRam: String = "",
     val totalStorage: String = "",

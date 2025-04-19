@@ -10,6 +10,7 @@ repositories {
   mavenCentral()
   intellijPlatform {
     defaultRepositories()
+
   }
 }
 kotlin {
@@ -33,6 +34,7 @@ dependencies {
 
   intellijPlatform {
     intellijIdeaCommunity("2024.2")
+    bundledPlugin("org.jetbrains.plugins.terminal")
   }
 }
 
