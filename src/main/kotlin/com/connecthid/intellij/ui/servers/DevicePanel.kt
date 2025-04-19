@@ -2,20 +2,26 @@ package com.connecthid.intellij.ui.servers
 
 import com.connecthid.intellij.PluginBundle
 import com.connecthid.intellij.models.Server
-import com.connecthid.intellij.utils.makeBold
+import com.connecthid.intellij.ui.menu.MenuItem
+import com.connecthid.intellij.ui.menu.MenuItemRenderer
+import com.connecthid.intellij.utils.makeBol
 import com.intellij.icons.AllIcons
-import com.intellij.openapi.ui.JBMenuItem
-import com.intellij.openapi.ui.JBPopupMenu
+import com.intellij.openapi.ui.popup.JBPopupFactory
+import com.intellij.ui.Gray
 import com.intellij.ui.JBColor
+import com.intellij.ui.awt.RelativePoint
 import com.intellij.ui.components.JBLabel
+import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBPanel
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
+import java.awt.Color
 import java.awt.Dimension
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
+import javax.swing.DefaultListModel
 import javax.swing.JButton
 import javax.swing.JProgressBar
 
@@ -61,7 +67,7 @@ class DevicePanel(val device: Server) : JBPanel<DevicePanel>(GridBagLayout()) {
 
         val titleLabel = JBLabel(device.systemInfo.hostName)
         titleLabel.componentStyle = UIUtil.ComponentStyle.LARGE
-        titleLabel.makeBold()
+        titleLabel.makeBol()
         titleLabel.addMouseListener(object : MouseAdapter() {
             override fun mouseClicked(e: MouseEvent) {
                 if (e.clickCount == 2) {
@@ -215,35 +221,22 @@ class DevicePanel(val device: Server) : JBPanel<DevicePanel>(GridBagLayout()) {
     }
 
     private fun openDeviceMenu(device: Server, event: MouseEvent) {
-        val menu = JBPopupMenu()
+        val menus = DefaultListModel<MenuItem>()
+        menus.addElement(MenuItem(PluginBundle.message("edit"), AllIcons.Actions.Edit))
+        menus.addElement(MenuItem(PluginBundle.message("connect"), AllIcons.Actions.Copy))
+        menus.addElement(MenuItem(PluginBundle.message("disconnect"), AllIcons.Actions.Copy))
+        menus.addElement(MenuItem(PluginBundle.message("delete"), AllIcons.Actions.Copy))
 
-        val editDevice = JBMenuItem(PluginBundle.message("edit"), AllIcons.Actions.Edit)
-        editDevice.addActionListener {
-            listener?.onEditDeviceClicked(device)
-        }
-        menu.add(editDevice)
+        val list: JBList<MenuItem> = JBList<MenuItem>(menus)
+        list.setCellRenderer(MenuItemRenderer())
+        list.setBackground(Gray._243)
+        list.setBorder(null)
 
-        val connectDevice = JBMenuItem(PluginBundle.message("connect"), AllIcons.Actions.Copy)
-        connectDevice.addActionListener {
-            listener?.onConnectButtonClicked(device)
-        }
-        menu.add(connectDevice)
-
-        val disconnectDeviceItem = JBMenuItem(PluginBundle.message("disconnect"), AllIcons.Actions.Copy)
-        disconnectDeviceItem.addActionListener {
-            listener?.onDisconnectButtonClicked(device)
-        }
-        menu.add(disconnectDeviceItem)
-
-        val deleteDeviceItem = JBMenuItem(PluginBundle.message("delete"), AllIcons.Actions.Copy)
-        deleteDeviceItem.addActionListener {
-            listener?.onDisconnectButtonClicked(device)
-        }
-        menu.add(disconnectDeviceItem)
-
-
-
-        menu.show(event.component, event.x, event.y)
+        val popup = JBPopupFactory.getInstance()
+            .createListPopupBuilder<MenuItem?>(list)
+            .setRequestFocus(true)
+            .createPopup()
+        popup.show(RelativePoint(event.component, event.point))
     }
 
     interface Listener {

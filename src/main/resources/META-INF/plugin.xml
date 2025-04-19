@@ -43,32 +43,26 @@
     <applicationService
             serviceImplementation="com.connecthid.intellij.services.ServerConnectionService"/>
     <toolWindow id="Connect HID" icon="AllIcons.RunConfigurations.Remote" anchor="right" factoryClass="com.connecthid.intellij.ConnectHIDPlugin"/>
-    <toolWindow id="Tools Menu" icon="AllIcons.General.GearPlain" anchor="right" factoryClass="com.connecthid.intellij.SSHToolsWindowFactory"/>
     <notificationGroup
             id="notification.groupId.connecthid"
             displayType="BALLOON" />
+
+    <toolWindow id="Connect HID Tools" icon="AllIcons.RunConfigurations.RemoteDebug" anchor="right" factoryClass="com.connecthid.intellij.ConnectHIDPlugin"/>
+
+
+
+
   </extensions>
 
   <actions>
-    <group id="ConnectHID.MainMenu" text="ConnectHID" description="ConnectHID menu">
-      <add-to-group group-id="ToolsMenu" anchor="last"/>
-      <action id="ConnectHID.ShowToolWindow" class="com.connecthid.intellij.actions.ShowToolWindowAction" text="Show ASOP Tools" description="Show ASOP Tools window"/>
-      <action id="ConnectHID.ConnectServer" class="com.connecthid.intellij.actions.ConnectServerAction" text="Connect to Server" description="Connect to a remote server"/>
-      <action id="ConnectHID.SyncFiles" class="com.connecthid.intellij.actions.SyncFilesAction" text="Sync Files" description="Synchronize files with remote server"/>
-      <action id="ConnectHID.OpenTerminal" class="com.connecthid.intellij.actions.OpenTerminalAction" text="Open Terminal" description="Open SSH terminal to server"/>
-      <separator/>
-      <action id="ConnectHID.ManageDocker" class="com.connecthid.intellij.actions.ManageDockerAction" text="Manage Docker" description="Manage Docker containers and images"/>
-      <action id="ConnectHID.MonitorServer" class="com.connecthid.intellij.actions.MonitorServerAction" text="Monitor Server" description="Monitor server metrics and performance"/>
-      <action id="ConnectHID.ManageScripts" class="com.connecthid.intellij.actions.ManageScriptsAction" text="Manage Scripts" description="Manage server scripts"/>
-      <action id="ConnectHID.ManageCron" class="com.connecthid.intellij.actions.ManageCronAction" text="Manage Cron Jobs" description="Manage cron jobs"/>
-      <action id="ConnectHID.ManageDatabase" class="com.connecthid.intellij.actions.ManageDatabaseAction" text="Manage Database" description="Manage databases"/>
-      <action id="ConnectHID.DeployApplication" class="com.connecthid.intellij.actions.DeployApplicationAction" text="Deploy Application" description="Deploy applications to server"/>
-    </group>
+    <!-- Add the tools menu action button -->
+    <action id="com.connecthid.intellij.actions.ToolsMenuAction"
+            class="com.connecthid.intellij.actions.ToolsMenuAction"
+            text="Tools Menu"
+            description="Show tools menu"
+            icon="AllIcons.General.GearPlain">
+      <add-to-group group-id="MainToolbarRight" anchor="last"/>
+    </action>
   </actions>
 
-  <application-components>
-    <component>
-      <implementation-class>com.connecthid.intellij.ConnectHIDPlugin</implementation-class>
-    </component>
-  </application-components>
 </idea-plugin>

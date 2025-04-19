@@ -30,7 +30,7 @@ fun panel(
 
 
 
-fun JLabel.makeBold() {
+fun JLabel.makeBol() {
     val oldFont = this.font
     this.font = oldFont.deriveFont(oldFont.style or Font.BOLD)
 }
