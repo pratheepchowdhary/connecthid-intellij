@@ -1,5 +1,6 @@
 package com.connecthid.intellij.terminal
 
+import com.connecthid.intellij.terminal.ssh.SshTerminalRunner
 import com.connecthid.intellij.terminal.ssh.SshTtyConnector
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
@@ -37,8 +38,19 @@ object SshTerminalUtils {
             terminalWidget.sendCommandToExecute(command)
         }
     }
-
     fun openSshSession(
+        project: Project,
+        host: String,
+        username: String,
+        password: String? = null,
+        privateKey: String? = null,
+        port: Int = 22
+    ) {
+        val manager = TerminalToolWindowManager.getInstance(project)
+        manager.createNewSession(SshTerminalRunner(project,host, port, username, password, privateKey))
+    }
+
+    fun openSshSession1(
         project: Project,
         host: String,
         username: String,

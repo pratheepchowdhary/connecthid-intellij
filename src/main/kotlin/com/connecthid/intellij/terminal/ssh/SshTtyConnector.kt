@@ -44,8 +44,8 @@ class SshTtyConnector(
         println("Session connected.")
 
         channel = session.openChannel("shell") as ChannelShell
-        channel.setPty(true)
-        channel.setPtyType("xterm-256color")
+      //  channel.setPty(true)
+       // channel.setPtyType("xterm-256color")
         inputStream = channel.inputStream
         outputStream = channel.outputStream
 
@@ -122,6 +122,7 @@ class SshTtyConnector(
             println("SSH connection closed.")
         } catch (e: Exception) {
             println("Error closing SSH connection: ${e.message}")
+            e.printStackTrace()
         }
     }
 
