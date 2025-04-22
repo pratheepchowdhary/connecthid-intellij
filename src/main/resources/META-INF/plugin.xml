@@ -46,7 +46,6 @@
     <notificationGroup
             id="notification.groupId.connecthid"
             displayType="BALLOON" />
-
   </extensions>
 
   <actions>

@@ -1,6 +1,6 @@
 package com.connecthid.intellij.models
 
-import com.connecthid.intellij.utils.toIcon
+import com.connecthid.intellij.utils.toImageIcon
 import com.intellij.util.xmlb.annotations.Attribute
 import com.intellij.util.xmlb.annotations.Tag
 
@@ -18,7 +18,13 @@ data class Server(
 ){
 
     val icon by lazy {
-        systemInfo.osName.toIcon()
+        systemInfo.osName.toImageIcon()
+    }
+    val password by lazy {
+        "aA1pradeep"
+    }
+    val stmpName by lazy {
+        "STMP: ${host}"
     }
 
 }

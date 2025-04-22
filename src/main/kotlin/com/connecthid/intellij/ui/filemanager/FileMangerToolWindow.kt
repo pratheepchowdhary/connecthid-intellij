@@ -2,6 +2,7 @@ package com.connecthid.intellij.ui.filemanager
 
 import com.connecthid.intellij.models.Server
 import com.connecthid.intellij.ui.filemanager.sftp.SftpPanel
+import com.intellij.icons.AllIcons
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.RegisterToolWindowTask
 import com.intellij.openapi.wm.ToolWindowAnchor
@@ -10,10 +11,11 @@ import com.intellij.ui.content.ContentFactory
 
 fun Project.openSFTP(server: Server){
     val manager = ToolWindowManager.getInstance(this)
-    if (manager.getToolWindow("sftp") == null) {
+    if (manager.getToolWindow(server.stmpName) == null) {
         val toolWindow = manager.registerToolWindow(
             RegisterToolWindowTask(
-                id = "sftp", anchor = ToolWindowAnchor.RIGHT, canCloseContent = true
+                id = server.stmpName, anchor = ToolWindowAnchor.RIGHT, canCloseContent = true,
+                icon = AllIcons.Nodes.WebFolder
             )
         )
         val sftpPanel = SftpPanel(this,server)

@@ -1,6 +1,8 @@
 package com.connecthid.intellij.vfs
 
+import com.connecthid.intellij.models.Server
 import com.connecthid.intellij.services.ServerConnectionService
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileListener
 import com.intellij.openapi.vfs.VirtualFileSystem
@@ -8,13 +10,12 @@ import com.jcraft.jsch.ChannelSftp
 import java.io.IOException
 import java.io.InputStream
 
-class SftpFileSystem : VirtualFileSystem() {
+class SftpFileSystem(val project: Project, server: Server) : VirtualFileSystem() {
     private val connectionService = ServerConnectionService()
-    private val fileCache = mutableMapOf<String, SftpFile>()
+    internal val fileCache = mutableMapOf<String, SftpFile>()
     private val listeners = mutableListOf<VirtualFileListener>()
 
     companion object {
-        val INSTANCE = SftpFileSystem()
         const val PROTOCOL = "sftp"
     }
 
