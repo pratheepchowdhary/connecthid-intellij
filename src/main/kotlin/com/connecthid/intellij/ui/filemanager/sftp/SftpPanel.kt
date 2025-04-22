@@ -21,10 +21,12 @@ class SftpPanel(val project: Project, val serverItem: Server) : JPanel(BorderLay
     private val model: DefaultTreeModel
     private val rootNode: SftpTreeNode
     private val fileSystem by lazy {
-        SftpFileSystem(project,serverItem)
+        println("Initializing SftpFileSystem for server: ${serverItem.host}")
+        SftpFileSystem(project, serverItem)
     }
 
     init {
+        println("Initializing SftpPanel for server: ${serverItem.host}")
         // Create the root node
         rootNode = SftpTreeNode(null, "SFTP")
         
@@ -40,26 +42,44 @@ class SftpPanel(val project: Project, val serverItem: Server) : JPanel(BorderLay
         
         // Expand the root node
         tree.expandPath(TreePath(rootNode))
+        
+        // Initial refresh
+        refresh()
     }
 
     fun refresh() {
-        // Clear existing children
-        rootNode.removeAllChildren()
-        
-        // Add connected servers as children
-        fileSystem.fileCache.keys
-            .map { it.split("/").first() }
-            .distinct()
-            .forEach { host ->
-                val node = SftpTreeNode(rootNode, host)
-                rootNode.add(node)
+        println("Refreshing file list...")
+        try {
+            // Get root directory
+            val rootPath = "/"
+            println("Finding root directory: $rootPath")
+            val rootDir = fileSystem.findFileByPath(rootPath)
+            println("Root directory found: ${rootDir != null}")
+            
+            if (rootDir != null) {
+                val children = rootDir.children
+                println("Found ${children.size} children in root directory")
+                
+                // Clear existing nodes
+                rootNode.removeAllChildren()
+                
+                // Add each child as a node
+                children.forEach { child ->
+                    println("Adding child: ${child.name}")
+                    val node = SftpTreeNode(rootNode, child.name)
+                    rootNode.add(node)
+                }
+                
+                // Expand the root node
+                tree.expandPath(TreePath(rootNode))
             }
-        
-        // Notify the model that the structure has changed
-        model.reload()
-        
-        // Expand the root node
-        tree.expandPath(TreePath(rootNode))
+            
+            // Update the tree
+            tree.updateUI()
+        } catch (e: Exception) {
+            println("Error refreshing file list: ${e.message}")
+            e.printStackTrace()
+        }
     }
 
     private inner class SftpTreeNode(
@@ -90,17 +110,17 @@ class SftpPanel(val project: Project, val serverItem: Server) : JPanel(BorderLay
                 // Root node
                 icon = AllIcons.Nodes.Folder
                 append(node.name, SimpleTextAttributes.REGULAR_ATTRIBUTES)
-            } else if (node.isLeaf) {
-                // File node
-                val file = fileSystem.findFileByPath(node.name)
+            } else {
+                // File or directory node
+                val file = fileSystem.findFileByPath("${serverItem.host}/${node.name}")
                 if (file != null) {
-                    icon = fileTypeManager.getFileTypeByFile(file).icon
+                    if (file.isDirectory) {
+                        icon = AllIcons.Nodes.Folder
+                    } else {
+                        icon = fileTypeManager.getFileTypeByFile(file).icon
+                    }
                     append(file.name, SimpleTextAttributes.REGULAR_ATTRIBUTES)
                 }
-            } else {
-                // Directory node
-                icon = AllIcons.Nodes.Folder
-                append(node.name, SimpleTextAttributes.REGULAR_ATTRIBUTES)
             }
         }
     }

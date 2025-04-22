@@ -1,6 +1,6 @@
 package com.connecthid.intellij.vfs
 
-import com.connecthid.intellij.services.ServerConnectionService
+import com.connecthid.intellij.services.SSHConnection
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileSystem
 import com.jcraft.jsch.ChannelSftp
@@ -8,18 +8,34 @@ import com.jcraft.jsch.SftpATTRS
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
-import java.util.*
 
 class SftpFile(
     val pathLoacation: String,
     private val fileSystem: SftpFileSystem
 ) : VirtualFile() {
-    private val connectionService = ServerConnectionService()
+    private val connectionService = fileSystem.connectionService
+    private  val server = fileSystem.server
     private var attributes: SftpATTRS? = null
     private var children: Array<VirtualFile>? = null
 
     val host: String
-        get() = pathLoacation.split("/").first()
+        get() = server.host
+
+
+    private fun getConnection(): SSHConnection ?{
+        val connection = connectionService.getConnection(server.host)
+        if (connection == null){
+            connectionService.connect(host,server.username,server.password, port = server.port)
+        }
+        return connection
+    }
+
+    private  fun getChannel(): ChannelSftp?{
+
+        val connection = getConnection() ?: return null
+        return connection.getSession()!!.openChannel("sftp") as? ChannelSftp
+    }
+
 
     override fun getFileSystem(): VirtualFileSystem = fileSystem
 
@@ -43,21 +59,40 @@ class SftpFile(
 
     override fun getChildren(): Array<VirtualFile> {
         if (children == null) {
-            val connection = connectionService.getConnection(host) ?: return emptyArray()
-            
             try {
-                val channel = connection.getSession()?.openChannel("sftp") as? ChannelSftp
+
+                
+                println("SSH connection established, opening SFTP channel...")
+                val channel = getChannel()
                 channel?.connect()
                 
-                val files = channel?.ls(pathLoacation) ?: return emptyArray()
+                if (channel == null || !channel.isConnected) {
+                    println("Failed to establish SFTP channel")
+                    return emptyArray()
+                }
+                
+                // List the current directory
+                val currentPath = if (pathLoacation == "/") "." else pathLoacation
+                println("Listing directory with path: $currentPath")
+                
+                val files = channel.ls(currentPath) ?: return emptyArray()
+                println("Raw file list: ${files.joinToString { it.toString() }}")
+                
                 children = files
                     .mapNotNull { it as? ChannelSftp.LsEntry }
                     .filter { it.filename != "." && it.filename != ".." }
-                    .map { SftpFile("$pathLoacation/${it.filename}", fileSystem) }
+                    .map { 
+                        val childPath = if (pathLoacation == "/") "/${it.filename}" else "$pathLoacation/${it.filename}"
+                        println("Creating child: $childPath (filename: ${it.filename}, longname: ${it.longname})")
+                        SftpFile(childPath, fileSystem)
+                    }
                     .toTypedArray()
                 
-                channel?.disconnect()
+                println("Created ${children!!.size} child files")
+                channel.disconnect()
             } catch (e: Exception) {
+                println("Error listing directory: ${e.message}")
+                e.printStackTrace()
                 return emptyArray()
             }
         }
@@ -85,16 +120,23 @@ class SftpFile(
     }
 
     private fun getAttributes() {
-        val connection = connectionService.getConnection(host) ?: return
         
         try {
-            val channel = connection.getSession()?.openChannel("sftp") as? ChannelSftp
+            println("SSH connection established, opening SFTP channel...")
+            val channel = getChannel()
             channel?.connect()
-            
-            attributes = channel?.stat(pathLoacation)
-            channel?.disconnect()
+            if (channel == null || !channel.isConnected) {
+                println("Failed to establish SFTP channel")
+                return
+            }
+            val currentPath = if (pathLoacation == "/") "." else pathLoacation
+            println("Getting attributes for path: $currentPath")
+            attributes = channel.stat(currentPath)
+            println("Attributes found: ${attributes != null}")
+            channel.disconnect()
         } catch (e: Exception) {
-            // Ignore errors
+            println("Error getting attributes: ${e.message}")
+            e.printStackTrace()
         }
     }
 
@@ -142,10 +184,10 @@ class SftpFile(
     }
 
     override fun getInputStream(): InputStream {
-        val connection = connectionService.getConnection(host) ?: throw IOException("No connection available")
+
         
         try {
-            val channel = connection.getSession()?.openChannel("sftp") as? ChannelSftp
+            val channel = getChannel()
             channel?.connect()
             
             val inputStream = channel?.get(pathLoacation) ?: throw IOException("Failed to get input stream")
