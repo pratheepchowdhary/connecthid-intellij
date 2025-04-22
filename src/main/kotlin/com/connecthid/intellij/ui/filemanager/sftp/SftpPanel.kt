@@ -1,12 +1,15 @@
 package com.connecthid.intellij.ui.filemanager.sftp
 
 import com.connecthid.intellij.models.Server
+import com.connecthid.intellij.vfs.SftpFile
 import com.connecthid.intellij.vfs.SftpFileSystem
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.ui.ColoredTreeCellRenderer
 import com.intellij.ui.SimpleTextAttributes
+import com.intellij.ui.components.JBLoadingPanel
 import com.intellij.ui.treeStructure.Tree
 import java.awt.BorderLayout
 import javax.swing.JPanel
@@ -16,6 +19,7 @@ import javax.swing.tree.DefaultMutableTreeNode
 import javax.swing.tree.DefaultTreeModel
 import javax.swing.tree.TreePath
 
+
 class SftpPanel(val project: Project, val serverItem: Server) : JPanel(BorderLayout()) {
     private val tree: Tree
     private val model: DefaultTreeModel
@@ -24,11 +28,15 @@ class SftpPanel(val project: Project, val serverItem: Server) : JPanel(BorderLay
         println("Initializing SftpFileSystem for server: ${serverItem.host}")
         SftpFileSystem(project, serverItem)
     }
+    private var loadingPanel: JBLoadingPanel? = null
+    val rootPath by  lazy {
+        if(serverItem.username.equals("root")) "/root" else "/home/${serverItem.username}"
+    }
 
     init {
         println("Initializing SftpPanel for server: ${serverItem.host}")
         // Create the root node
-        rootNode = SftpTreeNode(null, "SFTP")
+        rootNode = SftpTreeNode(SftpFile(rootPath,fileSystem))
         
         // Create the tree model
         model = DefaultTreeModel(rootNode)
@@ -47,50 +55,59 @@ class SftpPanel(val project: Project, val serverItem: Server) : JPanel(BorderLay
         refresh()
     }
 
+    protected fun addTableLoadingLayer() {
+//        loadingPanel = JBLoadingPanel(BorderLayout(), this, 200)
+//        loadingPanel!!.setLoadingText("Loading...")
+//        loadingPanel!!.setName("Remote SFTP Directories")
+//        loadingPanel!!.add(this)
+    }
+
     fun refresh() {
         println("Refreshing file list...")
         try {
+            // Ensure file system is initialized
+            fileSystem
+            
             // Get root directory
-            val rootPath = "/"
             println("Finding root directory: $rootPath")
             val rootDir = fileSystem.findFileByPath(rootPath)
             println("Root directory found: ${rootDir != null}")
             
             if (rootDir != null) {
-                val children = rootDir.children
-                println("Found ${children.size} children in root directory")
-                
                 // Clear existing nodes
                 rootNode.removeAllChildren()
                 
-                // Add each child as a node
+                // Get children and add them to the tree
+                val children = rootDir.children
+                println("Found ${children.size} children in root directory")
+                
                 children.forEach { child ->
-                    println("Adding child: ${child.name}")
-                    val node = SftpTreeNode(rootNode, child.name)
+                    println("Adding child to tree: ${child.name}")
+                    val node = SftpTreeNode(child)
                     rootNode.add(node)
                 }
                 
+                // Notify the model that the structure has changed
+                model.reload()
+                
                 // Expand the root node
                 tree.expandPath(TreePath(rootNode))
+                
+                // Update the tree UI
+                tree.updateUI()
             }
-            
-            // Update the tree
-            tree.updateUI()
         } catch (e: Exception) {
             println("Error refreshing file list: ${e.message}")
             e.printStackTrace()
         }
     }
 
-    private inner class SftpTreeNode(
-        parent: SftpTreeNode?,
-        val name: String
-    ) : DefaultMutableTreeNode(name) {
+    private inner class SftpTreeNode(val file: VirtualFile) : DefaultMutableTreeNode() {
         init {
-            if (parent != null) {
-                parent.add(this)
-            }
+            userObject = file
         }
+        
+        override fun toString(): String = file.name
     }
 
     private inner class SftpTreeCellRenderer : ColoredTreeCellRenderer() {
@@ -103,24 +120,18 @@ class SftpPanel(val project: Project, val serverItem: Server) : JPanel(BorderLay
             row: Int,
             hasFocus: Boolean
         ) {
-            val node = value as SftpTreeNode
-            val fileTypeManager = FileTypeManager.getInstance()
-            
-            if (node.parent == null) {
-                // Root node
-                icon = AllIcons.Nodes.Folder
-                append(node.name, SimpleTextAttributes.REGULAR_ATTRIBUTES)
-            } else {
-                // File or directory node
-                val file = fileSystem.findFileByPath("${serverItem.host}/${node.name}")
-                if (file != null) {
-                    if (file.isDirectory) {
-                        icon = AllIcons.Nodes.Folder
-                    } else {
-                        icon = fileTypeManager.getFileTypeByFile(file).icon
-                    }
-                    append(file.name, SimpleTextAttributes.REGULAR_ATTRIBUTES)
+            if (value is SftpTreeNode) {
+                val file = value.file
+                
+                // Set icon based on file type
+                icon = if (file.isDirectory) {
+                    AllIcons.Nodes.Folder
+                } else {
+                    FileTypeManager.getInstance().getFileTypeByFileName(file.name).icon
                 }
+                
+                // Set text with attributes
+                append(file.name, SimpleTextAttributes.REGULAR_ATTRIBUTES)
             }
         }
     }
