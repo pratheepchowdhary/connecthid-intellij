@@ -31,8 +31,7 @@ import javax.swing.*
 import java.awt.*
 
 
-class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(BorderLayout()),TreeSelectionListener,
-    TreeExpansionListener {
+class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(BorderLayout()), TreeSelectionListener, TreeExpansionListener {
     private val tree: Tree
     private val treeModel: DefaultTreeModel
     private val rootNode: SftpTreeNode
@@ -40,63 +39,63 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(B
         println("Initializing SftpFileSystem for server: ${serverItem.host}")
         SftpFileSystem(project, serverItem)
     }
-    val rootPath by  lazy {
-        if(serverItem.username.equals("root")) "/root" else "/home/${serverItem.username}"
+    val rootPath by lazy {
+        if (serverItem.username == "root") "/root" else "/home/${serverItem.username}"
     }
     val rootDir by lazy {
-        SftpFile(rootPath,fileSystem)
+        SftpFile(rootPath, fileSystem)
     }
+
     private val coroutineScope = CoroutineScope(Dispatchers.Main + Job())
-    private val fileScrollView:com.intellij.ui.components.JBScrollPane
-    private val progressBar by lazy {
-        JProgressBar().apply {
-           isIndeterminate = true
-           foreground = JBColor.BLUE
+    private val fileScrollView: com.intellij.ui.components.JBScrollPane
+    private val loadingIcon by lazy {
+        SpinningProgressIcon().apply {
+            setIconColor(JBColor.BLUE)
+        }
+    }
+    private val loadingLabel by lazy {
+        JLabel("Loading files...", loadingIcon, SwingConstants.LEADING).apply {
+            foreground = JBColor.BLUE
+            isVisible = false
         }
     }
 
-
+    private val loadingStates = mutableSetOf<String>() // To track loading directories
 
     init {
-
         println("Initializing SftpPanel for server: ${serverItem.host}")
-        add(progressBar, BorderLayout.CENTER)
-        // Create the root node
         rootNode = SftpTreeNode(rootDir)
         rootNode.add(DefaultMutableTreeNode("Loading..."))
-        // Create the tree model
         treeModel = DefaultTreeModel(rootNode)
-        // Create the tree
         tree = Tree(treeModel)
         tree.cellRenderer = SftpTreeCellRenderer()
         tree.addTreeSelectionListener(this)
         tree.addTreeExpansionListener(this)
-        // Add the tree to a scroll pane
         fileScrollView = com.intellij.ui.components.JBScrollPane(tree)
-        //add(fileScrollView, BorderLayout.CENTER)
-        fileScrollView.isVisible=false
-        // Expand the root node
         tree.expandPath(TreePath(rootNode))
-//        coroutineScope.launch {
-//            loadChildren(rootNode,rootDir)
-//        }
+        add(fileScrollView, BorderLayout.CENTER)
+        add(loadingLabel, BorderLayout.CENTER)
     }
 
-    private suspend fun getChildren(file:VirtualFile):Array<VirtualFile> = withContext(Dispatchers.IO){
+    private suspend fun getChildren(file: VirtualFile): Array<VirtualFile> = withContext(Dispatchers.IO) {
         return@withContext file.children
     }
 
-
-
-    private suspend fun loadChildren(selectedNode:DefaultMutableTreeNode, file:VirtualFile) = withContext(Dispatchers.Main){
-        // Expand node dynamically if not already expanded
-        if (selectedNode.childCount == 1 && (selectedNode.getChildAt(0) as? DefaultMutableTreeNode)?.userObject == "Loading...") {
-            selectedNode.removeAllChildren()
-            addChildren(selectedNode, file)
-            treeModel.reload(selectedNode)
+    private suspend fun loadChildren(selectedNode: DefaultMutableTreeNode, file: VirtualFile) = withContext(Dispatchers.Main) {
+        try {
+            if (loadingStates.contains(file.path)) return@withContext // Skip if already loading
+            loadingStates.add(file.path)
+            loadingLabel.isVisible = true
+            if (selectedNode.childCount == 1 && (selectedNode.getChildAt(0) as? DefaultMutableTreeNode)?.userObject == "Loading...") {
+                selectedNode.removeAllChildren()
+                addChildren(selectedNode, file)
+                treeModel.reload(selectedNode)
+            }
+        } finally {
+            loadingStates.remove(file.path)
+            loadingLabel.isVisible = false
         }
     }
-
 
     private suspend fun addChildren(parentNode: DefaultMutableTreeNode, dir: VirtualFile) = withContext(Dispatchers.Main) {
         try {
@@ -110,6 +109,7 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(B
             }
         } catch (e: Exception) {
             e.printStackTrace()
+
         }
     }
 
@@ -125,7 +125,7 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(B
             }
         } else {
             coroutineScope.launch {
-                loadChildren(selectedNode,file)
+                loadChildren(selectedNode, file)
             }
         }
     }
@@ -136,19 +136,16 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(B
 
         if (file.isDirectory) {
             coroutineScope.launch {
-               loadChildren(node,file)
+                loadChildren(node, file)
             }
         }
     }
 
-    override fun treeCollapsed(event: TreeExpansionEvent) {
-
-    }
+    override fun treeCollapsed(event: TreeExpansionEvent) {}
 
     override fun removeNotify() {
         super.removeNotify()
         coroutineScope.cancel()
-
     }
 
     private inner class SftpTreeNode(val file: VirtualFile) : DefaultMutableTreeNode() {
@@ -161,57 +158,32 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(B
 
     private inner class SftpTreeCellRenderer : ColoredTreeCellRenderer() {
         override fun customizeCellRenderer(
-            tree: JTree,
-            value: Any,
-            selected: Boolean,
-            expanded: Boolean,
-            leaf: Boolean,
-            row: Int,
-            hasFocus: Boolean
+            tree: JTree, value: Any, selected: Boolean, expanded: Boolean,
+            leaf: Boolean, row: Int, hasFocus: Boolean
         ) {
             if (value is SftpTreeNode) {
                 val file = value.file
-                // Set icon based on file type and expanded state
                 icon = if (file.isDirectory) {
                     AllIcons.Nodes.Folder
                 } else {
                     FileTypeManager.getInstance().getFileTypeByFileName(file.name).icon
                 }
-
-                // Set text with attributes
                 append(file.name, SimpleTextAttributes.REGULAR_ATTRIBUTES)
             }
         }
     }
-
-
-//    fun getPanel(){
-//        val icon = SpinningProgressIcon()
-//        val iconBig = bigSpinningProgressIcon()
-//        val panel = panel {
-//            row {
-//                icon(icon)
-//                link("Change color") {
-//                    ColorChooserService.instance.showPopup(null, icon.getIconColor(), { color, _ -> color?.let {
-//                        icon.setIconColor(it)
-//                        iconBig.setIconColor(it)
-//                    }})
-//                }
-//                icon(iconBig)
-//            }
-//        }
-//    }
 }
-fun Project.openSFTP(server: Server){
+
+fun Project.openSFTP(server: Server) {
     val manager = ToolWindowManager.getInstance(this)
     if (manager.getToolWindow(server.stmpName) == null) {
-        val window  = manager.registerToolWindow(server.stmpName){
-            icon=AllIcons.Nodes.WebFolder
-            canCloseContent=false
-            anchor= ToolWindowAnchor.RIGHT
+        val window = manager.registerToolWindow(server.stmpName) {
+            icon = AllIcons.Nodes.WebFolder
+            canCloseContent = false
+            anchor = ToolWindowAnchor.RIGHT
         }
 
-        val sftpPanel = SftpExplorerPanel(this,server)
+        val sftpPanel = SftpExplorerPanel(this, server)
         val contentFactory = ContentFactory.getInstance()
         val content = contentFactory.createContent(sftpPanel, "", false)
         window.contentManager.addContent(content)
