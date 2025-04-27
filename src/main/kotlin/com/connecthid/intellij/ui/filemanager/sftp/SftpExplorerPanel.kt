@@ -50,8 +50,6 @@ class SftpPanel(val project: Project, val serverItem: Server) : JPanel(BorderLay
         // Create the root node
         rootNode = SftpTreeNode(rootDir)
         rootNode.add(DefaultMutableTreeNode("Loading..."))
-//        val fileEditorManager = FileEditorManager.getInstance(project)
-//        fileEditorManager.openFile(SftpFile(rootPath,fileSystem), true)
         // Create the tree model
         treeModel = DefaultTreeModel(rootNode)
         // Create the tree
