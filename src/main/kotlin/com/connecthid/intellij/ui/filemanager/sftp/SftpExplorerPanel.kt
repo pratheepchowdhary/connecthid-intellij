@@ -152,9 +152,7 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(B
             }
         } catch (e: Exception) {
             e.printStackTrace()
-        } finally {
-            loadingPanel.isVisible = false
-        }
+        } 
     }
 
     override fun valueChanged(e: TreeSelectionEvent) {
