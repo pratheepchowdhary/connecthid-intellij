@@ -74,8 +74,15 @@ class SftpFile(
         if (fileEntry == null) {
             return  0
         }
-        return fileEntry.attrs?.mTime?.toLong()?.times(1000) ?: 0
+        return fileEntry.attrs?.aTime?.toLong()?.times(1000) ?: 0
 
+    }
+
+    override fun getModificationStamp(): Long {
+        if (fileEntry == null) {
+            return  0
+        }
+        return fileEntry.attrs?.mTime?.toLong()?.times(1000) ?: 0
     }
 
     override fun getLength(): Long {
