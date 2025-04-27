@@ -9,7 +9,8 @@ import com.connecthid.intellij.utils.removeI
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.project.Project
 import com.connecthid.intellij.terminal.SshTerminalUtils
-import com.connecthid.intellij.ui.filemanager.openSFTP
+import com.connecthid.intellij.terminal.openTerminal
+import com.connecthid.intellij.ui.filemanager.sftp.openSFTP
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPanel
@@ -118,7 +119,7 @@ class ServerListPanel internal constructor(val project: Project): JBPanel<Server
 
     override fun onOpenConsoleButtonClicked(device: Server) {
         // open terminal in side intellij ide  with ssh connection using TerminalWidget
-        SshTerminalUtils.openSshSession(project,device.host,device.username,"aA1pradeep",device.privateKeyPath,device.port)
+        project.openTerminal(server = device)
         
     }
 
@@ -128,6 +129,10 @@ class ServerListPanel internal constructor(val project: Project): JBPanel<Server
 
     override fun onEditDeviceClicked(device: Server) {
         TODO("Not yet implemented")
+    }
+
+    override fun onOpenSFTPClicked(device: Server) {
+        project.openSFTP(device)
     }
 
     private fun updateServerList() {
@@ -226,9 +231,6 @@ class ServerListPanel internal constructor(val project: Project): JBPanel<Server
         this.devices = devices
     }
 
-    fun createTerminal(){
-
-    }
 
 
     private companion object {

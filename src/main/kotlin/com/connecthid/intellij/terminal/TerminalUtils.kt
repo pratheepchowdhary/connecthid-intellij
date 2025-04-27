@@ -1,5 +1,6 @@
 package com.connecthid.intellij.terminal
 
+import com.connecthid.intellij.models.Server
 import com.connecthid.intellij.terminal.ssh.SshTerminalRunner
 import com.connecthid.intellij.terminal.ssh.SshTtyConnector
 import com.intellij.openapi.project.Project
@@ -126,4 +127,8 @@ object SshTerminalUtils {
 
 
 
+}
+
+fun Project.openTerminal(server: Server){
+    SshTerminalUtils.openSshSession(this,server.host,server.username,"aA1pradeep",server.privateKeyPath,server.port)
 }

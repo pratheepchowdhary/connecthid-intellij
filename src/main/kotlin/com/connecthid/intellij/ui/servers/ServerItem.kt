@@ -19,11 +19,13 @@ import com.intellij.util.ui.UIUtil
 import java.awt.Dimension
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
+import java.awt.Point
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import javax.swing.DefaultListModel
 import javax.swing.JButton
 import javax.swing.JProgressBar
+import java.util.function.Consumer
 
 
 class ServerItem(val device: Server) : JBPanel<ServerItem>(GridBagLayout()) {
@@ -123,7 +125,7 @@ class ServerItem(val device: Server) : JBPanel<ServerItem>(GridBagLayout()) {
                 anchor = GridBagConstraints.CENTER
                 weightx = 0.0
                 weighty = 1.0
-                insets = JBUI.insets(0, 10, 0, 0)
+                insets = JBUI.insetsLeft(10)
             }
         )   
         
@@ -222,9 +224,11 @@ class ServerItem(val device: Server) : JBPanel<ServerItem>(GridBagLayout()) {
 
     private fun openDeviceMenu(device: Server, event: MouseEvent) {
         val menus = DefaultListModel<MenuItem>()
+        menus.addElement(MenuItem(PluginBundle.message("open_sftp"), AllIcons.Nodes.WebFolder))
+        menus.addElement(MenuItem(PluginBundle.message("open_terminal"), AllIcons.Nodes.Console))
         menus.addElement(MenuItem(PluginBundle.message("edit"), AllIcons.Actions.Edit))
         menus.addElement(MenuItem(PluginBundle.message("connect"), AllIcons.Actions.Copy))
-        menus.addElement(MenuItem(PluginBundle.message("disconnect"), AllIcons.Actions.Copy))
+       // menus.addElement(MenuItem(PluginBundle.message("disconnect"), AllIcons.Actions.Copy))
         menus.addElement(MenuItem(PluginBundle.message("delete"), AllIcons.Actions.Copy))
 
         val list: JBList<MenuItem> = JBList<MenuItem>(menus)
@@ -233,27 +237,22 @@ class ServerItem(val device: Server) : JBPanel<ServerItem>(GridBagLayout()) {
         list.setBorder(null)
 
 
-        val popup = PopupChooserBuilder(list)
-            .setRequestFocus(true)
-            .createPopup()
-        listener?.onConnectButtonClicked(device)
-      //  popup.show(RelativePoint(event.component, event.point))
-
-        list.addMouseListener(object : MouseAdapter() {
-            override fun mouseClicked(e: MouseEvent) {
-                if (e.clickCount == 2) {
-                    val selectedItem = list.selectedValue
-                    if (selectedItem != null) {
-                        // Handle selection
-                        println("Selected: ${selectedItem.text}")
-                        listener?.onConnectButtonClicked(device)
-                        popup.cancel()
-
-
-                    }
-                }
+        val popupBuilder = PopupChooserBuilder(list);
+        popupBuilder.setRequestFocus(true)
+        popupBuilder.setItemChosenCallback { menuItem ->
+            when (menuItem.text) {
+                PluginBundle.message("edit") -> listener?.onEditDeviceClicked(device)
+                PluginBundle.message("connect") -> listener?.onConnectButtonClicked(device)
+                PluginBundle.message("disconnect") -> listener?.onDisconnectButtonClicked(device)
+                PluginBundle.message("delete") -> listener?.onRemoveDeviceClicked(device)
+                PluginBundle.message("open_sftp") -> listener?.onOpenSFTPClicked(device)
+                PluginBundle.message("open_terminal") -> listener?.onOpenConsoleButtonClicked(device)
             }
-        })
+        }
+        val popup = popupBuilder.createPopup()
+        val point = Point(event.point.x-80,event.point.y)
+        popup.show(RelativePoint(event.component, point))
+
     }
 
     interface Listener {
@@ -262,6 +261,8 @@ class ServerItem(val device: Server) : JBPanel<ServerItem>(GridBagLayout()) {
         fun onOpenConsoleButtonClicked(device: Server)
         fun onRemoveDeviceClicked(device: Server)
         fun onEditDeviceClicked(device: Server)
+        fun onOpenSFTPClicked(device: Server)
+
     }
 
     private companion object {
