@@ -11,7 +11,6 @@ import com.intellij.openapi.wm.ToolWindowAnchor
 import com.intellij.openapi.wm.ToolWindowManager
 import com.intellij.ui.ColoredTreeCellRenderer
 import com.intellij.ui.SimpleTextAttributes
-import com.intellij.ui.components.JBLoadingPanel
 import com.intellij.ui.content.ContentFactory
 import com.intellij.ui.treeStructure.Tree
 import java.awt.BorderLayout
@@ -28,7 +27,7 @@ import javax.swing.tree.DefaultTreeModel
 import javax.swing.tree.TreePath
 
 
-class SftpPanel(val project: Project, val serverItem: Server) : JPanel(BorderLayout()),TreeSelectionListener,
+class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(BorderLayout()),TreeSelectionListener,
     TreeExpansionListener {
     private val tree: Tree
     private val treeModel: DefaultTreeModel
@@ -37,7 +36,6 @@ class SftpPanel(val project: Project, val serverItem: Server) : JPanel(BorderLay
         println("Initializing SftpFileSystem for server: ${serverItem.host}")
         SftpFileSystem(project, serverItem)
     }
-    private var loadingPanel: JBLoadingPanel? = null
     val rootPath by  lazy {
         if(serverItem.username.equals("root")) "/root" else "/home/${serverItem.username}"
     }
@@ -79,8 +77,6 @@ class SftpPanel(val project: Project, val serverItem: Server) : JPanel(BorderLay
             dir.children.forEach { child ->
                 val childNode = SftpTreeNode(child)
                 parentNode.add(childNode)
-
-                // Preload directories with dummy node for lazy loading
                 if (child.isDirectory) {
                     childNode.add(DefaultMutableTreeNode("Loading..."))
                 }
@@ -93,7 +89,6 @@ class SftpPanel(val project: Project, val serverItem: Server) : JPanel(BorderLay
     override fun valueChanged(e: TreeSelectionEvent) {
         val selectedNode = e.path?.lastPathComponent as? DefaultMutableTreeNode ?: return
         val file = selectedNode.userObject as? VirtualFile ?: return
-
         if (!file.isDirectory) {
             try {
                 val content = String(file.contentsToByteArray())
@@ -123,7 +118,7 @@ class SftpPanel(val project: Project, val serverItem: Server) : JPanel(BorderLay
         init {
             userObject = file
         }
-        
+
         override fun toString(): String = file.name
     }
 
@@ -139,14 +134,13 @@ class SftpPanel(val project: Project, val serverItem: Server) : JPanel(BorderLay
         ) {
             if (value is SftpTreeNode) {
                 val file = value.file
-                
                 // Set icon based on file type and expanded state
                 icon = if (file.isDirectory) {
                     AllIcons.Nodes.Folder
                 } else {
                     FileTypeManager.getInstance().getFileTypeByFileName(file.name).icon
                 }
-                
+
                 // Set text with attributes
                 append(file.name, SimpleTextAttributes.REGULAR_ATTRIBUTES)
             }
@@ -162,7 +156,7 @@ fun Project.openSFTP(server: Server){
             anchor= ToolWindowAnchor.RIGHT
         }
 
-        val sftpPanel = SftpPanel(this,server)
+        val sftpPanel = SftpExplorerPanel(this,server)
         val contentFactory = ContentFactory.getInstance()
         val content = contentFactory.createContent(sftpPanel, "", false)
         window.contentManager.addContent(content)
