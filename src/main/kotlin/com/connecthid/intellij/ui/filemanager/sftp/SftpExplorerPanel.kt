@@ -10,13 +10,15 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.wm.ToolWindowAnchor
 import com.intellij.openapi.wm.ToolWindowManager
 import com.intellij.ui.ColoredTreeCellRenderer
+import com.intellij.ui.JBColor
 import com.intellij.ui.SimpleTextAttributes
+import com.intellij.ui.SpinningProgressIcon
 import com.intellij.ui.content.ContentFactory
 import com.intellij.ui.treeStructure.Tree
+import kotlinx.coroutines.*
 import java.awt.BorderLayout
 import javax.swing.JOptionPane
 import javax.swing.JPanel
-import javax.swing.JScrollPane
 import javax.swing.JTree
 import javax.swing.event.TreeExpansionEvent
 import javax.swing.event.TreeExpansionListener
@@ -25,6 +27,8 @@ import javax.swing.event.TreeSelectionListener
 import javax.swing.tree.DefaultMutableTreeNode
 import javax.swing.tree.DefaultTreeModel
 import javax.swing.tree.TreePath
+import javax.swing.*
+import java.awt.*
 
 
 class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(BorderLayout()),TreeSelectionListener,
@@ -42,9 +46,21 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(B
     val rootDir by lazy {
         SftpFile(rootPath,fileSystem)
     }
+    private val coroutineScope = CoroutineScope(Dispatchers.Main + Job())
+    private val fileScrollView:com.intellij.ui.components.JBScrollPane
+    private val progressBar by lazy {
+        JProgressBar().apply {
+           isIndeterminate = true
+           foreground = JBColor.BLUE
+        }
+    }
+
+
 
     init {
+
         println("Initializing SftpPanel for server: ${serverItem.host}")
+        add(progressBar, BorderLayout.CENTER)
         // Create the root node
         rootNode = SftpTreeNode(rootDir)
         rootNode.add(DefaultMutableTreeNode("Loading..."))
@@ -56,13 +72,23 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(B
         tree.addTreeSelectionListener(this)
         tree.addTreeExpansionListener(this)
         // Add the tree to a scroll pane
-        add(JScrollPane(tree), BorderLayout.CENTER)
+        fileScrollView = com.intellij.ui.components.JBScrollPane(tree)
+        //add(fileScrollView, BorderLayout.CENTER)
+        fileScrollView.isVisible=false
         // Expand the root node
         tree.expandPath(TreePath(rootNode))
-        loadChildren(rootNode,rootDir)
+//        coroutineScope.launch {
+//            loadChildren(rootNode,rootDir)
+//        }
     }
 
-    private fun loadChildren(selectedNode:DefaultMutableTreeNode, file:VirtualFile){
+    private suspend fun getChildren(file:VirtualFile):Array<VirtualFile> = withContext(Dispatchers.IO){
+        return@withContext file.children
+    }
+
+
+
+    private suspend fun loadChildren(selectedNode:DefaultMutableTreeNode, file:VirtualFile) = withContext(Dispatchers.Main){
         // Expand node dynamically if not already expanded
         if (selectedNode.childCount == 1 && (selectedNode.getChildAt(0) as? DefaultMutableTreeNode)?.userObject == "Loading...") {
             selectedNode.removeAllChildren()
@@ -72,9 +98,10 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(B
     }
 
 
-    private fun addChildren(parentNode: DefaultMutableTreeNode, dir: VirtualFile) {
+    private suspend fun addChildren(parentNode: DefaultMutableTreeNode, dir: VirtualFile) = withContext(Dispatchers.Main) {
         try {
-            dir.children.forEach { child ->
+            val children = getChildren(dir)
+            children.forEach { child ->
                 val childNode = SftpTreeNode(child)
                 parentNode.add(childNode)
                 if (child.isDirectory) {
@@ -97,7 +124,9 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(B
                 e.printStackTrace()
             }
         } else {
-            loadChildren(selectedNode,file)
+            coroutineScope.launch {
+                loadChildren(selectedNode,file)
+            }
         }
     }
 
@@ -106,11 +135,19 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(B
         val file = node.userObject as? VirtualFile ?: return
 
         if (file.isDirectory) {
-            loadChildren(node,file)
+            coroutineScope.launch {
+               loadChildren(node,file)
+            }
         }
     }
 
     override fun treeCollapsed(event: TreeExpansionEvent) {
+
+    }
+
+    override fun removeNotify() {
+        super.removeNotify()
+        coroutineScope.cancel()
 
     }
 
@@ -146,6 +183,24 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(B
             }
         }
     }
+
+
+//    fun getPanel(){
+//        val icon = SpinningProgressIcon()
+//        val iconBig = bigSpinningProgressIcon()
+//        val panel = panel {
+//            row {
+//                icon(icon)
+//                link("Change color") {
+//                    ColorChooserService.instance.showPopup(null, icon.getIconColor(), { color, _ -> color?.let {
+//                        icon.setIconColor(it)
+//                        iconBig.setIconColor(it)
+//                    }})
+//                }
+//                icon(iconBig)
+//            }
+//        }
+//    }
 }
 fun Project.openSFTP(server: Server){
     val manager = ToolWindowManager.getInstance(this)
