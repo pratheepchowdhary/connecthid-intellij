@@ -23,7 +23,7 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
 
     override fun getProtocol(): String = PROTOCOL
 
-    override fun findFileByPath(path: String): VirtualFile? {
+    override fun findFileByPath(path: String): VirtualFile {
         return fileCache.getOrPut(path) {
             SftpFile(path, this)
         }

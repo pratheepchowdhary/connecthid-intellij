@@ -74,7 +74,7 @@ class SftpFile(
         if (fileEntry == null) {
             return  0
         }
-        return fileEntry.attrs?.aTime?.toLong()?.times(1000) ?: 0
+        return fileEntry.attrs?.aTime?.toLong() ?: 0
 
     }
 
@@ -82,14 +82,14 @@ class SftpFile(
         if (fileEntry == null) {
             return  0
         }
-        return fileEntry.attrs?.mTime?.toLong()?.times(1000) ?: 0
+        return fileEntry.attrs?.mTime?.toLong() ?: 0
     }
 
     override fun getLength(): Long {
         if (fileEntry == null) {
             return  0
         }
-        return fileEntry.attrs?.size?.toLong()?.times(1000) ?: 0
+        return fileEntry.attrs?.size?.toLong()?: 0
     }
 
     override fun refresh(asynchronous: Boolean, recursive: Boolean, postRunnable: Runnable?) {
