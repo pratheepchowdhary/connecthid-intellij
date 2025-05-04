@@ -130,5 +130,5 @@ object SshTerminalUtils {
 }
 
 fun Project.openTerminal(server: Server){
-    SshTerminalUtils.openSshSession(this,server.host,server.username,"aA1pradeep",server.privateKeyPath,server.port)
+    SshTerminalUtils.openSshSession(this,server.host,server.username,server.password,server.privateKeyPath,server.port)
 }

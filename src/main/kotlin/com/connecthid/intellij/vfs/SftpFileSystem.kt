@@ -52,7 +52,7 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
         }
     }
 
-    override fun moveFile(requestor: Any?, vFile: VirtualFile, newParent: VirtualFile): Unit {
+    override fun moveFile(requestor: Any?, vFile: VirtualFile, newParent: VirtualFile) {
         val sftpFile = vFile as? SftpFile ?: throw IOException("Not an SFTP file")
         val newParentSftp = newParent as? SftpFile ?: throw IOException("Not an SFTP file")
 
@@ -147,7 +147,7 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
 
     private fun getConnection(): SSHConnection? {
         var connection = connectionService.getConnection(server.host)
-        if (connection == null) {
+        if (connection == null || !connection.isConnected()) {
             connectionService.connect(server.host, server.username, server.password, port = server.port)
             connection = connectionService.getConnection(server.host)
         }

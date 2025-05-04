@@ -20,8 +20,8 @@ data class Server(
     val icon by lazy {
         systemInfo.osName.toImageIcon()
     }
-    val password by lazy {
-        "aA1pradeep"
+    val password: String? get() {
+      return  "aA1pradeep"
     }
     val stmpName by lazy {
         "STMP: ${host}"

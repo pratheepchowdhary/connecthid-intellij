@@ -2,38 +2,27 @@ package com.connecthid.intellij.ui.filemanager.sftp
 
 import com.connecthid.intellij.models.Server
 import com.connecthid.intellij.ui.filemanager.sftp.actions.SearchAction
-import com.connecthid.intellij.ui.menu.MenuItem
-import com.connecthid.intellij.ui.menu.MenuItemRenderer
 import com.connecthid.intellij.vfs.FileChangeWatcher
 import com.connecthid.intellij.vfs.SftpFile
 import com.connecthid.intellij.vfs.SftpFileSystem
 import com.intellij.icons.AllIcons
-import com.intellij.openapi.actionSystem.ActionManager
-import com.intellij.openapi.actionSystem.ActionToolbar
-import com.intellij.openapi.actionSystem.AnAction
-import com.intellij.openapi.actionSystem.AnActionEvent
-import com.intellij.openapi.actionSystem.DefaultActionGroup
+import com.intellij.openapi.actionSystem.*
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.wm.ToolWindowAnchor
 import com.intellij.openapi.wm.ToolWindowManager
 import com.intellij.ui.ColoredTreeCellRenderer
-import com.intellij.ui.Gray
 import com.intellij.ui.JBColor
 import com.intellij.ui.SimpleTextAttributes
 import com.intellij.ui.SpinningProgressIcon
-import com.intellij.ui.awt.RelativePoint
-import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBPanel
 import com.intellij.ui.content.ContentFactory
 import com.intellij.ui.treeStructure.Tree
 import kotlinx.coroutines.*
 import java.awt.BorderLayout
 import java.awt.Color
-import java.awt.Point
 import java.awt.Rectangle
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
@@ -93,6 +82,16 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(B
 
     init {
         println("Initializing SftpPanel for server: ${serverItem.host}")
+        // Create the root node
+        rootNode = SftpTreeNode(rootDir)
+        rootNode.add(DefaultMutableTreeNode("Loading..."))
+        // Create the tree model
+        treeModel = DefaultTreeModel(rootNode)
+
+        // Create the tree
+        tree = Tree(treeModel)
+        tree.cellRenderer = SftpTreeCellRenderer()
+        tree.addTreeExpansionListener(this)
         val actionGroup = DefaultActionGroup()
         actionGroup.add(object : AnAction({ "Upload" }, AllIcons.Actions.Upload) {
                 override fun actionPerformed(e: AnActionEvent) {
@@ -115,8 +114,11 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(B
         actionGroup.add(SearchAction())
         actionGroup.add(object : AnAction({ "Refresh" }, AllIcons.Actions.Refresh) {
             override fun actionPerformed(e: AnActionEvent) {
-                // Handle Move action
-                println("Move action triggered")
+                rootNode.removeAllChildren()
+                fileSystem.refresh(true)
+                coroutineScope.launch {
+                    loadChildren(rootNode, rootDir)
+                }
             }
         })
         val actionManager = ActionManager.getInstance()
@@ -126,17 +128,8 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(B
         val toolbarPanel = JBPanel<JBPanel<*>>(BorderLayout())
         toolbarPanel.add(actionToolbar.component, BorderLayout.EAST)
         add(toolbarPanel, BorderLayout.NORTH)
-        // Create the root node
-        rootNode = SftpTreeNode(rootDir)
-        rootNode.add(DefaultMutableTreeNode("Loading..."))
         
-        // Create the tree model
-        treeModel = DefaultTreeModel(rootNode)
-        
-        // Create the tree
-        tree = Tree(treeModel)
-        tree.cellRenderer = SftpTreeCellRenderer()
-        tree.addTreeExpansionListener(this)
+
 
         // Add the tree to a scroll pane
         fileScrollView = com.intellij.ui.components.JBScrollPane(tree)
@@ -259,11 +252,13 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(B
             override fun actionPerformed(e: AnActionEvent) {
                 // Handle Delete action
                 println("Delete action triggered")
+                file.delete(this)
             }
         })
 
         // Create the popup menu with the action group
-        val popupMenu = ActionManager.getInstance().createActionPopupMenu("CustomPopup", actionGroup)
+        val popupMenu = ActionManager.getInstance()
+                            .createActionPopupMenu("CustomPopup", actionGroup)
 
         // Show the popup at the specified x, y location
         popupMenu.component.show(tree,x,y)
