@@ -105,7 +105,7 @@ class ServersPanel(private val project: Project) : JPanel() {
     }
 
     private fun getOsIcon(osName: String): ImageIcon {
-        val normalizedOs = osName.toLowerCase()
+        val normalizedOs = osName.lowercase()
         return when {
             normalizedOs.contains("ubuntu") -> osIcons["ubuntu"]
             normalizedOs.contains("debian") -> osIcons["debian"]

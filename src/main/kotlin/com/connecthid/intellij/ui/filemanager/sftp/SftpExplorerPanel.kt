@@ -115,6 +115,7 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(B
         actionGroup.add(object : AnAction({ "Refresh" }, AllIcons.Actions.Refresh) {
             override fun actionPerformed(e: AnActionEvent) {
                 rootNode.removeAllChildren()
+                rootNode.add(DefaultMutableTreeNode("Loading..."))
                 fileSystem.refresh(true)
                 coroutineScope.launch {
                     loadChildren(rootNode, fileSystem.findFileByPath(rootPath))
@@ -151,6 +152,11 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(B
         
         // Expand the root node
         tree.expandPath(TreePath(rootNode))
+
+        coroutineScope.launch {
+            loadChildren(rootNode, rootNode.file)
+        }
+
 
         tree.addMouseListener(object : MouseAdapter() {
             override fun mouseClicked(e: MouseEvent) {

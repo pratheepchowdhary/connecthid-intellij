@@ -233,7 +233,6 @@ class ServerItem(val device: Server) : JBPanel<ServerItem>(GridBagLayout()) {
 
         val list: JBList<MenuItem> = JBList<MenuItem>(menus)
         list.setCellRenderer(MenuItemRenderer())
-        list.setBackground(Gray._243)
         list.setBorder(null)
 
 

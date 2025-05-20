@@ -88,7 +88,8 @@ open class AddServerDialog(val project: Project, host: String? = null, username:
             }
             
             row("Private Key:") {
-                textFieldWithBrowseButton("Select Private Key File", fileChooserDescriptor = fileDescriptor) {
+
+                textFieldWithBrowseButton( fileChooserDescriptor = fileDescriptor,project) {
                     selectedPrivateKeyPath.set(it.path)
                     return@textFieldWithBrowseButton it.path
                 }.bindText(selectedPrivateKeyPath)
