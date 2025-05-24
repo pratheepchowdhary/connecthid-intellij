@@ -2,16 +2,11 @@ package com.connecthid.intellij.ui.filemanager.sftp
 
 import com.connecthid.intellij.models.Server
 import com.connecthid.intellij.ui.filemanager.sftp.actions.SearchAction
-import com.connecthid.intellij.vfs.FileChangeWatcher
 import com.connecthid.intellij.vfs.SftpFileSystem
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.actionSystem.*
-import com.intellij.openapi.fileEditor.FileDocumentManager
-import com.intellij.openapi.fileEditor.FileEditorManager
-import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.wm.ToolWindowAnchor
 import com.intellij.openapi.wm.ToolWindowManager
@@ -44,9 +39,7 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(B
         println("Initializing SftpFileSystem for server: ${serverItem.host}")
         SftpFileSystem(project, serverItem)
     }
-    private val fileWatcher by lazy {
-        FileChangeWatcher(project)
-    }
+
     val rootPath by lazy {
         if (serverItem.username == "root") "/root" else "/home/${serverItem.username}"
     }
@@ -172,7 +165,9 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(B
                         val selectedNode = it.lastPathComponent as? DefaultMutableTreeNode ?: return
                         val file = selectedNode.userObject as? VirtualFile ?: return
                         if(!file.isDirectory){
-                            project.openFileInIDE(file)
+                            if(!fileSystem.openFileInIDE(file)){
+                                //todo show error
+                            }
                         }
                     }
                 }
@@ -375,37 +370,6 @@ fun Project.openSFTP(server: Server) {
         window.show()
     }
 }
-fun Project.openFileInIDE(file: VirtualFile) {
-    try {
-        // First ensure the file is loaded
-        file.refresh(false, false)
-        // If it's a text file, ensure it's opened in a text editor
-        val fileType = FileTypeManager.getInstance().getFileTypeByFileName(file.name)
-        if (fileType.isBinary) {
-            // For binary files, just open them directly
-            FileEditorManager.getInstance(this).openFile(file, true)
-        } else {
-            // For text files, ensure proper text editor
-            val editors = FileEditorManager.getInstance(this).getEditors(file)
-            if (editors.isEmpty()) {
-                // If no editor was opened, try to open it as a text file
-                val document = FileDocumentManager.getInstance().getDocument(file)
-                if (document != null) {
-                    FileEditorManager.getInstance(this).openTextEditor(
-                        OpenFileDescriptor(this, file, 0),
-                        true
-                    )
-                }
-            }
-        }
-    } catch (e: Exception) {
-        e.printStackTrace()
-        Messages.showErrorDialog(
-            this,
-            "Failed to open file: ${e.message}",
-            "Error Opening File"
-        )
-    }
-}
+
 
 

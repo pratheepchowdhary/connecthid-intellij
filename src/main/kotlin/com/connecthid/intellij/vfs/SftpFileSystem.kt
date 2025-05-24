@@ -3,22 +3,48 @@ package com.connecthid.intellij.vfs
 import com.connecthid.intellij.getSSHService
 import com.connecthid.intellij.models.Server
 import com.connecthid.intellij.services.SSHConnection
+import com.intellij.openapi.fileEditor.FileDocumentManager
+import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.openapi.fileEditor.FileEditorManagerListener
+import com.intellij.openapi.fileEditor.OpenFileDescriptor
+import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileListener
 import com.intellij.openapi.vfs.VirtualFileSystem
+import com.jcraft.jsch.ChannelExec
 import com.jcraft.jsch.ChannelSftp
+import com.jcraft.jsch.Session
+import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InputStream
+import java.util.concurrent.locks.ReentrantLock
+
 
 class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSystem() {
     val connectionService = project.getSSHService()
     internal val fileCache = mutableMapOf<String, SftpFile>()
     private val listeners = mutableListOf<VirtualFileListener>()
     private var channelSftp: ChannelSftp?=null
-
+    private val fileEditor by  lazy { FileEditorManager.getInstance(project) }
+    private val connectionLock = ReentrantLock()
+    var channelCount = hashMapOf<Int, ChannelSftp>()
+    var maxChannels = 5;
     companion object {
         const val PROTOCOL = "sftp"
+    }
+
+    init {
+        project.messageBus.connect().subscribe(FileEditorManagerListener.FILE_EDITOR_MANAGER, object :
+            FileEditorManagerListener {
+            override fun fileClosed(source: FileEditorManager, file: VirtualFile) {
+                println("File closed: ${file.name}")
+                if(file is SftpFile){
+                    file.disconnectChannel()
+
+                }
+            }
+        })
     }
 
     override fun getProtocol(): String = PROTOCOL
@@ -30,6 +56,10 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
     }
 
     override fun refresh(asynchronous: Boolean) {
+
+        fileCache.values.forEach {
+            it.disconnectChannel()
+        }
         fileCache.clear()
     }
 
@@ -49,6 +79,8 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
             fileCache.remove(vFile.path)
         } catch (e: Exception) {
             throw IOException("Failed to delete file: ${e.message}", e)
+        } finally {
+            disconnectChannel()
         }
     }
 
@@ -64,6 +96,8 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
             fileCache[newPath] = SftpFile(newPath, this)
         } catch (e: Exception) {
             throw IOException("Failed to move file: ${e.message}", e)
+        } finally {
+            disconnectChannel()
         }
     }
 
@@ -78,6 +112,8 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
             fileCache[newPath] = SftpFile(newPath, this)
         } catch (e: Exception) {
             throw IOException("Failed to rename file: ${e.message}", e)
+        } finally {
+            disconnectChannel()
         }
     }
 
@@ -92,6 +128,9 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
             return newFile
         } catch (e: Exception) {
             throw IOException("Failed to create file: ${e.message}", e)
+        }
+        finally {
+            disconnectChannel()
         }
     }
 
@@ -109,6 +148,9 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
         } catch (e: Exception) {
             throw IOException("Failed to create directory: ${e.message}", e)
         }
+        finally {
+            disconnectChannel()
+        }
     }
 
     override fun copyFile(requestor: Any?, virtualFile: VirtualFile, newParent: VirtualFile, copyName: String): VirtualFile {
@@ -119,7 +161,7 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
             val channel = getChannel() ?:  throw IOException("Failed to copy file")
 
             val newPath = "${newParentSftp.path}/$copyName"
-            
+
             if (sftpFile.isDirectory) {
                 channel.mkdir(newPath)
             } else {
@@ -131,6 +173,8 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
             return newFile
         } catch (e: Exception) {
             throw IOException("Failed to copy file: ${e.message}", e)
+        } finally {
+            disconnectChannel()
         }
     }
 
@@ -146,15 +190,46 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
 
 
     internal fun getConnection(): SSHConnection? {
-        var connection = connectionService.getConnection(server.host)
-        if (connection == null || !connection.isConnected()) {
-            connectionService.connect(server.host, server.username, server.password, port = server.port)
-            connection = connectionService.getConnection(server.host)
+        connectionLock.lock()
+        try{
+            var connection = connectionService.getConnection(server.host)
+            if (connection == null || !connection.isConnected()) {
+                connectionService.connect(server.host, server.username, server.password, port = server.port)
+                connection = connectionService.getConnection(server.host)
+                if(connection != null && connection.isConnected()){
+                    maxChannels = getMaxSessionsValue(connection.getSession()!!)
+                    println("maxChannels:"+maxChannels)
+                }
+            }
+            if( connection!= null && connection.isConnected() && !isSessionAlive(connection.getSession()!!)){
+                connectionService.disconnect(server.host)
+                connectionService.connect(server.host, server.username, server.password, port = server.port)
+                connection = connectionService.getConnection(server.host)
+                if(connection != null && connection.isConnected()){
+                    maxChannels = getMaxSessionsValue(connection.getSession()!!)
+                    println("maxChannels:"+maxChannels)
+                }
+            }
+            return connection
+
+        } finally {
+            connectionLock.unlock()
         }
-        return connection
     }
+
+    fun isSessionAlive(session: Session): Boolean {
+        return try {
+            session.sendKeepAliveMsg()
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+
      private fun getChannel(): ChannelSftp? {
         val connection = getConnection() ?: return null
+        if(!connection.isConnected()) return null
         if (channelSftp == null || !channelSftp!!.isConnected) {
             try {
                 channelSftp?.disconnect()
@@ -178,4 +253,66 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
         }
     }
 
-} 
+
+    fun openFileInIDE(file: VirtualFile): Boolean {
+        try {
+            // Check if file is already opened in editor
+            val editors = fileEditor.getEditors(file)
+            if (editors.isNotEmpty()) {
+                // File is already opened, navigate to it
+                fileEditor.openFile(file, true)
+                return true
+            }
+            // If it's a text file, ensure it's opened in a text editor
+            val fileType = FileTypeManager.getInstance().getFileTypeByFileName(file.name)
+            if (fileType.isBinary) {
+                // For binary files, just open them directly
+                fileEditor.openFile(file, true)
+            } else {
+                // For text files, ensure proper text editor
+                val document = FileDocumentManager.getInstance().getDocument(file)
+                if (document != null) {
+                    fileEditor.openTextEditor(
+                        OpenFileDescriptor(project, file, 0),
+                        true
+                    )
+                }
+            }
+            return true
+        } catch (e: Exception) {
+            e.printStackTrace()
+
+        }
+        return false
+    }
+
+
+    fun getMaxSessionsValue(session: Session): Int {
+        return try {
+            val channel = session.openChannel("exec") as ChannelExec
+
+            // Use sshd -T if available, else fallback to reading sshd_config
+            val command = "sshd -T 2>/dev/null | grep -i maxsessions || grep -i MaxSessions /etc/ssh/sshd_config"
+            channel.setCommand(command)
+            channel.setInputStream(null)
+            val outputStream = ByteArrayOutputStream()
+            channel.outputStream = outputStream
+            channel.connect()
+            // Wait for command to complete
+            while (!channel.isClosed) {
+                Thread.sleep(100)
+            }
+            channel.disconnect()
+            val output = outputStream.toString().trim()
+            return output.lines().firstOrNull { it.contains("maxsessions", ignoreCase = true) }?.let { line ->
+                line.trim().split(Regex("\\s+")).firstOrNull { it.matches(Regex("\\d+")) }?.toIntOrNull()
+            } ?: 5
+
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return 5
+        }
+    }
+
+
+}

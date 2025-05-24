@@ -6,6 +6,7 @@ import com.jcraft.jsch.ChannelSftp
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
+import java.util.concurrent.locks.ReentrantLock
 
 class SftpFile(
     val pathLocation: String,
@@ -13,12 +14,22 @@ class SftpFile(
     val fileEntry:ChannelSftp.LsEntry? = null
 ) : VirtualFile() {
     private var channelSftp: ChannelSftp?=null
+    private val channelLock = ReentrantLock()
+    private var channelId = -1
+
+
+
     private var children: Array<VirtualFile>? = null
     override fun getFileSystem(): VirtualFileSystem = fileSystem
 
     override fun getName(): String = pathLocation.split("/").last()
 
-    override fun isWritable(): Boolean = true
+    override fun isWritable(): Boolean {
+        if(fileEntry == null){
+            return true
+        }
+        return fileEntry.isWritable()
+    }
 
     override fun isDirectory(): Boolean {
         if (fileEntry == null) {
@@ -33,6 +44,7 @@ class SftpFile(
         val parentPath = pathLocation.substringBeforeLast("/", "")
         return if (parentPath.isEmpty()) null else SftpFile(parentPath, fileSystem)
     }
+
 
     override fun getChildren(): Array<VirtualFile> {
         if (children == null) {
@@ -65,6 +77,9 @@ class SftpFile(
                 println("Error listing directory: ${e.message}")
                 e.printStackTrace()
                 return emptyArray()
+            }
+            finally {
+                disconnectChannel()
             }
         }
         return children ?: emptyArray()
@@ -155,30 +170,50 @@ class SftpFile(
     override fun getPath(): String = pathLocation
 
 
-
     private fun getChannel(): ChannelSftp? {
+        channelLock.lock()
         val connection = fileSystem.getConnection() ?: return null
-        if (channelSftp == null || !channelSftp!!.isConnected) {
-            try {
+        try {
+            if (channelSftp == null || !channelSftp!!.isConnected) {
                 channelSftp?.disconnect()
                 channelSftp = connection.getSession()?.openChannel("sftp") as? ChannelSftp
                 channelSftp!!.connect()
-            } catch (e: Exception) {
-                println("Error creating SFTP channel: ${e.message}")
-                e.printStackTrace()
-                return null
+                val size = fileSystem.channelCount.size
+                channelId = size+1
+                fileSystem.channelCount[channelId]=channelSftp!!
+                println("added Channel : ${channelId} and all channels size: "+fileSystem.channelCount.size)
             }
+            return channelSftp
+        } catch (e: Exception) {
+            println("Error creating SFTP channel: ${e.message}")
+            e.printStackTrace()
+            return null
+        } finally {
+            channelLock.unlock()
         }
-        return channelSftp
     }
-    private fun disconnectChannel() {
+    internal fun disconnectChannel() {
+        channelLock.lock()
         try {
             channelSftp?.disconnect()
             channelSftp = null
+            if(channelId!=-1){
+               fileSystem.channelCount.remove(channelId)
+              println("Removed Channel : ${channelId} and remaining channels size: "+fileSystem.channelCount.size)
+            }
         } catch (e: Exception) {
             println("Error disconnecting SFTP channel: ${e.message}")
             e.printStackTrace()
+        } finally {
+            channelLock.unlock()
         }
     }
+}
+
+fun ChannelSftp.LsEntry.isWritable(): Boolean {
+    val permissions = attrs.permissions // This is an int
+    // Check if owner has write permission (bitmask 0o200 == 128)
+    val S_IWUSR = 0b10_0000_000 // Octal 0200 == decimal 128
+    return (permissions and S_IWUSR) != 0
 }
 
