@@ -30,7 +30,7 @@ import javax.swing.tree.DefaultMutableTreeNode
 import javax.swing.tree.DefaultTreeModel
 import javax.swing.tree.TreePath
 
-
+//Todo Max session restrictions
 class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(BorderLayout()), TreeExpansionListener {
     private val tree: Tree
     private val treeModel: DefaultTreeModel

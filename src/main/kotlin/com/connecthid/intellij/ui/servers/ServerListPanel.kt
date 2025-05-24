@@ -8,7 +8,6 @@ import com.connecthid.intellij.ui.dialog.AddServerDialog
 import com.connecthid.intellij.utils.removeI
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.project.Project
-import com.connecthid.intellij.terminal.SshTerminalUtils
 import com.connecthid.intellij.terminal.openTerminal
 import com.connecthid.intellij.ui.filemanager.sftp.openSFTP
 import com.intellij.ui.JBColor
@@ -50,7 +49,7 @@ class ServerListPanel internal constructor(val project: Project): JBPanel<Server
 
         removeI { child -> child is ServerItem }
         for (device in devices) {
-            val devicePanel = ServerItem(device)
+            val devicePanel = ServerItem(device,connectionService)
             devicePanel.listener = this
             add(devicePanel)
         }

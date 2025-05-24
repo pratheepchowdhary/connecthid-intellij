@@ -2,33 +2,28 @@ package com.connecthid.intellij.ui.servers
 
 import com.connecthid.intellij.PluginBundle
 import com.connecthid.intellij.models.Server
-import com.connecthid.intellij.ui.menu.MenuItem
-import com.connecthid.intellij.ui.menu.MenuItemRenderer
+import com.connecthid.intellij.services.ServerConnectionService
 import com.connecthid.intellij.utils.makeBol
 import com.intellij.icons.AllIcons
-import com.intellij.openapi.ui.popup.JBPopupFactory
-import com.intellij.openapi.ui.popup.PopupChooserBuilder
-import com.intellij.ui.Gray
+import com.intellij.openapi.actionSystem.ActionManager
+import com.intellij.openapi.actionSystem.AnAction
+import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.ui.JBColor
-import com.intellij.ui.awt.RelativePoint
 import com.intellij.ui.components.JBLabel
-import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBPanel
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import java.awt.Dimension
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
-import java.awt.Point
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
-import javax.swing.DefaultListModel
 import javax.swing.JButton
 import javax.swing.JProgressBar
-import java.util.function.Consumer
 
 
-class ServerItem(val device: Server) : JBPanel<ServerItem>(GridBagLayout()) {
+class ServerItem(val device: Server, val connectionService: ServerConnectionService) : JBPanel<ServerItem>(GridBagLayout()) {
 
     var listener: Listener? = null
 
@@ -206,7 +201,7 @@ class ServerItem(val device: Server) : JBPanel<ServerItem>(GridBagLayout()) {
         moreButton.addMouseListener(object : MouseAdapter() {
             override fun mouseClicked(e: MouseEvent) {
                 if (e.clickCount == 1) {
-                    openDeviceMenu(device, e)
+                    showPopupMenu(e.x,e.y,moreButton,device)
                 }
             }
         })
@@ -222,37 +217,60 @@ class ServerItem(val device: Server) : JBPanel<ServerItem>(GridBagLayout()) {
         return "${device.systemInfo.totalRam} / ${device.systemInfo.totalStorage} - ${device.systemInfo.osName} ${device.systemInfo.osVersion} ${device.systemInfo.architecture}"
     }
 
-    private fun openDeviceMenu(device: Server, event: MouseEvent) {
-        val menus = DefaultListModel<MenuItem>()
-        menus.addElement(MenuItem(PluginBundle.message("open_sftp"), AllIcons.Nodes.WebFolder))
-        menus.addElement(MenuItem(PluginBundle.message("open_terminal"), AllIcons.Nodes.Console))
-        menus.addElement(MenuItem(PluginBundle.message("edit"), AllIcons.Actions.Edit))
-        menus.addElement(MenuItem(PluginBundle.message("connect"), AllIcons.Actions.Copy))
-       // menus.addElement(MenuItem(PluginBundle.message("disconnect"), AllIcons.Actions.Copy))
-        menus.addElement(MenuItem(PluginBundle.message("delete"), AllIcons.Actions.Copy))
+    fun showPopupMenu(x: Int, y: Int, button: JButton,device: Server) {
+        // Prepare the action group for menu items
+        val actionGroup = DefaultActionGroup()
 
-        val list: JBList<MenuItem> = JBList<MenuItem>(menus)
-        list.setCellRenderer(MenuItemRenderer())
-        list.setBorder(null)
-
-
-        val popupBuilder = PopupChooserBuilder(list);
-        popupBuilder.setRequestFocus(true)
-        popupBuilder.setItemChosenCallback { menuItem ->
-            when (menuItem.text) {
-                PluginBundle.message("edit") -> listener?.onEditDeviceClicked(device)
-                PluginBundle.message("connect") -> listener?.onConnectButtonClicked(device)
-                PluginBundle.message("disconnect") -> listener?.onDisconnectButtonClicked(device)
-                PluginBundle.message("delete") -> listener?.onRemoveDeviceClicked(device)
-                PluginBundle.message("open_sftp") -> listener?.onOpenSFTPClicked(device)
-                PluginBundle.message("open_terminal") -> listener?.onOpenConsoleButtonClicked(device)
+        actionGroup.add(object : AnAction({ PluginBundle.message("open_sftp")}, AllIcons.Nodes.WebFolder) {
+            override fun actionPerformed(e: AnActionEvent) {
+                listener?.onOpenSFTPClicked(device)
             }
+        })
+        actionGroup.add(object : AnAction({ PluginBundle.message("open_terminal")}, AllIcons.Nodes.Console) {
+            override fun actionPerformed(e: AnActionEvent) {
+                listener?.onOpenConsoleButtonClicked(device)
+            }
+        })
+        actionGroup.addSeparator()
+        if(connectionService.isConnected(device.host)){
+            actionGroup.add(object : AnAction({ PluginBundle.message("disconnect")}, AllIcons.Debugger.KillProcess) {
+                override fun actionPerformed(e: AnActionEvent) {
+                    println("Rename action triggered")
+                    listener?.onDisconnectButtonClicked(device)
+                }
+            })
+        } else {
+            actionGroup.add(object : AnAction({ PluginBundle.message("connect")}, AllIcons.Debugger.ThreadRunning) {
+                override fun actionPerformed(e: AnActionEvent) {
+                    println("Rename action triggered")
+                    listener?.onConnectButtonClicked(device)
+                }
+            })
         }
-        val popup = popupBuilder.createPopup()
-        val point = Point(event.point.x-80,event.point.y)
-        popup.show(RelativePoint(event.component, point))
 
+        actionGroup.add(object : AnAction({ PluginBundle.message("edit") }, AllIcons.Actions.Edit) {
+            override fun actionPerformed(e: AnActionEvent) {
+                // Handle Paste action
+                println("onEditDeviceClicked")
+                listener?.onEditDeviceClicked(device)
+            }
+        })
+        actionGroup.addSeparator()
+        actionGroup.add(object : AnAction({ PluginBundle.message("delete")}, AllIcons.Actions.DeleteTag) {
+            override fun actionPerformed(e: AnActionEvent) {
+                println("onRemoveDeviceClicked")
+                listener?.onRemoveDeviceClicked(device)
+            }
+        })
+
+        // Create the popup menu with the action group
+        val popupMenu = ActionManager.getInstance()
+            .createActionPopupMenu("CustomPopup", actionGroup)
+
+        // Show the popup at the specified x, y location
+        popupMenu.component.show(button,x,y)
     }
+
 
     interface Listener {
         fun onConnectButtonClicked(device: Server)
