@@ -12,6 +12,7 @@ class SftpFile(
     private val fileSystem: SftpFileSystem,
     val fileEntry:ChannelSftp.LsEntry? = null
 ) : VirtualFile() {
+    private var channelSftp: ChannelSftp?=null
     private var children: Array<VirtualFile>? = null
     override fun getFileSystem(): VirtualFileSystem = fileSystem
 
@@ -36,7 +37,7 @@ class SftpFile(
     override fun getChildren(): Array<VirtualFile> {
         if (children == null) {
             try {
-                val channel = fileSystem.getChannel()
+                val channel = getChannel()
                 if (channel == null || !channel.isConnected) {
                     println("Failed to establish SFTP channel")
                     return emptyArray()
@@ -110,7 +111,7 @@ class SftpFile(
     override fun getOutputStream(requestor: Any?, modStamp: Long, timeStamp: Long): OutputStream {
         
         try {
-            val channel = fileSystem.getChannel() ?: throw IOException("Failed to get SFTP channel")
+            val channel = getChannel() ?: throw IOException("Failed to get SFTP channel")
             return channel.put(pathLocation) ?: throw IOException("Failed to get output stream")
         } catch (e: Exception) {
             throw IOException("Failed to get output stream: ${e.message}", e)
@@ -120,7 +121,7 @@ class SftpFile(
     override fun contentsToByteArray(): ByteArray {
         
         try {
-            val channel = fileSystem.getChannel() ?: throw IOException("Failed to get SFTP channel")
+            val channel = getChannel() ?: throw IOException("Failed to get SFTP channel")
             val inputStream = channel.get(pathLocation) ?: throw IOException("Failed to get input stream")
             return inputStream.readBytes()
         } catch (e: Exception) {
@@ -131,7 +132,7 @@ class SftpFile(
     override fun getInputStream(): InputStream {
         
         try {
-            val channel = fileSystem.getChannel() ?: throw IOException("Failed to get SFTP channel")
+            val channel = getChannel() ?: throw IOException("Failed to get SFTP channel")
             val inputStream = channel.get(pathLocation) ?: throw IOException("Failed to get input stream")
             
             return object : InputStream() {
@@ -152,4 +153,32 @@ class SftpFile(
     }
 
     override fun getPath(): String = pathLocation
-} 
+
+
+
+    private fun getChannel(): ChannelSftp? {
+        val connection = fileSystem.getConnection() ?: return null
+        if (channelSftp == null || !channelSftp!!.isConnected) {
+            try {
+                channelSftp?.disconnect()
+                channelSftp = connection.getSession()?.openChannel("sftp") as? ChannelSftp
+                channelSftp!!.connect()
+            } catch (e: Exception) {
+                println("Error creating SFTP channel: ${e.message}")
+                e.printStackTrace()
+                return null
+            }
+        }
+        return channelSftp
+    }
+    private fun disconnectChannel() {
+        try {
+            channelSftp?.disconnect()
+            channelSftp = null
+        } catch (e: Exception) {
+            println("Error disconnecting SFTP channel: ${e.message}")
+            e.printStackTrace()
+        }
+    }
+}
+

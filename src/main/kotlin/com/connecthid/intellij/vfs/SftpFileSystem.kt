@@ -145,7 +145,7 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
     override fun isReadOnly(): Boolean = false
 
 
-    private fun getConnection(): SSHConnection? {
+    internal fun getConnection(): SSHConnection? {
         var connection = connectionService.getConnection(server.host)
         if (connection == null || !connection.isConnected()) {
             connectionService.connect(server.host, server.username, server.password, port = server.port)
@@ -153,7 +153,7 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
         }
         return connection
     }
-     fun getChannel(): ChannelSftp? {
+     private fun getChannel(): ChannelSftp? {
         val connection = getConnection() ?: return null
         if (channelSftp == null || !channelSftp!!.isConnected) {
             try {
@@ -168,7 +168,7 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
         }
         return channelSftp
     }
-    fun disconnectChannel() {
+    private fun disconnectChannel() {
         try {
            channelSftp?.disconnect()
            channelSftp = null
