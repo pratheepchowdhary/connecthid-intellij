@@ -1,4 +1,4 @@
-package com.connecthid.intellij.vfs
+package com.connecthid.intellij.connection.vfs
 
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileSystem

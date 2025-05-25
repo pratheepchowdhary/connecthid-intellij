@@ -1,52 +1,54 @@
-package com.connecthid.intellij.actions
+package com.connecthid.intellij.ui.actions
 
-import com.connecthid.intellij.services.CronService
+import com.connecthid.intellij.services.ScriptService
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.ui.Messages
 
-class ManageCronAction : AnAction() {
+class ManageScriptsAction : AnAction() {
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
-        val cronService = CronService(project)
+        val scriptService = ScriptService(project)
         
         // Show input dialog for host
         val host = Messages.showInputDialog(
             project,
             "Enter server host:",
-            "Manage Cron Jobs",
+            "Manage Scripts",
             Messages.getQuestionIcon()
         ) ?: return
 
-        // Show input dialog for schedule
-        val schedule = Messages.showInputDialog(
+        // Show input dialog for script name
+        val scriptName = Messages.showInputDialog(
             project,
-            "Enter cron schedule (e.g., '0 * * * *'):",
-            "Manage Cron Jobs",
+            "Enter script name:",
+            "Manage Scripts",
             Messages.getQuestionIcon()
         ) ?: return
 
-        // Show input dialog for command
-        val command = Messages.showInputDialog(
+        // Show input dialog for script content
+        val scriptContent = Messages.showMultilineInputDialog(
             project,
-            "Enter command to execute:",
-            "Manage Cron Jobs",
-            Messages.getQuestionIcon()
+            "Enter script content:",
+            "Manage Scripts",
+            "",
+            Messages.getQuestionIcon(),
+            null
         ) ?: return
 
         try {
-            // Create or update cron job
-            cronService.createCronJob(host, schedule, command)
+            // Create or update script
+            scriptService.createScript(host, scriptName, scriptContent)
             
             Messages.showInfoMessage(
                 project,
-                "Cron job has been created/updated successfully",
-                "Cron Job Management"
+                "Script '$scriptName' has been created/updated successfully",
+                "Script Management"
             )
         } catch (ex: Exception) {
             Messages.showErrorDialog(
                 project,
-                "Failed to manage cron job: ${ex.message}",
+                "Failed to manage script: ${ex.message}",
                 "Error"
             )
         }

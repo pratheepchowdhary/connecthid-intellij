@@ -1,4 +1,4 @@
-package com.connecthid.intellij.actions
+package com.connecthid.intellij.ui.actions
 
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent

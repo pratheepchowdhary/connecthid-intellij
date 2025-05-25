@@ -1,4 +1,4 @@
-package com.connecthid.intellij.actions
+package com.connecthid.intellij.ui.actions
 
 import com.connecthid.intellij.ui.menu.MenuItemRenderer
 import com.connecthid.intellij.ui.menu.MenuItem

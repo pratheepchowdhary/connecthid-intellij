@@ -1,4 +1,4 @@
-package com.connecthid.intellij.vfs
+package com.connecthid.intellij.connection.vfs
 
 import com.connecthid.intellij.getSSHService
 import com.connecthid.intellij.models.Server

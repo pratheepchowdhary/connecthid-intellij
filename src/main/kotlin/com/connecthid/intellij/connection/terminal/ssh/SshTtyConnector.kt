@@ -1,4 +1,4 @@
-package com.connecthid.intellij.terminal.ssh
+package com.connecthid.intellij.connection.terminal.ssh
 
 import com.jcraft.jsch.*
 import com.jediterm.core.util.TermSize

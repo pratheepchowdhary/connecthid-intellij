@@ -1,4 +1,4 @@
-package com.connecthid.intellij.terminal.ssh
+package com.connecthid.intellij.connection.terminal.ssh
 
 import com.intellij.openapi.project.Project
 import com.jediterm.terminal.TtyConnector

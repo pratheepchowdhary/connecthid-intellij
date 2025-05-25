@@ -50,8 +50,8 @@
 
   <actions>
     <!-- Add the tools menu action button -->
-    <action id="com.connecthid.intellij.actions.ToolsMenuAction"
-            class="com.connecthid.intellij.actions.ToolsMenuAction"
+    <action id="com.connecthid.intellij.ui.actions.ToolsMenuAction"
+            class="com.connecthid.intellij.ui.actions.ToolsMenuAction"
             text="Tools Menu"
             description="Show tools menu"
             icon="AllIcons.RunConfigurations.RemoteDebug">

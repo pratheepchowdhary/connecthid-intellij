@@ -4,11 +4,11 @@ import com.connecthid.intellij.getSSHService
 import com.connecthid.intellij.models.AuthenticationMethod
 import com.connecthid.intellij.models.Server
 import com.connecthid.intellij.models.SystemInfo
-import com.connecthid.intellij.ui.dialog.AddServerDialog
+import com.connecthid.intellij.ui.servers.AddServerDialog
 import com.connecthid.intellij.utils.removeI
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.project.Project
-import com.connecthid.intellij.terminal.openTerminal
+import com.connecthid.intellij.connection.terminal.openTerminal
 import com.connecthid.intellij.ui.filemanager.sftp.openSFTP
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBLabel
@@ -18,7 +18,6 @@ import com.intellij.util.ui.JBUI
 import java.awt.Dimension
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
-import javax.swing.BorderFactory
 import javax.swing.BoxLayout
 import javax.swing.JButton
 import javax.swing.JPanel
@@ -43,7 +42,6 @@ class ServerListPanel internal constructor(val project: Project): JBPanel<Server
     }
 
     private fun rebuildUi() {
-        header?.border = HEADER_BORDER_EXPANDED
         headerLabel?.text = "$title (${devices.size})"
 
 
@@ -60,9 +58,7 @@ class ServerListPanel internal constructor(val project: Project): JBPanel<Server
         val header = OpaquePanel(GridBagLayout())
         this.header = header
 
-        headerLabel = JBLabel().apply {
-            foreground = HEADER_FOREGROUND_COLOR
-        }
+        headerLabel = JBLabel()
         header.add(
             headerLabel!!,
             GridBagConstraints().apply {
@@ -103,7 +99,6 @@ class ServerListPanel internal constructor(val project: Project): JBPanel<Server
         header.minimumSize = Dimension(0, HEADER_HEIGHT)
         header.maximumSize = Dimension(Int.MAX_VALUE, HEADER_HEIGHT)
         header.preferredSize = Dimension(0, HEADER_HEIGHT)
-        header.background = HEADER_BACKGROUND_COLOR
         add(header)
 
     }
@@ -234,12 +229,6 @@ class ServerListPanel internal constructor(val project: Project): JBPanel<Server
 
     private companion object {
         private const val HEADER_HEIGHT = 50
-        private val HEADER_BACKGROUND_COLOR = JBColor.namedColor(
-            "Plugins.lightSelectionBackground",
-            JBColor(0xF5F9FF, 0x36393B)
-        )
-        private val HEADER_FOREGROUND_COLOR = JBColor(0x787878, 0xBBBBBB)
-        private val HEADER_BORDER_EXPANDED = BorderFactory.createMatteBorder(1, 0, 0, 0, JBColor.border())
         private val title = "Servers"
     }
 

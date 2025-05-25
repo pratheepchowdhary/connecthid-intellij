@@ -2,7 +2,7 @@ package com.connecthid.intellij
 
 import com.connecthid.intellij.services.ConnectHidServiceImpl
 import com.connecthid.intellij.services.ServerConnectionService
-import com.connecthid.intellij.ui.FileSyncPanel
+import com.connecthid.intellij.ui.rsync.FileSyncPanel
 import com.connecthid.intellij.ui.ScriptPanel
 import com.connecthid.intellij.ui.servers.ServerListPanel
 import com.intellij.openapi.application.ApplicationManager

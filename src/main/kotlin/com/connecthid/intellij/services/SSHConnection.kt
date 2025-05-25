@@ -1,8 +1,16 @@
 package com.connecthid.intellij.services
 
 import com.jcraft.jsch.*
+import java.io.File
 import java.io.IOException
 import java.io.InputStream
+import java.nio.file.Files
+import java.nio.file.Paths
+import java.security.KeyPairGenerator
+import java.security.interfaces.RSAPrivateKey
+import java.security.interfaces.RSAPublicKey
+import java.util.Base64
+
 
 class SSHConnection(
     private val host: String,
@@ -38,6 +46,7 @@ class SSHConnection(
             throw IOException("Failed to connect to $host: ${e.message}", e)
         }
     }
+
 
     fun disconnect() {
         channel?.disconnect()
@@ -122,6 +131,94 @@ class SSHConnection(
         if (inputStream == null) return ""
         val reader = inputStream.bufferedReader()
         return reader.use { it.readText() }
+    }
+
+    /**
+     * Install public key from local file to remote ~/.ssh/authorized_keys.
+     *
+     * @param publicKeyPath local path to public key file
+     */
+    fun installPublicKey(publicKeyPath: String) {
+        val publicKey = File(publicKeyPath).readText(Charsets.UTF_8).trim()
+        //create folder if not exits and add permission
+        execute("mkdir -p ~/.ssh && chmod 700 ~/.ssh")
+        val appendCmd = "echo '$publicKey' >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
+        execute(appendCmd)
+        println("Public key installed successfully")
+    }
+
+    /**
+     * Generate RSA key pair and save to files.
+     *
+     * @param privateKeyPath where to save the private key (PEM format)
+     * @param publicKeyPath where to save the public key (OpenSSH format)
+     */
+    fun generateKeyPair(privateKeyPath: String, publicKeyPath: String) {
+        val keyGen = KeyPairGenerator.getInstance("RSA")
+        keyGen.initialize(2048)
+        val keyPair = keyGen.generateKeyPair()
+
+        val privateKey = keyPair.private as RSAPrivateKey
+        val publicKey = keyPair.public as RSAPublicKey
+
+        // Save private key in PEM format (PKCS#8, unencrypted)
+        val privateKeyPem = buildString {
+            appendLine("-----BEGIN PRIVATE KEY-----")
+            appendLine(Base64.getMimeEncoder(64, "\n".toByteArray()).encodeToString(privateKey.encoded))
+            appendLine("-----END PRIVATE KEY-----")
+        }
+        Files.write(Paths.get(privateKeyPath), privateKeyPem.toByteArray())
+
+        // Save public key in OpenSSH format
+        val sshPubKey = encodePublicKey(publicKey, username)
+        Files.write(Paths.get(publicKeyPath), sshPubKey.toByteArray())
+
+        println("Key pair generated:")
+        println("Private key: $privateKeyPath")
+        println("Public key: $publicKeyPath")
+    }
+
+    /**
+     * Helper to encode RSA public key in OpenSSH format:
+     * "ssh-rsa <base64-encoded key> username"
+     */
+    private fun encodePublicKey(pubKey: RSAPublicKey, comment: String): String {
+        fun intToBytes(i: Int): ByteArray {
+            return byteArrayOf(
+                ((i shr 24) and 0xff).toByte(),
+                ((i shr 16) and 0xff).toByte(),
+                ((i shr 8) and 0xff).toByte(),
+                (i and 0xff).toByte()
+            )
+        }
+        // SSH public key format encoding (simplified)
+        fun writeString(s: String, buf: MutableList<Byte>) {
+            val b = s.toByteArray()
+            buf.addAll(intToBytes(b.size).toList())
+            buf.addAll(b.toList())
+        }
+
+        fun writeBytes(b: ByteArray, buf: MutableList<Byte>) {
+            buf.addAll(intToBytes(b.size).toList())
+            buf.addAll(b.toList())
+        }
+
+
+
+        val buf = mutableListOf<Byte>()
+
+        writeString("ssh-rsa", buf)
+
+        val pubExp = pubKey.publicExponent.toByteArray()
+        val modulus = pubKey.modulus.toByteArray()
+
+        writeBytes(pubExp, buf)
+        writeBytes(modulus, buf)
+
+        val keyBytes = buf.toByteArray()
+        val base64Encoded = Base64.getEncoder().encodeToString(keyBytes)
+
+        return "ssh-rsa $base64Encoded $comment"
     }
 
     fun close() {

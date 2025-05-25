@@ -1,8 +1,8 @@
-package com.connecthid.intellij.terminal
+package com.connecthid.intellij.connection.terminal
 
 import com.connecthid.intellij.models.Server
-import com.connecthid.intellij.terminal.ssh.SshTerminalRunner
-import com.connecthid.intellij.terminal.ssh.SshTtyConnector
+import com.connecthid.intellij.connection.terminal.ssh.SshTerminalRunner
+import com.connecthid.intellij.connection.terminal.ssh.SshTtyConnector
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
 import com.intellij.terminal.ui.TerminalWidget

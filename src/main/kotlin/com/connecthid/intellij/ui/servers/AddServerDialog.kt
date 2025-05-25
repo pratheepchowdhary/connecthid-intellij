@@ -1,4 +1,4 @@
-package com.connecthid.intellij.ui.dialog
+package com.connecthid.intellij.ui.servers
 
 import com.connecthid.intellij.PluginBundle
 import com.connecthid.intellij.getSSHService
@@ -22,8 +22,12 @@ import org.jetbrains.annotations.ApiStatus
 import org.jetbrains.annotations.NotNull
 import java.awt.Dimension
 import java.awt.event.ActionEvent
-import javax.swing.*
-
+import javax.swing.AbstractAction
+import javax.swing.Action
+import javax.swing.JLabel
+import javax.swing.JOptionPane
+import javax.swing.JRadioButton
+import javax.swing.JTextField
 
 @ApiStatus.Experimental
 open class AddServerDialog(val project: Project, host: String? = null, username: String = "root", password: String? = null, port: Int = 22, privateKeyPath: String? = null) : DialogWrapper(true) {
@@ -70,7 +74,7 @@ open class AddServerDialog(val project: Project, host: String? = null, username:
                 textField()
                     .bindText(selectedPort)
             }
-            
+
             buttonsGroup {
                 row("Authentication:") {
                     radioButton("Password", "PASSWORD")
@@ -86,20 +90,20 @@ open class AddServerDialog(val project: Project, host: String? = null, username:
                     .enabledIf(passwordRadioButton.selected)
                     .apply { jbPasswordField = component }
             }
-            
+
             row("Private Key:") {
 
-                textFieldWithBrowseButton( fileChooserDescriptor = fileDescriptor,project) {
+                textFieldWithBrowseButton(fileChooserDescriptor = fileDescriptor, project) {
                     selectedPrivateKeyPath.set(it.path)
                     return@textFieldWithBrowseButton it.path
                 }.bindText(selectedPrivateKeyPath)
                     .enabledIf(privateKeyRadioButton.selected)
                     .apply { jbPrivateKeyField = component.textField }
             }
-            row{
+            row {
                 label("").also {
-                     loaderLabel = it.component
-                     loaderLabel.isVisible = false
+                    loaderLabel = it.component
+                    loaderLabel.isVisible = false
                 }
 
 
@@ -172,20 +176,8 @@ open class AddServerDialog(val project: Project, host: String? = null, username:
             loaderLabel.text = "Connection Failed"
             loaderLabel.icon = AllIcons.General.Error
         }
-
     }
     override fun doCancelAction(){
        super.doCancelAction()
-    }
-
-    fun getServerConnection(): Server {
-        return Server(
-            host = selectedHost.get(),
-            username = selectedUsername.get(),
-            port = selectedPort.get().toInt(),
-            authMethod = AuthenticationMethod.valueOf(selectedMethod),
-            privateKeyPath = if (selectedMethod == "PRIVATE_KEY") selectedPrivateKeyPath.get() else null,
-            systemInfo = SystemInfo()
-        )
     }
 }

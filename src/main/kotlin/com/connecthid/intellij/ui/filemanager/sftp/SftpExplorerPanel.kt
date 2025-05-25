@@ -2,7 +2,7 @@ package com.connecthid.intellij.ui.filemanager.sftp
 
 import com.connecthid.intellij.models.Server
 import com.connecthid.intellij.ui.filemanager.sftp.actions.SearchAction
-import com.connecthid.intellij.vfs.SftpFileSystem
+import com.connecthid.intellij.connection.vfs.SftpFileSystem
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.actionSystem.*
 import com.intellij.openapi.fileTypes.FileTypeManager
@@ -323,40 +323,12 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(B
         super.removeNotify()
         coroutineScope.cancel()
     }
-
-    private inner class SftpTreeNode(val file: VirtualFile) : DefaultMutableTreeNode() {
-        init {
-            userObject = file
-        }
-
-        override fun toString(): String = file.name
-    }
-
-    private inner class SftpTreeCellRenderer : ColoredTreeCellRenderer() {
-        override fun customizeCellRenderer(
-            tree: JTree, value: Any, selected: Boolean, expanded: Boolean,
-            leaf: Boolean, row: Int, hasFocus: Boolean
-        ) {
-            if (value is SftpTreeNode) {
-                val file = value.file
-                icon = if (file.isDirectory) {
-                    AllIcons.Nodes.Folder
-                } else {
-                    FileTypeManager.getInstance().getFileTypeByFileName(file.name).icon
-                }
-                append(file.name, SimpleTextAttributes.REGULAR_ATTRIBUTES)
-            } else{
-                icon = loadingIcon
-                append("Loading...", SimpleTextAttributes.REGULAR_ATTRIBUTES)
-            }
-        }
-    }
-
 }
 
 fun Project.openSFTP(server: Server) {
     val manager = ToolWindowManager.getInstance(this)
-    if (manager.getToolWindow(server.stmpName) == null) {
+    val toolWindow = manager.getToolWindow(server.stmpName)
+    if (toolWindow == null) {
         val window = manager.registerToolWindow(server.stmpName) {
             icon = AllIcons.Nodes.WebFolder
             canCloseContent = false
@@ -368,6 +340,8 @@ fun Project.openSFTP(server: Server) {
         val content = contentFactory.createContent(sftpPanel, "", false)
         window.contentManager.addContent(content)
         window.show()
+    } else {
+        toolWindow.show()
     }
 }
 
