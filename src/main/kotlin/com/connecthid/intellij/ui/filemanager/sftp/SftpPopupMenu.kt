@@ -143,55 +143,26 @@ fun showSftpPopupMenu(
             com.intellij.openapi.application.ApplicationManager.getApplication().runWriteAction {
                 try {
                     val parent = file.parent
-                    val oldName = file.name
                     file.rename(this, newName)
-                    // Use VFS refresh and reload parent node for accuracy
-                    file.parent?.refresh(false, true)
                     val parentPath = if (parent != null) findTreePathForFile(rootNode, parent) else null
                     if (parentPath != null) {
                         val parentNode = parentPath.lastPathComponent as? DefaultMutableTreeNode
                         if (parentNode != null) {
-                            // Remove any node with the old name
-                            val toRemove = mutableListOf<DefaultMutableTreeNode>()
-                            for (i in 0 until parentNode.childCount) {
-                                val child = parentNode.getChildAt(i) as? DefaultMutableTreeNode ?: continue
-                                val vFile = child.userObject as? VirtualFile ?: continue
-                                if (vFile.name == oldName) {
-                                    toRemove.add(child)
-                                }
-                            }
-                            toRemove.forEach { parentNode.remove(it) }
-                            // Add the renamed node if not present
-                            val exists = (0 until parentNode.childCount).any {
-                                val child = parentNode.getChildAt(it) as? DefaultMutableTreeNode
-                                (child?.userObject as? VirtualFile)?.name == newName
-                            }
-                            if (!exists) {
-                                val newNode = SftpTreeNode(file)
-                                parentNode.add(newNode)
-                                treeModel.nodesWereInserted(parentNode, intArrayOf(parentNode.getIndex(newNode)))
-                                SwingUtilities.invokeLater {
-                                    val newPath = parentPath.pathByAddingChild(newNode)
-                                    tree.selectionPath = newPath
-                                    tree.scrollPathToVisible(newPath)
-                                }
-                            } else {
-                                // If already present, just update UI
-                                for (i in 0 until parentNode.childCount) {
-                                    val child = parentNode.getChildAt(i) as? DefaultMutableTreeNode ?: continue
-                                    val vFile = child.userObject as? VirtualFile ?: continue
-                                    if (vFile.name == newName) {
-                                        treeModel.nodeChanged(child)
-                                        SwingUtilities.invokeLater {
-                                            val newPath = parentPath.pathByAddingChild(child)
-                                            tree.selectionPath = newPath
-                                            tree.scrollPathToVisible(newPath)
-                                        }
-                                        break
+                            // Remove all children and reload from VFS to ensure correct state
+                            parentNode.removeAllChildren()
+                            treeModel.reload(parentNode)
+                            // Optionally, reload children asynchronously if needed
+                            coroutineScope.launch {
+                                loadChildren(parentNode, parent)
+                                // After reload, select the renamed node
+                                val newNodePath = findTreePathForFile(rootNode, file)
+                                if (newNodePath != null) {
+                                    SwingUtilities.invokeLater {
+                                        tree.selectionPath = newNodePath
+                                        tree.scrollPathToVisible(newNodePath)
                                     }
                                 }
                             }
-                            treeModel.reload(parentNode)
                         }
                     }
                 } catch (ex: Exception) {

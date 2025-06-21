@@ -51,7 +51,20 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
 
     override fun findFileByPath(path: String): VirtualFile {
         return fileCache.getOrPut(path) {
-            SftpFile(path, this)
+            getFile(path)
+        }
+    }
+
+    private fun getFile(path: String):SftpFile{
+        try {
+            val channel = getChannel() ?: return SftpFile(path, this)
+            val attrs  = channel.lstat(path)
+            return SftpFile(path, this,attrs)
+        } catch (e: Exception) {
+            throw IOException("Failed to delete file: ${e.message}", e)
+            return SftpFile(path, this)
+        } finally {
+            disconnectChannel()
         }
     }
 
