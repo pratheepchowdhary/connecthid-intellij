@@ -1,18 +1,15 @@
 package com.connecthid.intellij.ui.filemanager.sftp
 
+import com.connecthid.intellij.connection.vfs.SftpFileSystem
 import com.connecthid.intellij.models.Server
 import com.connecthid.intellij.ui.filemanager.sftp.actions.SearchAction
-import com.connecthid.intellij.connection.vfs.SftpFileSystem
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.actionSystem.*
-import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.wm.ToolWindowAnchor
 import com.intellij.openapi.wm.ToolWindowManager
-import com.intellij.ui.ColoredTreeCellRenderer
 import com.intellij.ui.JBColor
-import com.intellij.ui.SimpleTextAttributes
 import com.intellij.ui.SpinningProgressIcon
 import com.intellij.ui.components.JBPanel
 import com.intellij.ui.content.ContentFactory
@@ -154,6 +151,8 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(B
         tree.addMouseListener(object : MouseAdapter() {
             override fun mouseClicked(e: MouseEvent) {
                 if(SwingUtilities.isRightMouseButton(e)){
+                    val row = tree.getRowForLocation(x, y)
+                    println("row: ${row}")
                     tree.getPathForLocation(e.x,e.y)?.let {
                         val selectedNode = it.lastPathComponent as? DefaultMutableTreeNode ?: return
                         val file = selectedNode.userObject as? VirtualFile ?: return
@@ -172,7 +171,6 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(B
                     }
                 }
             }
-
         })
     }
 

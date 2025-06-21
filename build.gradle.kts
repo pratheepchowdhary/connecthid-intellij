@@ -10,7 +10,6 @@ repositories {
   mavenCentral()
   intellijPlatform {
     defaultRepositories()
-
   }
 }
 kotlin {
