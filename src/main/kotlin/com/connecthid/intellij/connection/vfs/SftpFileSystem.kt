@@ -93,7 +93,8 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
             val newPath = "${newParentSftp.path}/${sftpFile.getName()}"
             channel.rename(sftpFile.path, newPath)
             fileCache.remove(sftpFile.path)
-            fileCache[newPath] = SftpFile(newPath, this)
+            val attrs  = channel.lstat(newPath)
+            fileCache[newPath] = SftpFile(newPath, this,attrs)
         } catch (e: Exception) {
             throw IOException("Failed to move file: ${e.message}", e)
         } finally {
@@ -109,7 +110,8 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
             val newPath = "${sftpFile.getParent()?.path ?: ""}/$newName"
             channel.rename(sftpFile.path, newPath)
             fileCache.remove(sftpFile.path)
-            fileCache[newPath] = SftpFile(newPath, this)
+            val attrs  = channel.lstat(newPath)
+            fileCache[newPath] = SftpFile(newPath, this,attrs)
         } catch (e: Exception) {
             throw IOException("Failed to rename file: ${e.message}", e)
         } finally {
@@ -123,7 +125,8 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
             val channel = getChannel() ?: return throw IOException("Failed to create file")
             val newPath = "${sftpDir.path}/$fileName"
             channel.put(InputStream.nullInputStream(), newPath)
-            val newFile = SftpFile(newPath, this)
+            val attrs  = channel.lstat(newPath)
+            val newFile = SftpFile(newPath, this,attrs)
             fileCache[newPath] = newFile
             return newFile
         } catch (e: Exception) {
@@ -142,7 +145,8 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
             val channel = getChannel() ?: return throw IOException("Failed to create file")
             val newPath = "${sftpDir.path}/$dirName"
             channel.mkdir(newPath)
-            val newDir = SftpFile(newPath, this)
+            val attrs  = channel.lstat(newPath)
+            val newDir = SftpFile(newPath, this,attrs)
             fileCache[newPath] = newDir
             return newDir
         } catch (e: Exception) {
@@ -168,7 +172,8 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
                 val inputStream = channel.get(sftpFile.path)
                 channel.put(inputStream, newPath)
             }
-            val newFile = SftpFile(newPath, this)
+            val attrs  = channel.lstat(newPath)
+            val newFile = SftpFile(newPath, this,attrs)
             fileCache[newPath] = newFile
             return newFile
         } catch (e: Exception) {

@@ -175,91 +175,34 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(B
     }
 
     fun showPopupMenu(x: Int, y: Int, file: VirtualFile) {
-        // Prepare the action group for menu items
-        val actionGroup = DefaultActionGroup()
-
-        // Add menu items as actions
-        val newActionGroup = DefaultActionGroup("New", true)
-
-        // Add submenu items under "New"
-        newActionGroup.add(object : AnAction({ "File" },AllIcons.Actions.AddFile) {
-            override fun actionPerformed(e: AnActionEvent) {
-                // Handle File creation
-                println("File action triggered")
-            }
-        })
-        newActionGroup.add(object : AnAction({ "Folder" },AllIcons.Actions.NewFolder) {
-            override fun actionPerformed(e: AnActionEvent) {
-                // Handle Folder creation
-                println("Folder action triggered")
-            }
-        })
-        newActionGroup.addSeparator()
-
-        // Add the "New" action with its submenu to the main action group
-        actionGroup.add(newActionGroup)
-        actionGroup.add(object : AnAction({ "Move" }, AllIcons.Actions.MenuCut) {
-            override fun actionPerformed(e: AnActionEvent) {
-                // Handle Move action
-                println("Move action triggered")
-            }
-        })
-        actionGroup.add(object : AnAction({ "Copy" }, AllIcons.Actions.Copy) {
-            override fun actionPerformed(e: AnActionEvent) {
-                // Handle Copy action
-                println("Copy action triggered")
-            }
-        })
-        actionGroup.add(object : AnAction({ "Copy Path/Reference.." }) {
-            override fun actionPerformed(e: AnActionEvent) {
-                // Handle Copy Path/Reference action
-                println("Copy Path/Reference action triggered")
-            }
-        })
-        actionGroup.add(object : AnAction({ "Paste" }, AllIcons.Actions.MenuPaste) {
-            override fun actionPerformed(e: AnActionEvent) {
-                // Handle Paste action
-                println("Paste action triggered")
-            }
-        })
-        actionGroup.addSeparator()
-        actionGroup.add(object : AnAction({ "Find Usages" }) {
-            override fun actionPerformed(e: AnActionEvent) {
-                // Handle Find Usages action
-                println("Find Usages action triggered")
-            }
-        })
-        actionGroup.add(object : AnAction({ "Rename" }, AllIcons.Actions.Edit) {
-            override fun actionPerformed(e: AnActionEvent) {
-                // Handle Rename action
-                println("Rename action triggered")
-            }
-        })
-        actionGroup.addSeparator()
-        actionGroup.add(object : AnAction({ "Bookmarks" }) {
-            override fun actionPerformed(e: AnActionEvent) {
-                // Handle Bookmarks action
-                println("Bookmarks action triggered")
-            }
-        })
-        actionGroup.addSeparator()
-        actionGroup.add(object : AnAction({ "Delete" }, AllIcons.Actions.DeleteTag) {
-            override fun actionPerformed(e: AnActionEvent) {
-                // Handle Delete action
-                println("Delete action triggered")
-                file.delete(this)
-            }
-        })
-
-        // Create the popup menu with the action group
-        val popupMenu = ActionManager.getInstance()
-                            .createActionPopupMenu("CustomPopup", actionGroup)
-
-        // Show the popup at the specified x, y location
-        popupMenu.component.show(tree,x,y)
+        showSftpPopupMenu(
+            tree = tree,
+            project = project,
+            coroutineScope = coroutineScope,
+            treeModel = treeModel,
+            rootNode = rootNode,
+            file = file,
+            x = x,
+            y = y,
+            loadChildren = this::loadChildren
+        )
     }
 
-
+    // Helper to find the TreePath for a VirtualFile
+    private fun findTreePathForFile(vFile: VirtualFile): TreePath? {
+        fun findNode(node: DefaultMutableTreeNode): DefaultMutableTreeNode? {
+            val userObj = node.userObject
+            if (userObj is VirtualFile && userObj.path == vFile.path) return node
+            for (i in 0 until node.childCount) {
+                val child = node.getChildAt(i) as? DefaultMutableTreeNode ?: continue
+                val found = findNode(child)
+                if (found != null) return found
+            }
+            return null
+        }
+        val node = findNode(rootNode) ?: return null
+        return TreePath(node.path)
+    }
 
     override fun doLayout() {
         super.doLayout()
@@ -342,6 +285,3 @@ fun Project.openSFTP(server: Server) {
         toolWindow.show()
     }
 }
-
-
-

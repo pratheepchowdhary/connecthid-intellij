@@ -3,6 +3,7 @@ package com.connecthid.intellij.connection.vfs
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileSystem
 import com.jcraft.jsch.ChannelSftp
+import com.jcraft.jsch.SftpATTRS
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
@@ -11,7 +12,7 @@ import java.util.concurrent.locks.ReentrantLock
 class SftpFile(
     val pathLocation: String,
     private val fileSystem: SftpFileSystem,
-    val fileEntry:ChannelSftp.LsEntry? = null
+    val fileEntry:SftpATTRS? = null
 ) : VirtualFile() {
     private var channelSftp: ChannelSftp?=null
     private val channelLock = ReentrantLock()
@@ -35,7 +36,7 @@ class SftpFile(
         if (fileEntry == null) {
             return true
         }
-        return fileEntry.attrs?.isDir ?: false
+        return fileEntry.isDir
     }
 
     override fun isValid(): Boolean = true
@@ -68,7 +69,7 @@ class SftpFile(
                     .map { 
                         val childPath = if (pathLocation == "/") "/${it.filename}" else "$pathLocation/${it.filename}"
                         println("Creating child: $childPath (filename: ${it.filename}, longname: ${it.longname})")
-                        SftpFile(childPath, fileSystem,it)
+                        SftpFile(childPath, fileSystem,it.attrs)
                     }
                     .toTypedArray()
                 
@@ -90,7 +91,7 @@ class SftpFile(
         if (fileEntry == null) {
             return  0
         }
-        return fileEntry.attrs?.aTime?.toLong() ?: 0
+        return fileEntry.aTime.toLong()
 
     }
 
@@ -98,14 +99,14 @@ class SftpFile(
         if (fileEntry == null) {
             return  0
         }
-        return fileEntry.attrs?.mTime?.toLong() ?: 0
+        return fileEntry.mTime.toLong()
     }
 
     override fun getLength(): Long {
         if (fileEntry == null) {
             return  0
         }
-        return fileEntry.attrs?.size?.toLong()?: 0
+        return fileEntry.size.toLong()
     }
 
     override fun refresh(asynchronous: Boolean, recursive: Boolean, postRunnable: Runnable?) {
@@ -210,8 +211,8 @@ class SftpFile(
     }
 }
 
-fun ChannelSftp.LsEntry.isWritable(): Boolean {
-    val permissions = attrs.permissions // This is an int
+fun SftpATTRS.isWritable(): Boolean {
+    val permissions = this.permissions // This is an int
     // Check if owner has write permission (bitmask 0o200 == 128)
     val S_IWUSR = 0b10_0000_000 // Octal 0200 == decimal 128
     return (permissions and S_IWUSR) != 0
