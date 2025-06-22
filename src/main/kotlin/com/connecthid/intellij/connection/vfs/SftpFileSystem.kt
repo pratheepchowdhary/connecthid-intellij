@@ -123,8 +123,10 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
             val newPath = "${sftpFile.getParent()?.path ?: ""}/$newName"
             channel.rename(sftpFile.path, newPath)
             fileCache.remove(sftpFile.path)
+            val  file = vFile as SftpFile
             val attrs  = channel.lstat(newPath)
-            fileCache[newPath] = SftpFile(newPath, this,attrs)
+            file.fileRenamed(newPath,attrs)
+            fileCache[newPath] = file
         } catch (e: Exception) {
             throw IOException("Failed to rename file: ${e.message}", e)
         } finally {
