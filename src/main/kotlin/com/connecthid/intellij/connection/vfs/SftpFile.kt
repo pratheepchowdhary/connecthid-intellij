@@ -10,16 +10,18 @@ import java.io.OutputStream
 import java.util.concurrent.locks.ReentrantLock
 
 class SftpFile(
-    val pathLocation: String,
+    var pathLocation: String,
     private val fileSystem: SftpFileSystem,
-    val fileEntry:SftpATTRS? = null
+    var fileEntry:SftpATTRS? = null
 ) : VirtualFile() {
     private var channelSftp: ChannelSftp?=null
     private val channelLock = ReentrantLock()
     private var channelId = -1
 
-
-
+    fun fileRenamed(  pathLocation: String, fileEntry:SftpATTRS){
+        this.pathLocation = pathLocation
+        this.fileEntry = fileEntry
+    }
     private var children: Array<VirtualFile>? = null
     override fun getFileSystem(): VirtualFileSystem = fileSystem
 
@@ -29,14 +31,14 @@ class SftpFile(
         if(fileEntry == null){
             return true
         }
-        return fileEntry.isWritable()
+        return fileEntry!!.isWritable()
     }
 
     override fun isDirectory(): Boolean {
         if (fileEntry == null) {
             return true
         }
-        return fileEntry.isDir
+        return fileEntry!!.isDir
     }
 
     override fun isValid(): Boolean = true
@@ -91,7 +93,7 @@ class SftpFile(
         if (fileEntry == null) {
             return  0
         }
-        return fileEntry.aTime.toLong()
+        return fileEntry!!.aTime.toLong()
 
     }
 
@@ -99,14 +101,14 @@ class SftpFile(
         if (fileEntry == null) {
             return  0
         }
-        return fileEntry.mTime.toLong()
+        return fileEntry!!.mTime.toLong()
     }
 
     override fun getLength(): Long {
         if (fileEntry == null) {
             return  0
         }
-        return fileEntry.size.toLong()
+        return fileEntry!!.size.toLong()
     }
 
     override fun refresh(asynchronous: Boolean, recursive: Boolean, postRunnable: Runnable?) {

@@ -155,8 +155,8 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(B
                     println("row: ${row}")
                     tree.getPathForLocation(e.x,e.y)?.let {
                         val selectedNode = it.lastPathComponent as? DefaultMutableTreeNode ?: return
-                        val file = selectedNode.userObject as? VirtualFile ?: return
-                        showPopupMenu(e.getX(), e.getY(), file);
+
+                        showPopupMenu(e.getX(), e.getY(), selectedNode);
                     }
                 }
                 else if(e.clickCount == 2){
@@ -174,35 +174,18 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(B
         })
     }
 
-    fun showPopupMenu(x: Int, y: Int, file: VirtualFile) {
+    fun showPopupMenu(x: Int, y: Int, selectedNode: DefaultMutableTreeNode) {
         showSftpPopupMenu(
             tree = tree,
             project = project,
-            coroutineScope = coroutineScope,
             treeModel = treeModel,
             rootNode = rootNode,
-            file = file,
+            selectedNode = selectedNode,
             x = x,
-            y = y,
-            loadChildren = this::loadChildren
+            y = y
         )
     }
 
-    // Helper to find the TreePath for a VirtualFile
-    private fun findTreePathForFile(vFile: VirtualFile): TreePath? {
-        fun findNode(node: DefaultMutableTreeNode): DefaultMutableTreeNode? {
-            val userObj = node.userObject
-            if (userObj is VirtualFile && userObj.path == vFile.path) return node
-            for (i in 0 until node.childCount) {
-                val child = node.getChildAt(i) as? DefaultMutableTreeNode ?: continue
-                val found = findNode(child)
-                if (found != null) return found
-            }
-            return null
-        }
-        val node = findNode(rootNode) ?: return null
-        return TreePath(node.path)
-    }
 
     override fun doLayout() {
         super.doLayout()

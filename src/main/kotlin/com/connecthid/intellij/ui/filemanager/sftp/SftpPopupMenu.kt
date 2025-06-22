@@ -5,7 +5,6 @@ import com.intellij.openapi.actionSystem.*
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
 import javax.swing.*
@@ -16,14 +15,13 @@ import javax.swing.tree.TreePath
 fun showSftpPopupMenu(
     tree: JTree,
     project: Project,
-    coroutineScope: CoroutineScope,
     treeModel: DefaultTreeModel,
     rootNode: DefaultMutableTreeNode,
-    file: VirtualFile,
+    selectedNode: DefaultMutableTreeNode,
     x: Int,
-    y: Int,
-    loadChildren: suspend (DefaultMutableTreeNode, VirtualFile) -> Unit
+    y: Int
 ) {
+    val file = selectedNode.userObject as? VirtualFile ?: return
     val actionGroup = DefaultActionGroup()
     val newActionGroup = DefaultActionGroup("New", true)
     // File creation
@@ -144,25 +142,13 @@ fun showSftpPopupMenu(
                 try {
                     val parent = file.parent
                     file.rename(this, newName)
+
                     val parentPath = if (parent != null) findTreePathForFile(rootNode, parent) else null
                     if (parentPath != null) {
                         val parentNode = parentPath.lastPathComponent as? DefaultMutableTreeNode
                         if (parentNode != null) {
-                            // Remove all children and reload from VFS to ensure correct state
-                            parentNode.removeAllChildren()
-                            treeModel.reload(parentNode)
                             // Optionally, reload children asynchronously if needed
-                            coroutineScope.launch {
-                                loadChildren(parentNode, parent)
-                                // After reload, select the renamed node
-                                val newNodePath = findTreePathForFile(rootNode, file)
-                                if (newNodePath != null) {
-                                    SwingUtilities.invokeLater {
-                                        tree.selectionPath = newNodePath
-                                        tree.scrollPathToVisible(newNodePath)
-                                    }
-                                }
-                            }
+                            treeModel.reload(parentNode)
                         }
                     }
                 } catch (ex: Exception) {

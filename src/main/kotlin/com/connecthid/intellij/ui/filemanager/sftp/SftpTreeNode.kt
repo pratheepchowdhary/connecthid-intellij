@@ -8,5 +8,6 @@ class SftpTreeNode(val file: VirtualFile) : DefaultMutableTreeNode() {
             userObject = file
         }
 
+
         override fun toString(): String = file.name
     }
