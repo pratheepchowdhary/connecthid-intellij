@@ -115,23 +115,36 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
         }
     }
 
-    override fun renameFile(requestor: Any?, vFile: VirtualFile, newName: String): Unit {
+    override fun renameFile(requestor: Any?, vFile: VirtualFile, newName: String) {
         val sftpFile = vFile as? SftpFile ?: throw IOException("Not an SFTP file")
         try {
             val channel = getChannel() ?: return
+            val oldPath = sftpFile.path
             val newPath = "${sftpFile.getParent()?.path ?: ""}/$newName"
-            channel.rename(sftpFile.path, newPath)
-            fileCache.remove(sftpFile.path)
+            channel.rename(oldPath, newPath)
+            fileCache.remove(oldPath)
             val attrs = channel.lstat(newPath)
             val renamedFile = SftpFile(newPath, this, attrs)
             fileCache[newPath] = renamedFile
-            // Notify VFS and editors about the rename
             renamedFile.refresh(false, false, null)
-            // Update all open editors to use the new file reference
-           if (fileEditor.isFileOpen(vFile)) {
-               fileEditor.closeFile(vFile)
-               openFileInIDE(renamedFile)
-           }
+
+            // Handle open editors for the renamed file and all children if directory
+            val openFiles = fileEditor.openFiles
+            if (sftpFile.isDirectory) {
+                val affectedFiles = openFiles.filter { it.path.startsWith(oldPath + "/") }
+                for (oldChild in affectedFiles) {
+                    val relative = oldChild.path.removePrefix(oldPath)
+                    val newChildPath = newPath + relative
+                    fileEditor.closeFile(oldChild)
+                    val newChild = findFileByPath(newChildPath)
+                    openFileInIDE(newChild)
+                }
+            }
+            // Handle the renamed file itself
+            if (fileEditor.isFileOpen(vFile)) {
+                fileEditor.closeFile(vFile)
+                openFileInIDE(renamedFile)
+            }
         } catch (e: Exception) {
             throw IOException("Failed to rename file: ${e.message}", e)
         } finally {
