@@ -117,19 +117,19 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
 
     override fun renameFile(requestor: Any?, vFile: VirtualFile, newName: String): Unit {
         val sftpFile = vFile as? SftpFile ?: throw IOException("Not an SFTP file")
-
         try {
             val channel = getChannel() ?: return
             val newPath = "${sftpFile.getParent()?.path ?: ""}/$newName"
             channel.rename(sftpFile.path, newPath)
             fileCache.remove(sftpFile.path)
-            val  file = vFile
-            val attrs  = channel.lstat(newPath)
-            file.fileRenamed(newPath,attrs)
-            file.refresh(false, false, null)
-            fileCache[newPath] = file
-
-            FileEditorManager.getInstance(project).updateFilePresentation(file)
+            val attrs = channel.lstat(newPath)
+            val renamedFile = SftpFile(newPath, this, attrs)
+            fileCache[newPath] = renamedFile
+            // Notify VFS and editors about the rename
+            renamedFile.refresh(false, false, null)
+            // Update all open editors to use the new file reference
+            FileEditorManager.getInstance(project).closeFile(vFile)
+            FileEditorManager.getInstance(project).openFile(renamedFile, true)
         } catch (e: Exception) {
             throw IOException("Failed to rename file: ${e.message}", e)
         } finally {
