@@ -128,8 +128,10 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
             // Notify VFS and editors about the rename
             renamedFile.refresh(false, false, null)
             // Update all open editors to use the new file reference
-            FileEditorManager.getInstance(project).closeFile(vFile)
-            FileEditorManager.getInstance(project).openFile(renamedFile, true)
+           if (fileEditor.isFileOpen(vFile)) {
+               fileEditor.closeFile(vFile)
+               openFileInIDE(renamedFile)
+           }
         } catch (e: Exception) {
             throw IOException("Failed to rename file: ${e.message}", e)
         } finally {
