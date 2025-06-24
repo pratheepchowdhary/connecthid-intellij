@@ -31,6 +31,7 @@ fun showSftpPopupMenu(
     val actionGroup = DefaultActionGroup()
     val newActionGroup = DefaultActionGroup("New", true)
     // File creation
+
     newActionGroup.add(object : AnAction({ "File" }, AllIcons.Actions.AddFile) {
         override fun actionPerformed(e: AnActionEvent) {
             val fileName = JOptionPane.showInputDialog(tree, "Enter new file name:") ?: return
@@ -143,16 +144,13 @@ fun showSftpPopupMenu(
             com.intellij.openapi.application.ApplicationManager.getApplication().runWriteAction {
                 try {
                     val parent = file.parent
+                    val newPath = if (parent != null) "${parent.path}/$newName" else newName
                     file.rename(this, newName)
-
-
-                    val parentPath = if (parent != null) findTreePathForFile(selectedNode = selectedNode) else null
-                    if (parentPath != null) {
-                        val parentNode = parentPath.lastPathComponent as? DefaultMutableTreeNode
-                        if (parentNode != null) {
-                            // Optionally, reload children asynchronously if needed
-                            treeModel.reload(parentNode)
-                        }
+                    val renamedFile = file.fileSystem.findFileByPath(newPath)
+                    if(selectedNode is SftpTreeNode && renamedFile != null) {
+                        selectedNode.userObject = renamedFile
+                        selectedNode.file = renamedFile
+                        treeModel.reload(selectedNode)
                     }
                 } catch (ex: Exception) {
                     JOptionPane.showMessageDialog(tree, "Failed to rename: ${ex.message}")
