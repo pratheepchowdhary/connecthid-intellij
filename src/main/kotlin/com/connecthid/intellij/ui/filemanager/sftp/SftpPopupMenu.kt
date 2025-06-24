@@ -4,23 +4,29 @@ import com.intellij.icons.AllIcons
 import com.intellij.openapi.actionSystem.*
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
-import kotlinx.coroutines.CoroutineScope
+import com.intellij.openapi.vfs.VirtualFileManager
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
 import javax.swing.*
 import javax.swing.tree.DefaultMutableTreeNode
 import javax.swing.tree.DefaultTreeModel
+import javax.swing.tree.TreeModel
 import javax.swing.tree.TreePath
 
 fun showSftpPopupMenu(
     tree: JTree,
     project: Project,
     treeModel: DefaultTreeModel,
-    rootNode: DefaultMutableTreeNode,
     selectedNode: DefaultMutableTreeNode,
     x: Int,
     y: Int
 ) {
+
+     fun findTreePathForFile(selectedNode: DefaultMutableTreeNode): TreePath? {
+        val node = selectedNode.parent ?: return null
+        return TreePath(treeModel.getPathToRoot(node))
+    }
+
     val file = selectedNode.userObject as? VirtualFile ?: return
     val actionGroup = DefaultActionGroup()
     val newActionGroup = DefaultActionGroup("New", true)
@@ -34,25 +40,23 @@ fun showSftpPopupMenu(
                     val newFile = file.createChildData(this, fileName)
                     com.intellij.openapi.fileEditor.FileEditorManager.getInstance(project).openFile(newFile, true)
                     // Add only the new node to the tree if not already present
-                    val parentPath = findTreePathForFile(rootNode, file)
-                    if (parentPath != null) {
-                        val parentNode = parentPath.lastPathComponent as? DefaultMutableTreeNode
-                        if (parentNode != null) {
-                            // Check if node already exists (avoid duplicates)
-                            val exists = (0 until parentNode.childCount).any {
-                                val child = parentNode.getChildAt(it) as? DefaultMutableTreeNode
-                                (child?.userObject as? VirtualFile)?.name == newFile.name
-                            }
-                            if (!exists) {
-                                val newNode = SftpTreeNode(newFile)
-                                parentNode.add(newNode)
-                                treeModel.nodesWereInserted(parentNode, intArrayOf(parentNode.getIndex(newNode)))
-                                // Select and scroll to the new node
-                                SwingUtilities.invokeLater {
-                                    val newPath = parentPath.pathByAddingChild(newNode)
-                                    tree.selectionPath = newPath
-                                    tree.scrollPathToVisible(newPath)
-                                }
+                    val parentPath =  TreePath(selectedNode.path)
+                    val parentNode = parentPath.lastPathComponent as? DefaultMutableTreeNode
+                    if (parentNode != null) {
+                        // Check if node already exists (avoid duplicates)
+                        val exists = (0 until parentNode.childCount).any {
+                            val child = parentNode.getChildAt(it) as? DefaultMutableTreeNode
+                            (child?.userObject as? VirtualFile)?.name == newFile.name
+                        }
+                        if (!exists) {
+                            val newNode = SftpTreeNode(newFile)
+                            parentNode.add(newNode)
+                            treeModel.nodesWereInserted(parentNode, intArrayOf(parentNode.getIndex(newNode)))
+                            // Select and scroll to the new node
+                            SwingUtilities.invokeLater {
+                                val newPath = parentPath.pathByAddingChild(newNode)
+                                tree.selectionPath = newPath
+                                tree.scrollPathToVisible(newPath)
                             }
                         }
                     }
@@ -70,25 +74,23 @@ fun showSftpPopupMenu(
             com.intellij.openapi.application.ApplicationManager.getApplication().runWriteAction {
                 try {
                     val newDir = file.createChildDirectory(this, folderName)
-                    val parentPath = findTreePathForFile(rootNode, file)
-                    if (parentPath != null) {
-                        val parentNode = parentPath.lastPathComponent as? DefaultMutableTreeNode
-                        if (parentNode != null) {
-                            val exists = (0 until parentNode.childCount).any {
-                                val child = parentNode.getChildAt(it) as? DefaultMutableTreeNode
-                                (child?.userObject as? VirtualFile)?.name == newDir.name
-                            }
-                            if (!exists) {
-                                val newNode = SftpTreeNode(newDir)
-                                newNode.add(DefaultMutableTreeNode("Loading..."))
-                                parentNode.add(newNode)
-                                treeModel.nodesWereInserted(parentNode, intArrayOf(parentNode.getIndex(newNode)))
-                                // Select and scroll to the new node
-                                SwingUtilities.invokeLater {
-                                    val newPath = parentPath.pathByAddingChild(newNode)
-                                    tree.selectionPath = newPath
-                                    tree.scrollPathToVisible(newPath)
-                                }
+                    val parentPath = TreePath(selectedNode.path)
+                    val parentNode = parentPath.lastPathComponent as? DefaultMutableTreeNode
+                    if (parentNode != null) {
+                        val exists = (0 until parentNode.childCount).any {
+                            val child = parentNode.getChildAt(it) as? DefaultMutableTreeNode
+                            (child?.userObject as? VirtualFile)?.name == newDir.name
+                        }
+                        if (!exists) {
+                            val newNode = SftpTreeNode(newDir)
+                            newNode.add(DefaultMutableTreeNode("Loading..."))
+                            parentNode.add(newNode)
+                            treeModel.nodesWereInserted(parentNode, intArrayOf(parentNode.getIndex(newNode)))
+                            // Select and scroll to the new node
+                            SwingUtilities.invokeLater {
+                                val newPath = parentPath.pathByAddingChild(newNode)
+                                tree.selectionPath = newPath
+                                tree.scrollPathToVisible(newPath)
                             }
                         }
                     }
@@ -143,7 +145,8 @@ fun showSftpPopupMenu(
                     val parent = file.parent
                     file.rename(this, newName)
 
-                    val parentPath = if (parent != null) findTreePathForFile(rootNode, parent) else null
+
+                    val parentPath = if (parent != null) findTreePathForFile(selectedNode = selectedNode) else null
                     if (parentPath != null) {
                         val parentNode = parentPath.lastPathComponent as? DefaultMutableTreeNode
                         if (parentNode != null) {
@@ -173,10 +176,10 @@ fun showSftpPopupMenu(
             com.intellij.openapi.application.ApplicationManager.getApplication().runWriteAction {
                 try {
                     val parent = file.parent
-                    val parentPath = if (parent != null) findTreePathForFile(rootNode, parent) else null
-                    val nodePath = findTreePathForFile(rootNode, file)
+                    val parentPath = if (parent != null) findTreePathForFile(selectedNode = selectedNode) else null
+                    val nodePath = TreePath(selectedNode.path)
                     file.delete(this)
-                    if (parentPath != null && nodePath != null) {
+                    if (parentPath != null) {
                         val parentNode = parentPath.lastPathComponent as? DefaultMutableTreeNode
                         val node = nodePath.lastPathComponent as? DefaultMutableTreeNode
                         if (parentNode != null && node != null) {
@@ -195,17 +198,3 @@ fun showSftpPopupMenu(
     popupMenu.component.show(tree, x, y)
 }
 
-private fun findTreePathForFile(rootNode: DefaultMutableTreeNode, vFile: VirtualFile): TreePath? {
-    fun findNode(node: DefaultMutableTreeNode): DefaultMutableTreeNode? {
-        val userObj = node.userObject
-        if (userObj is VirtualFile && userObj.path == vFile.path) return node
-        for (i in 0 until node.childCount) {
-            val child = node.getChildAt(i) as? DefaultMutableTreeNode ?: continue
-            val found = findNode(child)
-            if (found != null) return found
-        }
-        return null
-    }
-    val node = findNode(rootNode) ?: return null
-    return TreePath(node.path)
-}

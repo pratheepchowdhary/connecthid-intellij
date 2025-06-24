@@ -179,7 +179,6 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(B
             tree = tree,
             project = project,
             treeModel = treeModel,
-            rootNode = rootNode,
             selectedNode = selectedNode,
             x = x,
             y = y
