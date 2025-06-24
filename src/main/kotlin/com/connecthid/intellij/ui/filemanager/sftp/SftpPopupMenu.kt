@@ -2,9 +2,12 @@ package com.connecthid.intellij.ui.filemanager.sftp
 
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.actionSystem.*
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileManager
+import com.intellij.openapi.ui.Messages
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
 import javax.swing.*
@@ -34,9 +37,14 @@ fun showSftpPopupMenu(
 
     newActionGroup.add(object : AnAction({ "File" }, AllIcons.Actions.AddFile) {
         override fun actionPerformed(e: AnActionEvent) {
-            val fileName = JOptionPane.showInputDialog(tree, "Enter new file name:") ?: return
+            val fileName = Messages.showInputDialog(
+                tree,
+                "Enter new file name:",
+                "New File",
+                Messages.getQuestionIcon()
+            ) ?: return
             if (fileName.isBlank()) return
-            com.intellij.openapi.application.ApplicationManager.getApplication().runWriteAction {
+            ApplicationManager.getApplication().runWriteAction {
                 try {
                     val newFile = file.createChildData(this, fileName)
                     com.intellij.openapi.fileEditor.FileEditorManager.getInstance(project).openFile(newFile, true)
@@ -62,7 +70,7 @@ fun showSftpPopupMenu(
                         }
                     }
                 } catch (ex: Exception) {
-                    JOptionPane.showMessageDialog(tree, "Failed to create file: ${ex.message}")
+                    Messages.showErrorDialog(tree, "Failed to create file: ${ex.message}")
                 }
             }
         }
@@ -70,9 +78,14 @@ fun showSftpPopupMenu(
     // Folder creation
     newActionGroup.add(object : AnAction({ "Folder" }, AllIcons.Actions.NewFolder) {
         override fun actionPerformed(e: AnActionEvent) {
-            val folderName = JOptionPane.showInputDialog(tree, "Enter new folder name:") ?: return
+            val folderName = Messages.showInputDialog(
+                tree,
+                "Enter new folder name:",
+                "New Folder",
+                Messages.getQuestionIcon()
+            ) ?: return
             if (folderName.isBlank()) return
-            com.intellij.openapi.application.ApplicationManager.getApplication().runWriteAction {
+            ApplicationManager.getApplication().runWriteAction {
                 try {
                     val newDir = file.createChildDirectory(this, folderName)
                     val parentPath = TreePath(selectedNode.path)
@@ -96,7 +109,7 @@ fun showSftpPopupMenu(
                         }
                     }
                 } catch (ex: Exception) {
-                    JOptionPane.showMessageDialog(tree, "Failed to create folder: ${ex.message}")
+                    Messages.showErrorDialog(tree, "Failed to create folder: ${ex.message}")
                 }
             }
         }
@@ -106,13 +119,13 @@ fun showSftpPopupMenu(
     // Move (not implemented, placeholder)
     actionGroup.add(object : AnAction({ "Move" }, AllIcons.Actions.MenuCut) {
         override fun actionPerformed(e: AnActionEvent) {
-            JOptionPane.showMessageDialog(tree, "Move action not implemented.")
+            Messages.showInfoMessage(tree, "Move action not implemented.", "Info")
         }
     })
     // Copy (not implemented, placeholder)
     actionGroup.add(object : AnAction({ "Copy" }, AllIcons.Actions.Copy) {
         override fun actionPerformed(e: AnActionEvent) {
-            JOptionPane.showMessageDialog(tree, "Copy action not implemented.")
+            Messages.showInfoMessage(tree, "Copy action not implemented.", "Info")
         }
     })
     // Copy Path/Reference
@@ -126,22 +139,30 @@ fun showSftpPopupMenu(
     // Paste (not implemented, placeholder)
     actionGroup.add(object : AnAction({ "Paste" }, AllIcons.Actions.MenuPaste) {
         override fun actionPerformed(e: AnActionEvent) {
-            JOptionPane.showMessageDialog(tree, "Paste action not implemented.")
+            Messages.showInfoMessage(tree, "Paste action not implemented.", "Info")
         }
     })
     actionGroup.addSeparator()
     // Find Usages (not implemented, placeholder)
     actionGroup.add(object : AnAction({ "Find Usages" }) {
         override fun actionPerformed(e: AnActionEvent) {
-            JOptionPane.showMessageDialog(tree, "Find Usages action not implemented.")
+            Messages.showInfoMessage(tree, "Find Usages action not implemented.", "Info")
         }
     })
     // Rename
     actionGroup.add(object : AnAction({ "Rename" }, AllIcons.Actions.Edit) {
         override fun actionPerformed(e: AnActionEvent) {
-            val newName = JOptionPane.showInputDialog(tree, "Enter new name:", file.name) ?: return
-            if (newName.isBlank() || newName == file.name) return
-            com.intellij.openapi.application.ApplicationManager.getApplication().runWriteAction {
+            val oldName = file.name
+            val newName = Messages.showInputDialog(
+                tree,
+                "Enter new name:",
+                "Rename",
+                Messages.getQuestionIcon(),
+                oldName,
+                null
+            ) ?: return
+            if (newName.isBlank() || newName == oldName) return
+            ApplicationManager.getApplication().runWriteAction {
                 try {
                     val parent = file.parent
                     val newPath = if (parent != null) "${parent.path}/$newName" else newName
@@ -151,9 +172,16 @@ fun showSftpPopupMenu(
                         selectedNode.userObject = renamedFile
                         selectedNode.file = renamedFile
                         treeModel.reload(selectedNode)
+                        if (renamedFile.isDirectory && tree.isExpanded(TreePath(selectedNode.path))) {
+                            val path = TreePath(selectedNode.path)
+                            tree.collapsePath(path)
+                            selectedNode.removeAllChildren()
+                            selectedNode.add(DefaultMutableTreeNode("Loading..."))
+                            tree.expandPath(path)
+                        }
                     }
                 } catch (ex: Exception) {
-                    JOptionPane.showMessageDialog(tree, "Failed to rename: ${ex.message}")
+                    Messages.showErrorDialog(tree, "Failed to rename: ${ex.message}")
                 }
             }
         }
@@ -162,16 +190,24 @@ fun showSftpPopupMenu(
     // Bookmarks (not implemented, placeholder)
     actionGroup.add(object : AnAction({ "Bookmarks" }) {
         override fun actionPerformed(e: AnActionEvent) {
-            JOptionPane.showMessageDialog(tree, "Bookmarks action not implemented.")
+            Messages.showInfoMessage(tree, "Bookmarks action not implemented.", "Info")
         }
     })
     actionGroup.addSeparator()
     // Delete
     actionGroup.add(object : AnAction({ "Delete" }, AllIcons.Actions.DeleteTag) {
         override fun actionPerformed(e: AnActionEvent) {
-            val confirm = JOptionPane.showConfirmDialog(tree, "Delete ${file.name}?", "Confirm Delete", JOptionPane.YES_NO_OPTION)
-            if (confirm != JOptionPane.YES_OPTION) return
-            com.intellij.openapi.application.ApplicationManager.getApplication().runWriteAction {
+            val confirm = Messages.showYesNoDialog(
+                tree,
+                "Delete ${file.name}?",
+                "Confirm Delete",
+                Messages.getQuestionIcon()
+            )
+            if (confirm != Messages.YES) return
+            if(FileEditorManager.getInstance(project).isFileOpen(file)){
+                FileEditorManager.getInstance(project).closeFile(file)
+            }
+            ApplicationManager.getApplication().runWriteAction {
                 try {
                     val parent = file.parent
                     val parentPath = if (parent != null) findTreePathForFile(selectedNode = selectedNode) else null
@@ -186,7 +222,7 @@ fun showSftpPopupMenu(
                         }
                     }
                 } catch (ex: Exception) {
-                    JOptionPane.showMessageDialog(tree, "Failed to delete: ${ex.message}")
+                    Messages.showErrorDialog(tree, "Failed to delete: ${ex.message}")
                 }
             }
         }
@@ -195,4 +231,3 @@ fun showSftpPopupMenu(
     val popupMenu = ActionManager.getInstance().createActionPopupMenu("CustomPopup", actionGroup)
     popupMenu.component.show(tree, x, y)
 }
-

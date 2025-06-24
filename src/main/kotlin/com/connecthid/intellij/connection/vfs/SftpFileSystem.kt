@@ -126,7 +126,6 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
             val attrs = channel.lstat(newPath)
             val renamedFile = SftpFile(newPath, this, attrs)
             fileCache[newPath] = renamedFile
-            renamedFile.refresh(false, false, null)
 
             // Handle open editors for the renamed file and all children if directory
             val openFiles = fileEditor.openFiles
