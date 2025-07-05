@@ -1,6 +1,8 @@
 package com.connecthid.intellij.services
 
+import com.connecthid.intellij.connection.vfs.SftpFileSystem
 import com.jcraft.jsch.*
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
@@ -24,10 +26,18 @@ class SSHConnection(
     private val jsch = JSch()
     private var session: Session? = null
     private var channel: Channel? = null
+    // SFTP Channel Pooling
+    private val channelPool = mutableListOf<ChannelSftp>()
+    private val channelPoolLock = ReentrantLock()
+    private val channelAvailable: Condition = channelPoolLock.newCondition()
+    var maxChannels = 5
+    var fileSystem : SftpFileSystem? = null
 
     init {
         JSch.setConfig("StrictHostKeyChecking", "no")
     }
+
+
 
     fun connect() {
         try {
@@ -44,6 +54,9 @@ class SSHConnection(
             }
             
             session?.connect()
+            session?.let {
+                maxChannels = getMaxSessionsValue(it)
+            }
         } catch (e: JSchException) {
             throw IOException("Failed to connect to $host: ${e.message}", e)
         }
@@ -56,6 +69,10 @@ class SSHConnection(
     }
 
     fun isConnected(): Boolean {
+        if (session == null || !session!!.isConnected) {
+            fileSystem = null
+            return false
+        }
         return session?.isConnected == true
     }
 
@@ -91,11 +108,7 @@ class SSHConnection(
         }
     }
 
-    // SFTP Channel Pooling
-    private val channelPool = mutableListOf<ChannelSftp>()
-    private val channelPoolLock = ReentrantLock()
-    private val channelAvailable: Condition = channelPoolLock.newCondition()
-    var maxChannels = 5
+
 
     fun getChannelFromPool(): ChannelSftp? {
         channelPoolLock.lock()
@@ -251,6 +264,33 @@ class SSHConnection(
         val base64Encoded = Base64.getEncoder().encodeToString(keyBytes)
 
         return "ssh-rsa $base64Encoded $comment"
+    }
+
+    fun getMaxSessionsValue(session: Session): Int {
+        return try {
+            val channel = session.openChannel("exec") as ChannelExec
+
+            // Use sshd -T if available, else fallback to reading sshd_config
+            val command = "sshd -T 2>/dev/null | grep -i maxsessions || grep -i MaxSessions /etc/ssh/sshd_config"
+            channel.setCommand(command)
+            channel.setInputStream(null)
+            val outputStream = ByteArrayOutputStream()
+            channel.outputStream = outputStream
+            channel.connect()
+            // Wait for command to complete
+            while (!channel.isClosed) {
+                Thread.sleep(100)
+            }
+            channel.disconnect()
+            val output = outputStream.toString().trim()
+            return output.lines().firstOrNull { it.contains("maxsessions", ignoreCase = true) }?.let { line ->
+                line.trim().split(Regex("\\s+")).firstOrNull { it.matches(Regex("\\d+")) }?.toIntOrNull()
+            } ?: 5
+
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return 5
+        }
     }
 
     fun close() {

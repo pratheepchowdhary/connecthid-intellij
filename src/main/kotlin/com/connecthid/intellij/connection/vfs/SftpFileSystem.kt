@@ -232,6 +232,9 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
                 connectionService.connect(server.host, server.username, server.password, port = server.port)
                 connection = connectionService.getConnection(server.host)
             }
+            connection?.let {
+                it.fileSystem = this
+            }
             return connection
 
         } finally {
@@ -283,32 +286,7 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
     }
 
 
-    fun getMaxSessionsValue(session: Session): Int {
-        return try {
-            val channel = session.openChannel("exec") as ChannelExec
 
-            // Use sshd -T if available, else fallback to reading sshd_config
-            val command = "sshd -T 2>/dev/null | grep -i maxsessions || grep -i MaxSessions /etc/ssh/sshd_config"
-            channel.setCommand(command)
-            channel.setInputStream(null)
-            val outputStream = ByteArrayOutputStream()
-            channel.outputStream = outputStream
-            channel.connect()
-            // Wait for command to complete
-            while (!channel.isClosed) {
-                Thread.sleep(100)
-            }
-            channel.disconnect()
-            val output = outputStream.toString().trim()
-            return output.lines().firstOrNull { it.contains("maxsessions", ignoreCase = true) }?.let { line ->
-                line.trim().split(Regex("\\s+")).firstOrNull { it.matches(Regex("\\d+")) }?.toIntOrNull()
-            } ?: 5
-
-        } catch (e: Exception) {
-            e.printStackTrace()
-            return 5
-        }
-    }
 
 
     fun getChannelFromPool(): ChannelSftp? {
