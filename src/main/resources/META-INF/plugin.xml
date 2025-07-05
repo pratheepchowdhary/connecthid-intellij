@@ -47,6 +47,8 @@
             id="notification.groupId.connecthid"
             displayType="BALLOON" />
 
+    <searchEverywhereContributor implementation="com.connecthid.intellij.connection.vfs.SftpFileContributorFactory"/>
+
 
   </extensions>
 

@@ -23,12 +23,13 @@ import java.awt.event.MouseEvent
 import javax.swing.*
 import javax.swing.event.TreeExpansionEvent
 import javax.swing.event.TreeExpansionListener
+import javax.swing.event.TreeSelectionEvent
+import javax.swing.event.TreeSelectionListener
 import javax.swing.tree.DefaultMutableTreeNode
 import javax.swing.tree.DefaultTreeModel
 import javax.swing.tree.TreePath
 
-//Todo Max session restrictions
-class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(BorderLayout()), TreeExpansionListener {
+class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(BorderLayout()), TreeExpansionListener, TreeSelectionListener {
     private val tree: Tree
     private val treeModel: DefaultTreeModel
     private val rootNode: SftpTreeNode
@@ -70,6 +71,8 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(B
         }
     }
 
+    private var lastSelectedNode: DefaultMutableTreeNode? = null
+
     init {
         println("Initializing SftpPanel for server: ${serverItem.host}")
         // Create the root node
@@ -82,6 +85,7 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(B
         tree = Tree(treeModel)
         tree.cellRenderer = SftpTreeCellRenderer()
         tree.addTreeExpansionListener(this)
+        tree.addTreeSelectionListener(this)
         val actionGroup = DefaultActionGroup()
         actionGroup.add(object : AnAction({ "Upload" }, AllIcons.Actions.Upload) {
                 override fun actionPerformed(e: AnActionEvent) {
@@ -147,22 +151,16 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(B
             loadChildren(rootNode, rootNode.file)
         }
 
-
         tree.addMouseListener(object : MouseAdapter() {
             override fun mouseClicked(e: MouseEvent) {
                 if(SwingUtilities.isRightMouseButton(e)){
-                    val row = tree.getRowForLocation(x, y)
-                    println("row: ${row}")
-                    tree.getPathForLocation(e.x,e.y)?.let {
-                        val selectedNode = it.lastPathComponent as? DefaultMutableTreeNode ?: return
-
-                        showPopupMenu(e.getX(), e.getY(), selectedNode);
+                    lastSelectedNode?.let {
+                        showPopupMenu(e.x, e.y, it)
                     }
                 }
                 else if(e.clickCount == 2){
-                    tree.getPathForLocation(e.x,e.y)?.let {
-                        val selectedNode = it.lastPathComponent as? DefaultMutableTreeNode ?: return
-                        val file = selectedNode.userObject as? VirtualFile ?: return
+                    lastSelectedNode?.let {
+                        val file = it.userObject as? VirtualFile ?: return
                         if(!file.isDirectory){
                             if(!fileSystem.openFileInIDE(file)){
                                 //todo show error
@@ -245,6 +243,16 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(B
     override fun removeNotify() {
         super.removeNotify()
         coroutineScope.cancel()
+    }
+
+    override fun valueChanged(event: TreeSelectionEvent?) {
+        val selectedPath = event?.path
+        val selectedNode = selectedPath?.lastPathComponent as? DefaultMutableTreeNode
+        if (selectedNode != null) {
+            lastSelectedNode = selectedNode
+            println("Tree item selected: ${selectedNode.userObject}")
+            // You can add more logic here, e.g., update UI, load file/folder details, etc.
+        }
     }
 }
 

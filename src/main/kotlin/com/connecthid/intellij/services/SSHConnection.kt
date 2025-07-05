@@ -10,6 +10,8 @@ import java.security.KeyPairGenerator
 import java.security.interfaces.RSAPrivateKey
 import java.security.interfaces.RSAPublicKey
 import java.util.Base64
+import java.util.concurrent.locks.ReentrantLock
+import java.util.concurrent.locks.Condition
 
 
 class SSHConnection(
@@ -89,41 +91,71 @@ class SSHConnection(
         }
     }
 
-    fun uploadFile(localPath: String, remotePath: String) {
-        if (!isConnected()) {
-            connect()
-        }
+    // SFTP Channel Pooling
+    private val channelPool = mutableListOf<ChannelSftp>()
+    private val channelPoolLock = ReentrantLock()
+    private val channelAvailable: Condition = channelPoolLock.newCondition()
+    var maxChannels = 5
 
+    fun getChannelFromPool(): ChannelSftp? {
+        channelPoolLock.lock()
         try {
-            channel = session?.openChannel("sftp")
-            channel?.connect()
-            val sftp = channel as ChannelSftp
-            sftp.put(localPath, remotePath)
-        } catch (e: JSchException) {
-            throw IOException("Failed to upload file: ${e.message}", e)
+            channelPool.removeIf { !it.isConnected }
+            if (channelPool.isNotEmpty()) {
+                return channelPool.removeAt(0)
+            }
+            if (channelPool.size < maxChannels) {
+                if (!isConnected()) connect()
+                val channel = session?.openChannel("sftp") as? ChannelSftp
+                channel?.connect()
+                return channel
+            }
+            var waited = 0L
+            val maxWait = 10000L // 10 seconds max wait
+            while (channelPool.isEmpty() && waited < maxWait) {
+                channelAvailable.awaitNanos(500_000_000) // 0.5s
+                waited += 500
+            }
+            return if (channelPool.isNotEmpty()) channelPool.removeAt(0) else null
+        } finally {
+            channelPoolLock.unlock()
+        }
+    }
+
+    fun releaseChannelToPool(channel: ChannelSftp?) {
+        if (channel == null) return
+        channelPoolLock.lock()
+        try {
+            if (channel.isConnected && channelPool.size < maxChannels) {
+                channelPool.add(channel)
+                channelAvailable.signal()
+            } else {
+                try { channel.disconnect() } catch (_: Exception) {}
+            }
+        } finally {
+            channelPoolLock.unlock()
+        }
+    }
+
+    fun uploadFile(localPath: String, remotePath: String) {
+        val sftpChannel = getChannelFromPool()
+        try {
+            sftpChannel?.put(localPath, remotePath)
         } catch (e: SftpException) {
             throw IOException("Failed to upload file: ${e.message}", e)
         } finally {
-            channel?.disconnect()
+            releaseChannelToPool(sftpChannel)
         }
     }
 
     fun downloadFile(remotePath: String, localPath: String) {
-        if (!isConnected()) {
-            connect()
-        }
-
+        val sftpChannel = getChannelFromPool()
         try {
-            channel = session?.openChannel("sftp")
-            channel?.connect()
-            val sftp = channel as ChannelSftp
-            sftp.get(remotePath, localPath)
-        } catch (e: JSchException) {
-            throw IOException("Failed to download file: ${e.message}", e)
+            sftpChannel?.get(remotePath, localPath)
         } catch (e: SftpException) {
             throw IOException("Failed to download file: ${e.message}", e)
         } finally {
-            channel?.disconnect()
+            releaseChannelToPool(sftpChannel)
         }
     }
 
@@ -224,4 +256,4 @@ class SSHConnection(
     fun close() {
         disconnect()
     }
-} 
+}

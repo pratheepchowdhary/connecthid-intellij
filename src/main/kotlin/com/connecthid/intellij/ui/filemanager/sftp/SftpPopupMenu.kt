@@ -34,90 +34,93 @@ fun showSftpPopupMenu(
 
     val file = selectedNode.userObject as? VirtualFile ?: return
     val actionGroup = DefaultActionGroup()
-    val newActionGroup = DefaultActionGroup("New", true)
-    // File creation
+    val isDirectory = file.isDirectory
+    if (isDirectory) {
+        val newActionGroup = DefaultActionGroup("New", true)
+        // File creation
+        newActionGroup.add(object : AnAction({ "File" }, AllIcons.Actions.AddFile) {
+            override fun actionPerformed(e: AnActionEvent) {
+                val fileName = Messages.showInputDialog(
+                    tree,
+                    "Enter new file name:",
+                    "New File",
+                    Messages.getQuestionIcon()
+                ) ?: return
+                if (fileName.isBlank()) return
+                ApplicationManager.getApplication().runWriteAction {
+                    try {
+                        val newFile = file.createChildData(this, fileName)
+                        com.intellij.openapi.fileEditor.FileEditorManager.getInstance(project).openFile(newFile, true)
+                        // Add only the new node to the tree if not already present
+                        val parentPath =  TreePath(selectedNode.path)
+                        val parentNode = parentPath.lastPathComponent as? DefaultMutableTreeNode
+                        if (parentNode != null) {
+                            // Check if node already exists (avoid duplicates)
+                            val exists = (0 until parentNode.childCount).any {
+                                val child = parentNode.getChildAt(it) as? DefaultMutableTreeNode
+                                (child?.userObject as? VirtualFile)?.name == newFile.name
+                            }
+                            if (!exists) {
+                                val newNode = SftpTreeNode(newFile)
+                                parentNode.add(newNode)
+                                treeModel.nodesWereInserted(parentNode, intArrayOf(parentNode.getIndex(newNode)))
+                                // Select and scroll to the new node
+                                SwingUtilities.invokeLater {
+                                    val newPath = parentPath.pathByAddingChild(newNode)
+                                    tree.selectionPath = newPath
+                                    tree.scrollPathToVisible(newPath)
+                                }
+                            }
+                        }
+                    } catch (ex: Exception) {
+                        Messages.showErrorDialog(tree, "Failed to create file: ${ex.message}")
+                    }
+                }
+            }
+        })
+        // Folder creation
+        newActionGroup.add(object : AnAction({ "Folder" }, AllIcons.Actions.NewFolder) {
+            override fun actionPerformed(e: AnActionEvent) {
+                val folderName = Messages.showInputDialog(
+                    tree,
+                    "Enter new folder name:",
+                    "New Folder",
+                    Messages.getQuestionIcon()
+                ) ?: return
+                if (folderName.isBlank()) return
+                ApplicationManager.getApplication().runWriteAction {
+                    try {
+                        val newDir = file.createChildDirectory(this, folderName)
+                        val parentPath = TreePath(selectedNode.path)
+                        val parentNode = parentPath.lastPathComponent as? DefaultMutableTreeNode
+                        if (parentNode != null) {
+                            val exists = (0 until parentNode.childCount).any {
+                                val child = parentNode.getChildAt(it) as? DefaultMutableTreeNode
+                                (child?.userObject as? VirtualFile)?.name == newDir.name
+                            }
+                            if (!exists) {
+                                val newNode = SftpTreeNode(newDir)
+                                newNode.add(DefaultMutableTreeNode("Loading..."))
+                                parentNode.add(newNode)
+                                treeModel.nodesWereInserted(parentNode, intArrayOf(parentNode.getIndex(newNode)))
+                                // Select and scroll to the new node
+                                SwingUtilities.invokeLater {
+                                    val newPath = parentPath.pathByAddingChild(newNode)
+                                    tree.selectionPath = newPath
+                                    tree.scrollPathToVisible(newPath)
+                                }
+                            }
+                        }
+                    } catch (ex: Exception) {
+                        Messages.showErrorDialog(tree, "Failed to create folder: ${ex.message}")
+                    }
+                }
+            }
+        })
+        newActionGroup.addSeparator()
+        actionGroup.add(newActionGroup)
 
-    newActionGroup.add(object : AnAction({ "File" }, AllIcons.Actions.AddFile) {
-        override fun actionPerformed(e: AnActionEvent) {
-            val fileName = Messages.showInputDialog(
-                tree,
-                "Enter new file name:",
-                "New File",
-                Messages.getQuestionIcon()
-            ) ?: return
-            if (fileName.isBlank()) return
-            ApplicationManager.getApplication().runWriteAction {
-                try {
-                    val newFile = file.createChildData(this, fileName)
-                    com.intellij.openapi.fileEditor.FileEditorManager.getInstance(project).openFile(newFile, true)
-                    // Add only the new node to the tree if not already present
-                    val parentPath =  TreePath(selectedNode.path)
-                    val parentNode = parentPath.lastPathComponent as? DefaultMutableTreeNode
-                    if (parentNode != null) {
-                        // Check if node already exists (avoid duplicates)
-                        val exists = (0 until parentNode.childCount).any {
-                            val child = parentNode.getChildAt(it) as? DefaultMutableTreeNode
-                            (child?.userObject as? VirtualFile)?.name == newFile.name
-                        }
-                        if (!exists) {
-                            val newNode = SftpTreeNode(newFile)
-                            parentNode.add(newNode)
-                            treeModel.nodesWereInserted(parentNode, intArrayOf(parentNode.getIndex(newNode)))
-                            // Select and scroll to the new node
-                            SwingUtilities.invokeLater {
-                                val newPath = parentPath.pathByAddingChild(newNode)
-                                tree.selectionPath = newPath
-                                tree.scrollPathToVisible(newPath)
-                            }
-                        }
-                    }
-                } catch (ex: Exception) {
-                    Messages.showErrorDialog(tree, "Failed to create file: ${ex.message}")
-                }
-            }
-        }
-    })
-    // Folder creation
-    newActionGroup.add(object : AnAction({ "Folder" }, AllIcons.Actions.NewFolder) {
-        override fun actionPerformed(e: AnActionEvent) {
-            val folderName = Messages.showInputDialog(
-                tree,
-                "Enter new folder name:",
-                "New Folder",
-                Messages.getQuestionIcon()
-            ) ?: return
-            if (folderName.isBlank()) return
-            ApplicationManager.getApplication().runWriteAction {
-                try {
-                    val newDir = file.createChildDirectory(this, folderName)
-                    val parentPath = TreePath(selectedNode.path)
-                    val parentNode = parentPath.lastPathComponent as? DefaultMutableTreeNode
-                    if (parentNode != null) {
-                        val exists = (0 until parentNode.childCount).any {
-                            val child = parentNode.getChildAt(it) as? DefaultMutableTreeNode
-                            (child?.userObject as? VirtualFile)?.name == newDir.name
-                        }
-                        if (!exists) {
-                            val newNode = SftpTreeNode(newDir)
-                            newNode.add(DefaultMutableTreeNode("Loading..."))
-                            parentNode.add(newNode)
-                            treeModel.nodesWereInserted(parentNode, intArrayOf(parentNode.getIndex(newNode)))
-                            // Select and scroll to the new node
-                            SwingUtilities.invokeLater {
-                                val newPath = parentPath.pathByAddingChild(newNode)
-                                tree.selectionPath = newPath
-                                tree.scrollPathToVisible(newPath)
-                            }
-                        }
-                    }
-                } catch (ex: Exception) {
-                    Messages.showErrorDialog(tree, "Failed to create folder: ${ex.message}")
-                }
-            }
-        }
-    })
-    newActionGroup.addSeparator()
-    actionGroup.add(newActionGroup)
+    }
     // Move (not implemented, placeholder)
     actionGroup.add(object : AnAction({ "Move" }, AllIcons.Actions.MenuCut) {
         override fun actionPerformed(e: AnActionEvent) {
@@ -151,6 +154,15 @@ fun showSftpPopupMenu(
             Messages.showInfoMessage(tree, "Find Usages action not implemented.", "Info")
         }
     })
+    if(isDirectory){
+        // Find in Folder
+        actionGroup.add(object : AnAction({ "Find in Folder" }, AllIcons.Actions.Find) {
+            override fun actionPerformed(e: AnActionEvent) {
+                // Find in Folder logic (placeholder)
+                Messages.showInfoMessage(tree, "Find in Folder action not implemented.", "Info")
+            }
+        })
+    }
     // Rename
     actionGroup.add(object : AnAction({ "Rename" }, AllIcons.Actions.Edit) {
         override fun actionPerformed(e: AnActionEvent) {
@@ -189,12 +201,23 @@ fun showSftpPopupMenu(
         }
     })
     actionGroup.addSeparator()
+    if(isDirectory){
+    // Open in Terminal
+    actionGroup.add(object : AnAction({ "Open in Terminal" }, AllIcons.Debugger.Console) {
+        override fun actionPerformed(e: AnActionEvent) {
+            // Open in Terminal logic (platform dependent, here just a placeholder)
+            Messages.showInfoMessage(tree, "Open in Terminal action not implemented.", "Info")
+        }
+    })
+
+    }
     // Bookmarks (not implemented, placeholder)
     actionGroup.add(object : AnAction({ "Bookmarks" }) {
         override fun actionPerformed(e: AnActionEvent) {
             Messages.showInfoMessage(tree, "Bookmarks action not implemented.", "Info")
         }
     })
+
     // Local History
     actionGroup.add(object : AnAction({ "Local History" }, AllIcons.Actions.Close) {
         override fun actionPerformed(e: AnActionEvent) {
@@ -240,4 +263,3 @@ fun showSftpPopupMenu(
     popupMenu.component.show(tree, x, y)
 
 }
-
