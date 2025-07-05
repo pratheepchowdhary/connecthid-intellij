@@ -1,5 +1,6 @@
 package com.connecthid.intellij.ui.filemanager.sftp
 
+import com.connecthid.intellij.connection.vfs.SftpFile
 import com.connecthid.intellij.connection.vfs.SftpFileSystem
 import com.connecthid.intellij.getSSHService
 import com.connecthid.intellij.services.ServerConnectionService
@@ -15,7 +16,7 @@ import javax.swing.JLabel
 import javax.swing.JList
 import javax.swing.ListCellRenderer
 
-class SftpFileContributor : SearchEverywhereContributor<VirtualFile> {
+class SftpFileContributor : SearchEverywhereContributor<SftpFile> {
     private lateinit var project: Project
     private lateinit var sshService: ServerConnectionService
     fun setProject(project: Project) {
@@ -42,7 +43,7 @@ class SftpFileContributor : SearchEverywhereContributor<VirtualFile> {
     override fun fetchElements(
         pattern: String,
         indicator: ProgressIndicator,
-        consumer: Processor<in VirtualFile>
+        consumer: Processor<in SftpFile>
     ) {
         println(pattern)
        val fileSystem = if(sshService.getConnectedServers().size > 0) sshService.getConnection(sshService.getConnectedServers().get(0))?.fileSystem else null
@@ -56,11 +57,14 @@ class SftpFileContributor : SearchEverywhereContributor<VirtualFile> {
 
 
     override fun processSelectedItem(
-        p0: VirtualFile,
+        p0: SftpFile,
         p1: Int,
         p2: String
     ): Boolean {
-        return (p0.fileSystem as SftpFileSystem).openFileInIDE(p0)
+        val fileSystem = (p0.fileSystem as SftpFileSystem)
+        val fileStat = fileSystem.getFileStat(p0.path)
+        p0.fileEntry = fileStat
+        return if(fileStat != null) fileSystem.openFileInIDE(p0) else false
     }
 
     override fun getElementsRenderer(): ListCellRenderer<in VirtualFile> {

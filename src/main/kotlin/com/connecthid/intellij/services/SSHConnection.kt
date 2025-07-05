@@ -166,7 +166,6 @@ class SSHConnection(
             if ((channelPool.size + execChannelPool.size) < maxChannels) {
                 if (!isConnected()) connect()
                 val channel = session?.openChannel("exec") as? ChannelExec
-                channel?.connect()
                 return channel
             }
             var waited = 0L

@@ -15,6 +15,7 @@ import com.intellij.openapi.vfs.VirtualFileSystem
 import com.jcraft.jsch.ChannelExec
 import com.jcraft.jsch.ChannelSftp
 import com.jcraft.jsch.Session
+import com.jcraft.jsch.SftpATTRS
 import java.io.IOException
 import java.io.InputStream
 import java.util.concurrent.locks.ReentrantLock
@@ -51,19 +52,25 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
     }
 
     private fun getFile(path: String): SftpFile {
+        val fileStat = getFileStat(path)
+        return SftpFile(path, this, fileStat)
+    }
+
+    fun getFileStat(path: String):SftpATTRS ?{
         var channel: ChannelSftp? = null
-        val connection = getConnection() ?: return SftpFile(path, this)
+        val connection = getConnection() ?: return null
         try {
             channel = connection.getChannelFromPool()
-            if (channel == null || !channel.isConnected) return SftpFile(path, this)
+            if (channel == null || !channel.isConnected) return null
             val attrs = channel.lstat(path)
-            return SftpFile(path, this, attrs)
+            return attrs
         } catch (e: Exception) {
-            return SftpFile(path, this)
+            return null
         } finally {
             connection.releaseChannelToPool(channel)
         }
     }
+
 
     override fun refresh(asynchronous: Boolean) {
 
@@ -311,12 +318,15 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
             val findCommand = "find / -type f -name '$remotePattern' 2>/dev/null"
             execChannel = connection.getExecChannelFromPool()
             execChannel?.setCommand(findCommand)
+            execChannel?.connect()
             val input = execChannel?.inputStream
             val foundFiles = input?.bufferedReader()?.readLines() ?: emptyList()
+            execChannel?.disconnect()
             for (filePath in foundFiles) {
                 results.add(SftpFile(filePath, this))
             }
         } catch (e: Exception) {
+            println(e.message)
             e.printStackTrace()
         } finally {
             connection.releaseExecChannelToPool(execChannel)

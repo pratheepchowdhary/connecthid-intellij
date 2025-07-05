@@ -230,7 +230,6 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(B
     override fun treeExpanded(event: TreeExpansionEvent) {
         val node = event.path.lastPathComponent as? DefaultMutableTreeNode ?: return
         val file = node.userObject as? VirtualFile ?: return
-
         if (file.isDirectory) {
             coroutineScope.launch {
                 loadChildren(node, file)
