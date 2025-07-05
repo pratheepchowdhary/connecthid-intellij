@@ -33,7 +33,6 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
 
     private val fileEditor by  lazy { FileEditorManager.getInstance(project) }
     private val connectionLock = ReentrantLock()
-    var channelCount = hashMapOf<Int, ChannelSftp>()
     var maxChannels = 5;
     companion object {
         const val PROTOCOL = "sftp"
@@ -206,8 +205,8 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
             val newFile = SftpFile(newPath, this, attrs)
             fileCache[newPath] = newFile
             return newFile
-        } catch (e: Exception) {
-            throw IOException("Failed to copy file: ${e.message}", e)
+        } catch (_: Exception) {
+            throw IOException("Failed to copy file")
         } finally {
             releaseChannelToPool(channel)
         }
