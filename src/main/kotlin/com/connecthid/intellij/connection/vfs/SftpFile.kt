@@ -26,6 +26,11 @@ class SftpFile(
         return fileEntry!!.isWritable()
     }
 
+    override fun getUrl(): String {
+        return "${fileSystem.protocol}://${fileSystem.server.username}@${fileSystem.server.host}:${fileSystem.server.port}${pathLocation}"
+    }
+
+
     override fun isDirectory(): Boolean {
         if (fileEntry == null) {
             return true

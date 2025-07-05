@@ -74,7 +74,7 @@ class SftpFileContributor : SearchEverywhereContributor<VirtualFile> {
             ): Component {
                 val label = JLabel()
                 if (value != null) {
-                    label.text = "${value.fileSystem.protocol.lowercase()}:/${value.presentableUrl}"
+                    label.text = value.url
                     label.icon = FileTypeManager.getInstance().getFileTypeByFileName(value.name).icon
                 }
                 if (isSelected) {

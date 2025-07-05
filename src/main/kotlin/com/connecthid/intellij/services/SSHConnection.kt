@@ -28,10 +28,14 @@ class SSHConnection(
     private var channel: Channel? = null
     // SFTP Channel Pooling
     private val channelPool = mutableListOf<ChannelSftp>()
+    // Use a single lock for both pools
     private val channelPoolLock = ReentrantLock()
     private val channelAvailable: Condition = channelPoolLock.newCondition()
     var maxChannels = 5
     var fileSystem : SftpFileSystem? = null
+
+    // Exec Channel Pooling
+    private val execChannelPool = mutableListOf<ChannelExec>()
 
     init {
         JSch.setConfig("StrictHostKeyChecking", "no")
@@ -114,10 +118,11 @@ class SSHConnection(
         channelPoolLock.lock()
         try {
             channelPool.removeIf { !it.isConnected }
+            execChannelPool.removeIf { !it.isConnected }
             if (channelPool.isNotEmpty()) {
                 return channelPool.removeAt(0)
             }
-            if (channelPool.size < maxChannels) {
+            if ((channelPool.size + execChannelPool.size) < maxChannels) {
                 if (!isConnected()) connect()
                 val channel = session?.openChannel("sftp") as? ChannelSftp
                 channel?.connect()
@@ -139,8 +144,49 @@ class SSHConnection(
         if (channel == null) return
         channelPoolLock.lock()
         try {
-            if (channel.isConnected && channelPool.size < maxChannels) {
+            if (channel.isConnected && (channelPool.size + execChannelPool.size) <= maxChannels) {
                 channelPool.add(channel)
+                channelAvailable.signal()
+            } else {
+                try { channel.disconnect() } catch (_: Exception) {}
+            }
+        } finally {
+            channelPoolLock.unlock()
+        }
+    }
+
+    fun getExecChannelFromPool(): ChannelExec? {
+        channelPoolLock.lock()
+        try {
+            channelPool.removeIf { !it.isConnected }
+            execChannelPool.removeIf { !it.isConnected }
+            if (execChannelPool.isNotEmpty()) {
+                return execChannelPool.removeAt(0)
+            }
+            if ((channelPool.size + execChannelPool.size) < maxChannels) {
+                if (!isConnected()) connect()
+                val channel = session?.openChannel("exec") as? ChannelExec
+                channel?.connect()
+                return channel
+            }
+            var waited = 0L
+            val maxWait = 10000L // 10 seconds max wait
+            while (execChannelPool.isEmpty() && waited < maxWait) {
+                channelAvailable.awaitNanos(500_000_000) // 0.5s
+                waited += 500
+            }
+            return if (execChannelPool.isNotEmpty()) execChannelPool.removeAt(0) else null
+        } finally {
+            channelPoolLock.unlock()
+        }
+    }
+
+    fun releaseExecChannelToPool(channel: ChannelExec?) {
+        if (channel == null) return
+        channelPoolLock.lock()
+        try {
+            if (channel.isConnected && (channelPool.size + execChannelPool.size) <= maxChannels) {
+                execChannelPool.add(channel)
                 channelAvailable.signal()
             } else {
                 try { channel.disconnect() } catch (_: Exception) {}

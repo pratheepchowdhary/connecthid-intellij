@@ -15,7 +15,6 @@ import com.intellij.openapi.vfs.VirtualFileSystem
 import com.jcraft.jsch.ChannelExec
 import com.jcraft.jsch.ChannelSftp
 import com.jcraft.jsch.Session
-import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InputStream
 import java.util.concurrent.locks.ReentrantLock
@@ -302,16 +301,25 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
 
     fun searchFiles(pattern: String): List<SftpFile> {
         val results = mutableListOf<SftpFile>()
-        val regex = if (pattern.contains("*")) {
-            // Convert glob to regex
-            Pattern.compile(pattern.replace(".", "\\.").replace("*", ".*").replace("?", "."), Pattern.CASE_INSENSITIVE)
-        } else {
-            Pattern.compile(Pattern.quote(pattern), Pattern.CASE_INSENSITIVE)
+        if(pattern.length < 2){
+            return results
         }
-        fileCache.values.toList().get(0).children.forEach { file ->
-            if (regex.matcher(file.name).matches() && !file.isDirectory) {
-                results.add(file as SftpFile)
+        val connection = getConnection() ?: return results
+        var execChannel: ChannelExec? = null
+        try {
+            val remotePattern = if (pattern.contains("*")) pattern else "*$pattern*"
+            val findCommand = "find / -type f -name '$remotePattern' 2>/dev/null"
+            execChannel = connection.getExecChannelFromPool()
+            execChannel?.setCommand(findCommand)
+            val input = execChannel?.inputStream
+            val foundFiles = input?.bufferedReader()?.readLines() ?: emptyList()
+            for (filePath in foundFiles) {
+                results.add(SftpFile(filePath, this))
             }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        } finally {
+            connection.releaseExecChannelToPool(execChannel)
         }
         return results
     }
