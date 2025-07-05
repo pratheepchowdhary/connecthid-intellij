@@ -19,6 +19,7 @@ import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InputStream
 import java.util.concurrent.locks.ReentrantLock
+import java.util.regex.Pattern
 
 
 class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSystem() {
@@ -297,6 +298,22 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
     fun releaseChannelToPool(channel: ChannelSftp?) {
         val connection = getConnection() ?: return
         connection.releaseChannelToPool(channel)
+    }
+
+    fun searchFiles(pattern: String): List<SftpFile> {
+        val results = mutableListOf<SftpFile>()
+        val regex = if (pattern.contains("*")) {
+            // Convert glob to regex
+            Pattern.compile(pattern.replace(".", "\\.").replace("*", ".*").replace("?", "."), Pattern.CASE_INSENSITIVE)
+        } else {
+            Pattern.compile(Pattern.quote(pattern), Pattern.CASE_INSENSITIVE)
+        }
+        fileCache.values.toList().get(0).children.forEach { file ->
+            if (regex.matcher(file.name).matches() && !file.isDirectory) {
+                results.add(file as SftpFile)
+            }
+        }
+        return results
     }
 
 }

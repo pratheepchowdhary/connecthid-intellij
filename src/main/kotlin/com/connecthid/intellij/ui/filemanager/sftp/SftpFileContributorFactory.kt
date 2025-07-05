@@ -1,4 +1,4 @@
-package com.connecthid.intellij.connection.vfs
+package com.connecthid.intellij.ui.filemanager.sftp
 
 import com.intellij.ide.actions.searcheverywhere.SearchEverywhereContributor
 import com.intellij.ide.actions.searcheverywhere.SearchEverywhereContributorFactory

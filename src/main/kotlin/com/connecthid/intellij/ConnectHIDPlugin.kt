@@ -28,7 +28,6 @@ class ConnectHIDPlugin : ToolWindowFactory {
         toolWindow.contentManager.addContent(content)
     }
 }
-fun Project.getAppService(): ConnectHidServiceImpl = service
 fun Project.getSSHService(): ServerConnectionService = sshService
 fun Project.addWindow(component: JComponent){
     val manager = ToolWindowManager.getInstance(this)
