@@ -25,7 +25,12 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
     val connectionService = project.getSSHService()
     internal val fileCache = mutableMapOf<String, SftpFile>()
     private val listeners = mutableListOf<VirtualFileListener>()
-    private var channelSftp: ChannelSftp?=null
+
+    // Channel pool for concurrent SFTP operations
+    private val channelPool = mutableListOf<ChannelSftp>()
+    private val channelPoolLock = ReentrantLock()
+    private val channelAvailable = channelPoolLock.newCondition()
+
     private val fileEditor by  lazy { FileEditorManager.getInstance(project) }
     private val connectionLock = ReentrantLock()
     var channelCount = hashMapOf<Int, ChannelSftp>()
@@ -39,10 +44,7 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
             FileEditorManagerListener {
             override fun fileClosed(source: FileEditorManager, file: VirtualFile) {
                 println("File closed: ${file.name}")
-                if(file is SftpFile){
-                    file.disconnectChannel()
-
-                }
+                // No longer needed, channel management is now in the pool
             }
         })
     }
@@ -55,24 +57,22 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
         }
     }
 
-    private fun getFile(path: String):SftpFile{
+    private fun getFile(path: String): SftpFile {
+        var channel: ChannelSftp? = null
         try {
-            val channel = getChannel() ?: return SftpFile(path, this)
-            val attrs  = channel.lstat(path)
-            return SftpFile(path, this,attrs)
+            channel = getChannelFromPool()
+            if (channel == null || !channel.isConnected) return SftpFile(path, this)
+            val attrs = channel.lstat(path)
+            return SftpFile(path, this, attrs)
         } catch (e: Exception) {
-            throw IOException("Failed to delete file: ${e.message}", e)
             return SftpFile(path, this)
         } finally {
-            disconnectChannel()
+            releaseChannelToPool(channel)
         }
     }
 
     override fun refresh(asynchronous: Boolean) {
 
-        fileCache.values.forEach {
-            it.disconnectChannel()
-        }
         fileCache.clear()
     }
 
@@ -82,8 +82,9 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
     }
 
     override fun deleteFile(requestor: Any?, vFile: VirtualFile) {
+        var channel: ChannelSftp? = null
         try {
-            val channel = getChannel() ?: return
+            channel = getChannelFromPool() ?: return
             if (vFile.isDirectory) {
                 channel.rmdir(vFile.path)
             } else {
@@ -93,32 +94,33 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
         } catch (e: Exception) {
             throw IOException("Failed to delete file: ${e.message}", e)
         } finally {
-            disconnectChannel()
+            releaseChannelToPool(channel)
         }
     }
 
     override fun moveFile(requestor: Any?, vFile: VirtualFile, newParent: VirtualFile) {
         val sftpFile = vFile as? SftpFile ?: throw IOException("Not an SFTP file")
         val newParentSftp = newParent as? SftpFile ?: throw IOException("Not an SFTP file")
-
+        var channel: ChannelSftp? = null
         try {
-            val channel = getChannel() ?: return
+            channel = getChannelFromPool() ?: return
             val newPath = "${newParentSftp.path}/${sftpFile.getName()}"
             channel.rename(sftpFile.path, newPath)
             fileCache.remove(sftpFile.path)
-            val attrs  = channel.lstat(newPath)
-            fileCache[newPath] = SftpFile(newPath, this,attrs)
+            val attrs = channel.lstat(newPath)
+            fileCache[newPath] = SftpFile(newPath, this, attrs)
         } catch (e: Exception) {
             throw IOException("Failed to move file: ${e.message}", e)
         } finally {
-            disconnectChannel()
+            releaseChannelToPool(channel)
         }
     }
 
     override fun renameFile(requestor: Any?, vFile: VirtualFile, newName: String) {
         val sftpFile = vFile as? SftpFile ?: throw IOException("Not an SFTP file")
+        var channel: ChannelSftp? = null
         try {
-            val channel = getChannel() ?: return
+            channel = getChannelFromPool() ?: return
             val oldPath = sftpFile.path
             val newPath = "${sftpFile.getParent()?.path ?: ""}/$newName"
             channel.rename(oldPath, newPath)
@@ -147,71 +149,67 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
         } catch (e: Exception) {
             throw IOException("Failed to rename file: ${e.message}", e)
         } finally {
-            disconnectChannel()
+            releaseChannelToPool(channel)
         }
     }
 
     override fun createChildFile(requestor: Any?, vDir: VirtualFile, fileName: String): VirtualFile {
         val sftpDir = vDir as? SftpFile ?: throw IOException("Not an SFTP file")
+        var channel: ChannelSftp? = null
         try {
-            val channel = getChannel() ?: return throw IOException("Failed to create file")
+            channel = getChannelFromPool() ?: throw IOException("Failed to create file")
             val newPath = "${sftpDir.path}/$fileName"
             channel.put(InputStream.nullInputStream(), newPath)
-            val attrs  = channel.lstat(newPath)
-            val newFile = SftpFile(newPath, this,attrs)
+            val attrs = channel.lstat(newPath)
+            val newFile = SftpFile(newPath, this, attrs)
             fileCache[newPath] = newFile
             return newFile
         } catch (e: Exception) {
             throw IOException("Failed to create file: ${e.message}", e)
-        }
-        finally {
-            disconnectChannel()
+        } finally {
+            releaseChannelToPool(channel)
         }
     }
 
     override fun createChildDirectory(requestor: Any?, vDir: VirtualFile, dirName: String): VirtualFile {
         val sftpDir = vDir as? SftpFile ?: throw IOException("Not an SFTP file")
-
-
+        var channel: ChannelSftp? = null
         try {
-            val channel = getChannel() ?: return throw IOException("Failed to create file")
+            channel = getChannelFromPool() ?: throw IOException("Failed to create file")
             val newPath = "${sftpDir.path}/$dirName"
             channel.mkdir(newPath)
-            val attrs  = channel.lstat(newPath)
-            val newDir = SftpFile(newPath, this,attrs)
+            val attrs = channel.lstat(newPath)
+            val newDir = SftpFile(newPath, this, attrs)
             fileCache[newPath] = newDir
             return newDir
         } catch (e: Exception) {
             throw IOException("Failed to create directory: ${e.message}", e)
-        }
-        finally {
-            disconnectChannel()
+        } finally {
+            releaseChannelToPool(channel)
         }
     }
 
     override fun copyFile(requestor: Any?, virtualFile: VirtualFile, newParent: VirtualFile, copyName: String): VirtualFile {
         val sftpFile = virtualFile as? SftpFile ?: throw IOException("Not an SFTP file")
         val newParentSftp = newParent as? SftpFile ?: throw IOException("Not an SFTP file")
-
+        var channel: ChannelSftp? = null
         try {
-            val channel = getChannel() ?:  throw IOException("Failed to copy file")
-
+            channel = getChannelFromPool() ?: throw IOException("Failed to copy file")
             val newPath = "${newParentSftp.path}/$copyName"
-
             if (sftpFile.isDirectory) {
                 channel.mkdir(newPath)
             } else {
                 val inputStream = channel.get(sftpFile.path)
                 channel.put(inputStream, newPath)
             }
-            val attrs  = channel.lstat(newPath)
-            val newFile = SftpFile(newPath, this,attrs)
+            val attrs = channel.lstat(newPath)
+            val newFile = SftpFile(newPath, this, attrs)
             fileCache[newPath] = newFile
             return newFile
         } catch (e: Exception) {
             throw IOException("Failed to copy file: ${e.message}", e)
         } finally {
-            disconnectChannel()
+            releaseChannelToPool(channel)
         }
     }
 
@@ -264,29 +262,44 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
     }
 
 
-     private fun getChannel(): ChannelSftp? {
-        val connection = getConnection() ?: return null
-        if(!connection.isConnected()) return null
-        if (channelSftp == null || !channelSftp!!.isConnected) {
-            try {
-                channelSftp?.disconnect()
-                channelSftp = connection.getSession()?.openChannel("sftp") as? ChannelSftp
-                channelSftp!!.connect()
-            } catch (e: Exception) {
-                println("Error creating SFTP channel: ${e.message}")
-                e.printStackTrace()
-                return null
-            }
-        }
-        return channelSftp
-    }
-    private fun disconnectChannel() {
+    internal fun getChannelFromPool(): ChannelSftp? {
+        channelPoolLock.lock()
         try {
-           channelSftp?.disconnect()
-           channelSftp = null
-        } catch (e: Exception) {
-            println("Error disconnecting SFTP channel: ${e.message}")
-            e.printStackTrace()
+            channelPool.removeIf { !it.isConnected }
+            if (channelPool.isNotEmpty()) {
+                return channelPool.removeAt(0)
+            }
+            if (channelPool.size < maxChannels) {
+                val connection = getConnection() ?: return null
+                if (!connection.isConnected()) return null
+                val channel = connection.getSession()?.openChannel("sftp") as? ChannelSftp
+                channel?.connect()
+                return channel
+            }
+            var waited = 0L
+            val maxWait = 10000L // 10 seconds max wait
+            while (channelPool.isEmpty() && waited < maxWait) {
+                channelAvailable.awaitNanos(500_000_000) // 0.5s
+                waited += 500
+            }
+            return if (channelPool.isNotEmpty()) channelPool.removeAt(0) else null
+        } finally {
+            channelPoolLock.unlock()
+        }
+    }
+
+    internal fun releaseChannelToPool(channel: ChannelSftp?) {
+        if (channel == null) return
+        channelPoolLock.lock()
+        try {
+            if (channel.isConnected && channelPool.size < maxChannels) {
+                channelPool.add(channel)
+                channelAvailable.signal()
+            } else {
+                try { channel.disconnect() } catch (_: Exception) {}
+            }
+        } finally {
+            channelPoolLock.unlock()
         }
     }
 
