@@ -1,5 +1,6 @@
 package com.connecthid.intellij.ui.filemanager.sftp
 
+import com.intellij.history.LocalHistory
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.actionSystem.ActionManager
 import com.intellij.openapi.actionSystem.AnAction
@@ -195,6 +196,12 @@ fun showSftpPopupMenu(
             Messages.showInfoMessage(tree, "Bookmarks action not implemented.", "Info")
         }
     })
+    // Local History
+    actionGroup.add(object : AnAction({ "Local History" }, AllIcons.Actions.Close) {
+        override fun actionPerformed(e: AnActionEvent) {
+            LocalHistory.getInstance().startAction()
+        }
+    })
     actionGroup.addSeparator()
     // Delete
     actionGroup.add(object : AnAction({ "Delete" }, AllIcons.Actions.DeleteTag) {
@@ -232,4 +239,6 @@ fun showSftpPopupMenu(
 
     val popupMenu = ActionManager.getInstance().createActionPopupMenu("CustomPopup", actionGroup)
     popupMenu.component.show(tree, x, y)
+
 }
+
