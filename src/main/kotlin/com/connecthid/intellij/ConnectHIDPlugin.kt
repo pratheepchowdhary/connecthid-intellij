@@ -21,6 +21,7 @@ class ConnectHIDPlugin : ToolWindowFactory {
         val tabbedPane = JBTabbedPane()
         // Add panels to tabs with required services
         tabbedPane.addTab("Servers", ServerListPanel(project))
+        tabbedPane.addTab("Workspaces", FileSyncPanel(project))
         tabbedPane.addTab("Code Syncing", FileSyncPanel(project))
         // Add content to tool window
         val contentFactory = ContentFactory.getInstance()
