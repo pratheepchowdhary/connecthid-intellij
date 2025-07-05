@@ -1,6 +1,5 @@
 package com.connecthid.intellij.ui.filemanager.sftp
 
-import com.intellij.history.LocalHistory
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.actionSystem.ActionManager
 import com.intellij.openapi.actionSystem.AnAction
@@ -199,7 +198,7 @@ fun showSftpPopupMenu(
     // Local History
     actionGroup.add(object : AnAction({ "Local History" }, AllIcons.Actions.Close) {
         override fun actionPerformed(e: AnActionEvent) {
-            LocalHistory.getInstance().startAction()
+            //LocalHistory.getInstance().startAction()
         }
     })
     actionGroup.addSeparator()
