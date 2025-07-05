@@ -3,7 +3,6 @@ package com.connecthid.intellij
 import com.connecthid.intellij.services.ConnectHidServiceImpl
 import com.connecthid.intellij.services.ServerConnectionService
 import com.connecthid.intellij.ui.rsync.FileSyncPanel
-import com.connecthid.intellij.ui.ScriptPanel
 import com.connecthid.intellij.ui.servers.ServerListPanel
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
@@ -23,8 +22,6 @@ class ConnectHIDPlugin : ToolWindowFactory {
         // Add panels to tabs with required services
         tabbedPane.addTab("Servers", ServerListPanel(project))
         tabbedPane.addTab("Code Syncing", FileSyncPanel(project))
-        tabbedPane.addTab("Remote Build & Execution", FileSyncPanel(project))
-        tabbedPane.addTab("Quick Commands / Snippets", ScriptPanel(project))
         // Add content to tool window
         val contentFactory = ContentFactory.getInstance()
         val content = contentFactory.createContent(tabbedPane, "", false)
