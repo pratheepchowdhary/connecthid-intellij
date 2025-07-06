@@ -7,13 +7,16 @@ import com.connecthid.intellij.ui.servers.ServerListPanel
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.*
+import com.intellij.openapi.wm.ex.ToolWindowEx
 import com.intellij.ui.components.JBTabbedPane
 import com.intellij.ui.content.ContentFactory
 import javax.swing.JComponent
 
+
 val service by lazy { ApplicationManager.getApplication().getService(ConnectHidServiceImpl::class.java) }
 val sshService by lazy { ApplicationManager.getApplication().getService(ServerConnectionService::class.java) }
 class ConnectHIDPlugin : ToolWindowFactory {
+
 
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
 
@@ -27,6 +30,9 @@ class ConnectHIDPlugin : ToolWindowFactory {
         val contentFactory = ContentFactory.getInstance()
         val content = contentFactory.createContent(tabbedPane, "", false)
         toolWindow.contentManager.addContent(content)
+        val ex = toolWindow as ToolWindowEx
+        ex.stretchWidth(toolWindow.component.preferredSize.width)
+
     }
 }
 fun Project.getSSHService(): ServerConnectionService = sshService
@@ -50,5 +56,3 @@ fun Project.remove(component: JComponent){
     manager.unregisterToolWindow(component.javaClass.name)
 
 }
-
-
