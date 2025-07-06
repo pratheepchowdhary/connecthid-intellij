@@ -45,10 +45,6 @@
 
     <searchEverywhereContributor implementation="com.connecthid.intellij.ui.filemanager.sftp.SftpFileContributorFactory"/>
 
-    <applicationService serviceInterface="com.intellij.ide.actions.searcheverywhere.TabsCustomizationStrategy"
-                        serviceImplementation="com.connecthid.intellij.ui.filemanager.sftp.SftpSeTabProvider"/>
-
-
   </extensions>
 
 
