@@ -338,7 +338,30 @@ class SSHConnection(
         }
     }
 
+    fun disconnectAllChannels() {
+        channelPoolLock.lock()
+        try {
+            channelPool.forEach {
+                try {
+                    if (it.isConnected) it.disconnect()
+                } catch (_: Exception) {}
+            }
+            channelPool.clear()
+
+            execChannelPool.forEach {
+                try {
+                    if (it.isConnected) it.disconnect()
+                } catch (_: Exception) {}
+            }
+            execChannelPool.clear()
+            channelAvailable.signalAll()
+        } finally {
+            channelPoolLock.unlock()
+        }
+    }
+
     fun close() {
+        disconnectAllChannels()
         disconnect()
     }
 }
