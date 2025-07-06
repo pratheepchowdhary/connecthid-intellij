@@ -19,7 +19,6 @@ import com.jcraft.jsch.SftpATTRS
 import java.io.IOException
 import java.io.InputStream
 import java.util.concurrent.locks.ReentrantLock
-import java.util.regex.Pattern
 
 
 class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSystem() {

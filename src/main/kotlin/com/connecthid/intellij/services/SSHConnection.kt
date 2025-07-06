@@ -68,6 +68,7 @@ class SSHConnection(
 
 
     fun disconnect() {
+        fileSystem = null
         channel?.disconnect()
         session?.disconnect()
     }
