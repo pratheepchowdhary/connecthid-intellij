@@ -2,17 +2,14 @@ package com.connecthid.intellij.ui.filemanager.sftp
 
 import com.connecthid.intellij.connection.vfs.SftpFileSystem
 import com.connecthid.intellij.models.Server
-import com.connecthid.intellij.ui.filemanager.sftp.actions.SearchAction
 import com.connecthid.intellij.ui.filemanager.sftp.actions.SftpToolbarActions
 import com.intellij.icons.AllIcons
-import com.intellij.openapi.actionSystem.*
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.wm.ToolWindowAnchor
 import com.intellij.openapi.wm.ToolWindowManager
 import com.intellij.ui.JBColor
 import com.intellij.ui.SpinningProgressIcon
-import com.intellij.ui.components.JBPanel
 import com.intellij.ui.content.ContentFactory
 import com.intellij.ui.treeStructure.Tree
 import kotlinx.coroutines.*
@@ -29,8 +26,9 @@ import javax.swing.event.TreeSelectionListener
 import javax.swing.tree.DefaultMutableTreeNode
 import javax.swing.tree.DefaultTreeModel
 import javax.swing.tree.TreePath
+import java.util.function.Supplier
 
-class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(BorderLayout()), TreeExpansionListener, TreeSelectionListener {
+class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(BorderLayout()), TreeExpansionListener, TreeSelectionListener, com.intellij.openapi.Disposable {
     private val tree: Tree
     val treeModel: DefaultTreeModel
     val rootNode: SftpTreeNode
@@ -218,6 +216,12 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(B
             // You can add more logic here, e.g., update UI, load file/folder details, etc.
         }
     }
+
+    override fun dispose() {
+        // Cleanup resources
+        coroutineScope.cancel()
+        fileSystem.getConnection()?.disconnectAllChannels()
+    }
 }
 
 fun Project.closeSFTP(panel: SftpExplorerPanel) {
@@ -246,16 +250,17 @@ fun Project.openSFTP(server: Server) {
             icon = AllIcons.Nodes.WebFolder
             canCloseContent = true
             anchor = ToolWindowAnchor.RIGHT
+            stripeTitle = Supplier{"SFTP Explorer"}
         }
-        window.title=""
-
         val sftpPanel = SftpExplorerPanel(this, server)
         val contentFactory = ContentFactory.getInstance()
-        val content = contentFactory.createContent(sftpPanel, server.stmpName, true)
-        content.isCloseable = true
+        val content = contentFactory.createContent(sftpPanel, server.stmpName, true).apply {
+            isCloseable = true
+            setDisposer(sftpPanel)  // Ensure proper cleanup
+        }
         window.contentManager.addContent(content)
-        window.contentManager.setSelectedContent(content)  // Make this tab selected
-        window.show()
+        window.contentManager.setSelectedContent(content, true)
+        window.activate { window.show() }
     } else {
         // Check if panel for this server already exists
         val existingPanel = toolWindow.contentManager.contents.firstOrNull { content ->
@@ -264,16 +269,18 @@ fun Project.openSFTP(server: Server) {
         }
 
         if (existingPanel != null) {
-            toolWindow.contentManager.setSelectedContent(existingPanel)  // Select existing tab
-            toolWindow.show()
+            toolWindow.contentManager.setSelectedContent(existingPanel, true)
+            toolWindow.activate { toolWindow.show() }
         } else {
             val sftpPanel = SftpExplorerPanel(this, server)
             val contentFactory = ContentFactory.getInstance()
-            val content = contentFactory.createContent(sftpPanel, server.stmpName, true)
-            content.isCloseable = true
+            val content = contentFactory.createContent(sftpPanel, server.stmpName, true).apply {
+                isCloseable = true
+                setDisposer(sftpPanel)  // Ensure proper cleanup
+            }
             toolWindow.contentManager.addContent(content)
-            toolWindow.contentManager.setSelectedContent(content)  // Make this tab selected
-            toolWindow.show()
+            toolWindow.contentManager.setSelectedContent(content, true)
+            toolWindow.activate { toolWindow.show() }
         }
     }
 }

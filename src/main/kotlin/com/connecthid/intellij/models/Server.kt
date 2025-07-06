@@ -24,7 +24,7 @@ data class Server(
       return  "aA1pradeep"
     }
     val stmpName by lazy {
-        "STMP: ${host}"
+        "$username@${host}"
     }
 
 }
