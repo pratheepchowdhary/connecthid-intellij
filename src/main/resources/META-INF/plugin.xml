@@ -29,12 +29,6 @@
   <depends>com.intellij.modules.platform</depends>
   <depends>com.intellij.modules.lang</depends>
   <depends>org.jetbrains.plugins.terminal</depends>
-<!--  <depends>com.intellij.modules.remote</depends>-->
-<!--  <depends>com.intellij.modules.docker</depends>-->
-<!--  <depends>com.intellij.modules.database</depends>-->
-
-  <!-- Extension points defined by the plugin.
-       Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
   <extensions defaultExtensionNs="com.intellij">
     <applicationService
                 serviceImplementation="com.connecthid.intellij.services.ConnectHidServiceImpl"/>
