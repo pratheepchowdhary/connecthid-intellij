@@ -32,7 +32,7 @@ dependencies {
   implementation("io.micrometer:micrometer-registry-prometheus:1.11.3")
 
   intellijPlatform {
-    intellijIdeaCommunity("2025.1")
+    intellijIdeaCommunity("2023.3.6")
     bundledPlugin("org.jetbrains.plugins.terminal")
   }
 }
