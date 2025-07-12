@@ -74,16 +74,7 @@ class ServerListPanel internal constructor(val project: Project): JBPanel<Server
            icon = AllIcons.General.Add
         }
         newConnectionButton!!.addActionListener {
-            val addServerDialog =  AddServerDialog(project = project)
-            addServerDialog.window.addWindowListener(object : java.awt.event.WindowAdapter() {
-                override fun windowClosed(e: java.awt.event.WindowEvent?) {
-                    updateServerList()
-                }
-                override fun windowClosing(e: java.awt.event.WindowEvent?) {
-
-                }
-            })
-            addServerDialog.show()
+            addServer()
         }
 
 
@@ -102,6 +93,25 @@ class ServerListPanel internal constructor(val project: Project): JBPanel<Server
         add(header)
 
     }
+    private fun addServer(server: Server?=null){
+        val addServerDialog = if (server == null) AddServerDialog(project = project) else AddServerDialog(
+            project = project,
+            host = server.host,
+            username = server.username,
+            port = server.port,
+            password = server.password,
+            privateKeyPath = server.privateKeyPath
+        )
+        addServerDialog.window.addWindowListener(object : java.awt.event.WindowAdapter() {
+            override fun windowClosed(e: java.awt.event.WindowEvent?) {
+                updateServerList()
+            }
+            override fun windowClosing(e: java.awt.event.WindowEvent?) {
+
+            }
+        })
+        addServerDialog.show()
+    }
 
     override fun onConnectButtonClicked(device: Server) {
         project.openSFTP(device)
@@ -118,11 +128,13 @@ class ServerListPanel internal constructor(val project: Project): JBPanel<Server
     }
 
     override fun onRemoveDeviceClicked(device: Server) {
-        TODO("Not yet implemented")
+        connectionService.removeServerConnection(device.host)
+        devices.remove(device)
+        rebuildUi()
     }
 
     override fun onEditDeviceClicked(device: Server) {
-        TODO("Not yet implemented")
+        addServer(device)
     }
 
     override fun onOpenSFTPClicked(device: Server) {

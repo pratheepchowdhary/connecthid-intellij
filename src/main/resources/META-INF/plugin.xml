@@ -47,5 +47,15 @@
 
   </extensions>
 
+  <actions>
+    <action id="ConnectHID.FindInFiles"
+            class="com.connecthid.intellij.FindInFilesAction"
+            text="Find in Files"
+            description="Search for text in files"
+            icon="AllIcons.Actions.Find">
+      <keyboard-shortcut first-keystroke="control shift F" keymap="$default"/>
+      <add-to-group group-id="EditMenu" anchor="first"/>
+    </action>
+  </actions>
 
 </idea-plugin>

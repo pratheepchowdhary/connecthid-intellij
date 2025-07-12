@@ -4,7 +4,10 @@ import com.connecthid.intellij.connection.vfs.SftpFile
 import com.connecthid.intellij.connection.vfs.SftpFileSystem
 import com.connecthid.intellij.getSSHService
 import com.connecthid.intellij.services.ServerConnectionService
+import com.intellij.ide.actions.searcheverywhere.EssentialContributor
 import com.intellij.ide.actions.searcheverywhere.SearchEverywhereContributor
+import com.intellij.ide.actions.searcheverywhere.SearchEverywherePreviewProvider
+import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.Project
@@ -16,20 +19,18 @@ import javax.swing.JLabel
 import javax.swing.JList
 import javax.swing.ListCellRenderer
 
-class SftpFileContributor : SearchEverywhereContributor<SftpFile> {
-    private lateinit var project: Project
-    private lateinit var sshService: ServerConnectionService
-    fun setProject(project: Project) {
-        this.project = project
-        this.sshService = project.getSSHService()
-    }
+
+class SftpFileContributor(p01: AnActionEvent) : SearchEverywhereContributor<SftpFile> , EssentialContributor, SearchEverywherePreviewProvider{
+    private val project: Project = p01.project!!
+    private  val sshService: ServerConnectionService  = project.getSSHService()
+
 
     override fun getSearchProviderId(): String {
         return javaClass.name
     }
 
     override fun getGroupName(): @Nls String {
-        return  "ConnectHID SFTP Files"
+        return  "ConnectHID SFTP"
     }
 
     override fun getSortWeight(): Int {
@@ -54,6 +55,10 @@ class SftpFileContributor : SearchEverywhereContributor<SftpFile> {
         }
     }
 
+    override fun isShownInSeparateTab(): Boolean {
+        return true
+    }
+
 
 
     override fun processSelectedItem(
@@ -65,6 +70,17 @@ class SftpFileContributor : SearchEverywhereContributor<SftpFile> {
         val fileStat = fileSystem.getFileStat(p0.path)
         p0.fileEntry = fileStat
         return if(fileStat != null) fileSystem.openFileInIDE(p0) else false
+    }
+
+    override fun getItemDescription(element: SftpFile): String? {
+        return super.getItemDescription(element)
+    }
+
+    override fun getDataForItem(
+        element: SftpFile,
+        dataId: String
+    ): Any? {
+        return super.getDataForItem(element, dataId)
     }
 
     override fun getElementsRenderer(): ListCellRenderer<in VirtualFile> {
@@ -91,8 +107,13 @@ class SftpFileContributor : SearchEverywhereContributor<SftpFile> {
         }
     }
 
+
     companion object {
         // Standard sort weight for virtual file contributors in JetBrains IDEs is 400
         const val VIRTUAL_FILE_SORT_WEIGHT = 400
     }
+
+
+
 }
+

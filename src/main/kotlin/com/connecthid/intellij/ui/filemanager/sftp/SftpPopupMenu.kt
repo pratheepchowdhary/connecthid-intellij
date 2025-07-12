@@ -1,5 +1,6 @@
 package com.connecthid.intellij.ui.filemanager.sftp
 
+import com.connecthid.intellij.ui.filemanager.sftp.actions.FindInFilesAction
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.actionSystem.ActionManager
 import com.intellij.openapi.actionSystem.AnAction
@@ -156,12 +157,7 @@ fun showSftpPopupMenu(
     })
     if(isDirectory){
         // Find in Folder
-        actionGroup.add(object : AnAction({ "Find in Folder" }, AllIcons.Actions.Find) {
-            override fun actionPerformed(e: AnActionEvent) {
-                // Find in Folder logic (placeholder)
-                Messages.showInfoMessage(tree, "Find in Folder action not implemented.", "Info")
-            }
-        })
+        actionGroup.add(FindInFilesAction(project))
     }
     // Rename
     actionGroup.add(object : AnAction({ "Rename" }, AllIcons.Actions.Edit) {
