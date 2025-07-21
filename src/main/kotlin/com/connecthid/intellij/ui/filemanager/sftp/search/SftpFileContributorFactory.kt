@@ -1,6 +1,7 @@
-package com.connecthid.intellij.ui.filemanager.sftp
+package com.connecthid.intellij.ui.filemanager.sftp.search
 
 import com.connecthid.intellij.connection.vfs.SftpFile
+import com.intellij.find.impl.TextSearchContributor
 import com.intellij.ide.actions.searcheverywhere.SearchEverywhereContributor
 import com.intellij.ide.actions.searcheverywhere.SearchEverywhereContributorFactory
 import com.intellij.openapi.actionSystem.AnActionEvent

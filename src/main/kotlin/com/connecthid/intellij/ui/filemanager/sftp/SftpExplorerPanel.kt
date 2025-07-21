@@ -38,7 +38,7 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(B
     }
 
     val rootPath by lazy {
-        if (serverItem.username == "root") "/root" else "/home/${serverItem.username}"
+        serverItem.rootPath
     }
 
     val coroutineScope = CoroutineScope(Dispatchers.Main + Job())
@@ -85,7 +85,7 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(B
         tree.addTreeSelectionListener(this)
 
         // Use the new toolbar actions class
-        val toolbarActions = SftpToolbarActions(this)
+        val toolbarActions = SftpToolbarActions(this, serverItem = serverItem)
         add(toolbarActions.createToolbar(), BorderLayout.NORTH)
 
         // Add the tree to a scroll pane

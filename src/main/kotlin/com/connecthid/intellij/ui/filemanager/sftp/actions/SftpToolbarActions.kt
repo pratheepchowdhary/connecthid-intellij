@@ -1,28 +1,28 @@
 package com.connecthid.intellij.ui.filemanager.sftp.actions
 
+import com.connecthid.intellij.models.Server
 import com.connecthid.intellij.ui.filemanager.sftp.SftpExplorerPanel
 import com.connecthid.intellij.ui.filemanager.sftp.closeSFTP
+import com.connecthid.intellij.ui.filemanager.sftp.search.actions.SearchAction
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.actionSystem.ActionManager
 import com.intellij.openapi.actionSystem.ActionToolbar
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.DefaultActionGroup
-import com.intellij.openapi.wm.ToolWindowManager
 import com.intellij.ui.components.JBPanel
-import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.launch
 import java.awt.BorderLayout
 import javax.swing.tree.DefaultMutableTreeNode
 
-class SftpToolbarActions(private val panel: SftpExplorerPanel) {
+class SftpToolbarActions(private val panel: SftpExplorerPanel,val serverItem: Server) {
 
     fun createToolbar(): JBPanel<*> {
         val actionGroup = DefaultActionGroup().apply {
             add(createUploadAction())
             add(createNewFileAction())
             add(createNewFolderAction())
-            add(SearchAction())
+            add(SearchAction(panel.project,serverItem))
             add(createRefreshAction())
             addSeparator()
             add(createStopAction())

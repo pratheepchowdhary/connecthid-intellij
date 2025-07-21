@@ -233,10 +233,10 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
     internal fun getConnection(): SSHConnection? {
         connectionLock.lock()
         try{
-            var connection = connectionService.getConnection(server.host)
+            var connection = connectionService.getConnection(server.host,server.username)
             if (connection == null || !connection.isConnected()) {
                 connectionService.connect(server.host, server.username, server.password, port = server.port)
-                connection = connectionService.getConnection(server.host)
+                connection = connectionService.getConnection(server.host,server.username)
             }
             connection?.let {
                 it.fileSystem = this
@@ -305,16 +305,16 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
         connection.releaseChannelToPool(channel)
     }
 
-    fun searchFiles(pattern: String): List<SftpFile> {
+    fun searchFiles(pattern: String, path: String = server.rootPath): List<SftpFile> {
         val results = mutableListOf<SftpFile>()
-        if(pattern.length < 2){
+        if (pattern.length < 2) {
             return results
         }
         val connection = getConnection() ?: return results
         var execChannel: ChannelExec? = null
         try {
             val remotePattern = if (pattern.contains("*")) pattern else "*$pattern*"
-            val findCommand = "find / -type f -name '$remotePattern' 2>/dev/null"
+            val findCommand = "find '$path' -type f -name '$remotePattern' 2>/dev/null"
             execChannel = connection.getExecChannelFromPool()
             execChannel?.setCommand(findCommand)
             execChannel?.connect()
@@ -323,7 +323,30 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
             execChannel?.disconnect()
             for (filePath in foundFiles) {
                 results.add(SftpFile(filePath, this))
+                println("Found file: $filePath")
             }
+        } catch (e: Exception) {
+            println(e.message)
+            e.printStackTrace()
+        } finally {
+            connection.releaseExecChannelToPool(execChannel)
+        }
+        return results
+    }
+
+    fun listFolderPaths(path: String = server.rootPath): List<String> {
+        val results = mutableListOf<String>()
+        val connection = getConnection() ?: return results
+        var execChannel: ChannelExec? = null
+        try {
+            val findCommand = "find '$path' -mindepth 1 -maxdepth 1 -type d 2>/dev/null"
+            execChannel = connection.getExecChannelFromPool()
+            execChannel?.setCommand(findCommand)
+            execChannel?.connect()
+            val input = execChannel?.inputStream
+            val foundDirs = input?.bufferedReader()?.readLines() ?: emptyList()
+            execChannel?.disconnect()
+            results.addAll(foundDirs)
         } catch (e: Exception) {
             println(e.message)
             e.printStackTrace()

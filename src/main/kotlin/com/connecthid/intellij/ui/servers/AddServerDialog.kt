@@ -30,7 +30,7 @@ import javax.swing.JRadioButton
 import javax.swing.JTextField
 
 @ApiStatus.Experimental
-open class AddServerDialog(val project: Project, val host: String? = null, username: String = "root", password: String? = null, port: Int = 22, privateKeyPath: String? = null) : DialogWrapper(true) {
+open class AddServerDialog(val project: Project, val host: String? = null, val username: String = "root", password: String? = null, port: Int = 22, privateKeyPath: String? = null) : DialogWrapper(true) {
     val propertyGraph = PropertyGraph()
     private val selectedHost = propertyGraph.property(host ?: "")
     private val selectedUsername = propertyGraph.property(username)
@@ -169,8 +169,8 @@ open class AddServerDialog(val project: Project, val host: String? = null, usern
 
         }
         if (result) {
-            if(host!= null && !selectedHost.get().equals(host)){
-                sshConnection.removeServerConnection(host)
+            if(host!= null && (!selectedHost.get().equals(host) || !selectedUsername.get().equals(username))){
+                sshConnection.removeServerConnection(host,username)
             }
             super.doOKAction()
             JOptionPane.showMessageDialog(null, "Server Connected Successfully")

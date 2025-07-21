@@ -52,15 +52,13 @@ class SSHConnection(
                 jsch.addIdentity(privateKeyPath)
             } else if (password != null) {
                 // Use password authentication
-                session?.setPassword(password)
+                session!!.setPassword(password)
             } else {
                 throw IOException("No authentication method provided")
             }
             
-            session?.connect()
-            session?.let {
-                maxChannels = getMaxSessionsValue(it)
-            }
+            session!!.connect()
+            maxChannels = getMaxSessionsValue(session!!)
         } catch (e: JSchException) {
             throw IOException("Failed to connect to $host: ${e.message}", e)
         }

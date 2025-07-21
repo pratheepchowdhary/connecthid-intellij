@@ -20,6 +20,7 @@ data class ServerConnectionState(
 class ServerConnectionService() : PersistentStateComponent<ServerConnectionState> {
     private val connections = ConcurrentHashMap<String, SSHConnection>()
     private var state = ServerConnectionState()
+    var searchServers = arrayListOf<Server>()
 
     override fun getState(): ServerConnectionState = state
 
@@ -32,17 +33,19 @@ class ServerConnectionService() : PersistentStateComponent<ServerConnectionState
         username: String,
         port: Int = 22,
         authMethod: AuthenticationMethod = AuthenticationMethod.PASSWORD,
+        password: String? = null,
         privateKeyPath: String? = null
     ) {
-        if (!state.connections.any { it.host == host }) {
+        if (!state.connections.any { it.host == host && it.username == username }) {
             val connection = Server(host=host, username=username, port=port, authMethod=authMethod, privateKeyPath=privateKeyPath)
             state.connections.add(connection)
             updateSystemInfo(connection)
+            connection.password=password
         }
     }
 
     private fun updateSystemInfo(server: Server) {
-        val sshConnection = connections[server.host] ?: return
+        val sshConnection = connections["${server.username}@${server.host}"] ?: return
         try {
             // Get OS information
             val osInfo = sshConnection.execute("cat /etc/os-release").split("\n")
@@ -84,7 +87,7 @@ class ServerConnectionService() : PersistentStateComponent<ServerConnectionState
                 hostName = hostName ?: ""
             )
             // Find and update the connection in state
-            val index = state.connections.indexOfFirst { it.host == server.host }
+            val index = state.connections.indexOfFirst { it.host == server.host && it.username.equals(server.username) }
             if (index != -1) {
                 state.connections[index] = server.copy(systemInfo = systemInfo)
             }
@@ -94,7 +97,7 @@ class ServerConnectionService() : PersistentStateComponent<ServerConnectionState
         }
     }
 
-    fun removeServerConnection(host: String) {
+    fun removeServerConnection(host: String,username: String) {
         state.connections.removeIf { it.host == host }
         // Trigger state change to ensure persistence
         state = state.copy(connections = state.connections.toMutableList())
@@ -130,10 +133,10 @@ class ServerConnectionService() : PersistentStateComponent<ServerConnectionState
         try {
             val connection = SSHConnection(host, username, password, port, privateKeyPath)
             connection.connect()
-            connections[host] = connection
+            connections["$username@${host}"] = connection
             
             // Add or update server connection
-            val existingConnection = state.connections.find { it.host == host }
+            val existingConnection = state.connections.find { it.host.equals(host) && it.username.equals(username) }
             if (existingConnection != null) {
                 val index = state.connections.indexOf(existingConnection)
                 state.connections[index] = existingConnection.copy(
@@ -142,10 +145,12 @@ class ServerConnectionService() : PersistentStateComponent<ServerConnectionState
                     authMethod = if (privateKeyPath != null) AuthenticationMethod.PRIVATE_KEY else AuthenticationMethod.PASSWORD,
                     privateKeyPath = privateKeyPath
                 )
+                existingConnection.password=password
                 updateSystemInfo(state.connections[index])
             } else {
                 addServerConnection(host, username, port, 
                     if (privateKeyPath != null) AuthenticationMethod.PRIVATE_KEY else AuthenticationMethod.PASSWORD,
+                    password,
                     privateKeyPath
                 )
             }
@@ -156,18 +161,18 @@ class ServerConnectionService() : PersistentStateComponent<ServerConnectionState
         }
     }
 
-    fun disconnect(host: String) {
-        connections[host]?.close()
-        connections.remove(host)
+    fun disconnect(host: String,username: String) {
+        connections["$username@${host}"]?.close()
+        connections.remove("$username@${host}")
     }
 
-    fun isConnected(host: String): Boolean {
-        return connections[host]?.isConnected() ?: false
+    fun isConnected(host: String,username: String): Boolean {
+        return connections["$username@${host}"]?.isConnected() ?: false
     }
 
-    fun checkConnection(host: String): Boolean {
+    fun checkConnection(host: String,username: String): Boolean {
         // First try SSH connection if it exists
-        val sshConnection = connections[host]
+        val sshConnection = connections["$username@${host}"]
         if (sshConnection != null && sshConnection.isConnected()) {
             return true
         }
@@ -182,26 +187,30 @@ class ServerConnectionService() : PersistentStateComponent<ServerConnectionState
         }
     }
 
-    fun getConnection(host: String): SSHConnection? {
-        return connections[host]
+    fun getConnection(host: String,username: String): SSHConnection? {
+        return connections["$username@${host}"]
     }
 
-    fun getSession(host: String): Session? {
-        return connections[host]?.getSession()
+    fun getConnection(userAtHost: String): SSHConnection? {
+        return connections[userAtHost]
     }
 
-    fun executeCommand(host: String, command: String): String? {
+    fun getSession(host: String,username: String): Session? {
+        return connections["$username@${host}"]?.getSession()
+    }
+
+    fun executeCommand(host: String,username: String, command: String): String? {
         return try {
-            val connection = connections[host] ?: return null
+            val connection = connections["$username@${host}"] ?: return null
             connection.execute(command)
         } catch (e: IOException) {
             null
         }
     }
 
-    fun uploadFile(host: String, localPath: String, remotePath: String): Boolean {
+    fun uploadFile(host: String,username: String, localPath: String, remotePath: String): Boolean {
         return try {
-            val connection = connections[host] ?: return false
+            val connection = connections["$username@${host}"] ?: return false
             connection.uploadFile(localPath, remotePath)
             true
         } catch (e: IOException) {
@@ -209,9 +218,9 @@ class ServerConnectionService() : PersistentStateComponent<ServerConnectionState
         }
     }
 
-    fun downloadFile(host: String, remotePath: String, localPath: String): Boolean {
+    fun downloadFile(host: String,username: String, remotePath: String, localPath: String): Boolean {
         return try {
-            val connection = connections[host] ?: return false
+            val connection = connections["$username@${host}"] ?: return false
             connection.downloadFile(remotePath, localPath)
             true
         } catch (e: IOException) {

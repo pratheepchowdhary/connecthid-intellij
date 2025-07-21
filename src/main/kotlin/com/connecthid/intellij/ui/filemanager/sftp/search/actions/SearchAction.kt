@@ -1,18 +1,25 @@
-package com.connecthid.intellij.ui.filemanager.sftp.actions
+package com.connecthid.intellij.ui.filemanager.sftp.search.actions
 
+import com.connecthid.intellij.getSSHService
+import com.connecthid.intellij.models.Server
+import com.connecthid.intellij.services.ServerConnectionService
 import com.intellij.icons.AllIcons
 import com.intellij.ide.actions.SearchEverywhereAction
 import com.intellij.ide.actions.searcheverywhere.SearchEverywhereManager
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.Presentation
+import com.intellij.openapi.project.Project
 import javax.swing.JComponent
 
-class SearchAction : SearchEverywhereAction() {
+class SearchAction (val project: Project,val server: Server): SearchEverywhereAction() {
+    private  val sshService: ServerConnectionService  = project.getSSHService()
     override fun actionPerformed(e: AnActionEvent) {
+        sshService.searchServers.clear()
+        server.lastSearchPath = server.rootPath
+        sshService.searchServers.add(server)
         super.actionPerformed(e)
         val searchUI = SearchEverywhereManager.getInstance(e.project).currentlyShownUI
-        searchUI.switchToTab("com.connecthid.intellij.ui.filemanager.sftp.SftpFileContributor")
-
+        searchUI.switchToTab("com.connecthid.intellij.ui.filemanager.sftp.search.SftpFileContributor")
     }
 
     override fun createCustomComponent(

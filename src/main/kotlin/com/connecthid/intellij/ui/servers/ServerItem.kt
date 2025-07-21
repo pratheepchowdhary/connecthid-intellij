@@ -232,7 +232,7 @@ class ServerItem(val device: Server, val connectionService: ServerConnectionServ
             }
         })
         actionGroup.addSeparator()
-        if(connectionService.isConnected(device.host)){
+        if(connectionService.isConnected(device.host,device.username)){
             actionGroup.add(object : AnAction({ PluginBundle.message("disconnect")}, AllIcons.Debugger.KillProcess) {
                 override fun actionPerformed(e: AnActionEvent) {
                     println("Rename action triggered")

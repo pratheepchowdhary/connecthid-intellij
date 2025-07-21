@@ -128,7 +128,7 @@ class ServerListPanel internal constructor(val project: Project): JBPanel<Server
     }
 
     override fun onRemoveDeviceClicked(device: Server) {
-        connectionService.removeServerConnection(device.host)
+        connectionService.removeServerConnection(device.host,device.username)
         devices.remove(device)
         rebuildUi()
     }

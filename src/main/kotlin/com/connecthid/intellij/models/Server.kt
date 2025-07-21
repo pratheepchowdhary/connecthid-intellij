@@ -1,6 +1,8 @@
 package com.connecthid.intellij.models
 
+import com.connecthid.intellij.utils.PasswordUtil
 import com.connecthid.intellij.utils.toImageIcon
+import com.intellij.openapi.util.Pass
 import com.intellij.util.xmlb.annotations.Attribute
 import com.intellij.util.xmlb.annotations.Tag
 
@@ -14,17 +16,29 @@ data class Server(
     var privateKeyPath: String? = null,
     @Attribute(converter = SystemInfoConverter::class)
     var systemInfo: SystemInfo = SystemInfo(),
-    @Attribute var isInProgress: Boolean=false
+    @Attribute var isInProgress: Boolean=false,
+    @Attribute var lastSearchPath: String="",
 ){
 
     val icon by lazy {
         systemInfo.osName.toImageIcon()
     }
-    val password: String? get() {
-      return  "aA1pradeep"
-    }
+    var password: String?
+        get() = PasswordUtil.getPassword(stmpName)
+        set(value) {
+            if (value != null) {
+                PasswordUtil.storePassword(stmpName, value)
+            } else {
+                PasswordUtil.deletePassword(stmpName)
+            }
+        }
+
     val stmpName by lazy {
         "$username@${host}"
+    }
+
+    val rootPath by lazy {
+        if (username == "root") "/root" else "/home/${username}"
     }
 
 }
