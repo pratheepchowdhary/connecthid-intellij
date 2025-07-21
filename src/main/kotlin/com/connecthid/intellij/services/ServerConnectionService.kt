@@ -84,7 +84,7 @@ class ServerConnectionService() : PersistentStateComponent<ServerConnectionState
                 usedRam = usedRam,
                 totalStorage = totalStorage,
                 usedStorage = usedStorage,
-                hostName = hostName ?: ""
+                hostName = hostName
             )
             // Find and update the connection in state
             val index = state.connections.indexOfFirst { it.host == server.host && it.username.equals(server.username) }
