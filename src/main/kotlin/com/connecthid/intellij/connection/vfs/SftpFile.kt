@@ -7,7 +7,6 @@ import com.jcraft.jsch.SftpATTRS
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
-import java.util.concurrent.locks.ReentrantLock
 
 class SftpFile(
     var pathLocation: String,
@@ -21,7 +20,8 @@ class SftpFile(
 
     override fun isWritable(): Boolean {
         if(fileEntry == null){
-            return true
+            fileEntry = fileSystem.getFileStat(pathLocation)
+            return fileEntry != null && fileEntry!!.isWritable()
         }
         return fileEntry!!.isWritable()
     }
@@ -33,7 +33,8 @@ class SftpFile(
 
     override fun isDirectory(): Boolean {
         if (fileEntry == null) {
-            return true
+            fileEntry = fileSystem.getFileStat(pathLocation)
+            return fileEntry == null || fileEntry!!.isDir
         }
         return fileEntry!!.isDir
     }
@@ -79,7 +80,8 @@ class SftpFile(
 
     override fun getTimeStamp(): Long {
         if (fileEntry == null) {
-            return  0
+            fileEntry = fileSystem.getFileStat(pathLocation)
+            return  fileEntry ?.mTime?.toLong() ?: 0L
         }
         return fileEntry!!.aTime.toLong()
 
@@ -87,14 +89,16 @@ class SftpFile(
 
     override fun getModificationStamp(): Long {
         if (fileEntry == null) {
-            return  0
+            fileEntry = fileSystem.getFileStat(pathLocation)
+            return  fileEntry ?.mTime?.toLong() ?: 0L
         }
         return fileEntry!!.mTime.toLong()
     }
 
     override fun getLength(): Long {
         if (fileEntry == null) {
-            return  0
+            fileEntry = fileSystem.getFileStat(pathLocation)
+            return  fileEntry?.size?.toLong() ?: 0L
         }
         return fileEntry!!.size.toLong()
     }
@@ -163,6 +167,7 @@ class SftpFile(
     }
 
     override fun getPath(): String = pathLocation
+
 
 }
 

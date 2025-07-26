@@ -32,15 +32,6 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
         const val PROTOCOL = "sftp"
     }
 
-    init {
-        project.messageBus.connect().subscribe(FileEditorManagerListener.FILE_EDITOR_MANAGER, object :
-            FileEditorManagerListener {
-            override fun fileClosed(source: FileEditorManager, file: VirtualFile) {
-                println("File closed: ${file.name}")
-                // No longer needed, channel management is now in the pool
-            }
-        })
-    }
 
     override fun getProtocol(): String = PROTOCOL
 
@@ -303,6 +294,11 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
     fun releaseChannelToPool(channel: ChannelSftp?) {
         val connection = getConnection() ?: return
         connection.releaseChannelToPool(channel)
+    }
+
+    fun searchTextInFiles(pattern: String, path: String = server.rootPath): List<SftpFile> {
+        val results = mutableListOf<SftpFile>()
+        return results
     }
 
     fun searchFiles(pattern: String, path: String = server.rootPath): List<SftpFile> {

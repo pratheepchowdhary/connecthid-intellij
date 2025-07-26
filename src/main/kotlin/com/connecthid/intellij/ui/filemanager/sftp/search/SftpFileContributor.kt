@@ -5,6 +5,7 @@ import com.connecthid.intellij.connection.vfs.SftpFileSystem
 import com.connecthid.intellij.getSSHService
 import com.connecthid.intellij.ui.filemanager.sftp.search.actions.SelectPathAction
 import com.connecthid.intellij.ui.filemanager.sftp.search.actions.SelectServerAction
+import com.connecthid.intellij.ui.filemanager.sftp.search.actions.TextSearchAction
 import com.connecthid.intellij.ui.filemanager.sftp.search.actions.TextSearchRightActionAction.*
 import com.intellij.ide.actions.searcheverywhere.SearchEverywhereContributor
 import com.intellij.ide.actions.searcheverywhere.SearchEverywhereExtendedInfoProvider
@@ -12,39 +13,40 @@ import com.intellij.ide.actions.searcheverywhere.SearchEverywherePreviewProvider
 import com.intellij.ide.actions.searcheverywhere.SearchFieldActionsContributor
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.actionSystem.CommonDataKeys
+import com.intellij.openapi.application.runReadAction
 import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.observable.properties.AtomicBooleanProperty
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.psi.PsiFile
+import com.intellij.psi.PsiManager
 import com.intellij.util.Processor
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.FlowPreview
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.jetbrains.annotations.Nls
 import java.awt.Component
+import java.lang.Runnable
 import javax.swing.JLabel
 import javax.swing.JList
 import javax.swing.ListCellRenderer
 
 
 @OptIn(FlowPreview::class)
-class SftpFileContributor(p01: AnActionEvent) : SearchEverywhereContributor<SftpFile> , SearchEverywherePreviewProvider,SearchFieldActionsContributor,SearchEverywhereExtendedInfoProvider{
+class SftpFileContributor(val p01: AnActionEvent) : SearchEverywhereContributor<PsiFile> , SearchEverywherePreviewProvider,SearchFieldActionsContributor,SearchEverywhereExtendedInfoProvider{
     private val project: Project = p01.project!!
-    private  val sshService  = project.getSSHService()
+    private val sshService  = project.getSSHService()
     val word = AtomicBooleanProperty(false).apply { afterChange { //todo
                                                                            } }
+
     val case = AtomicBooleanProperty(false).apply { afterChange {  } }
     val regexp = AtomicBooleanProperty(false).apply { afterChange {  }}
+    val findInFiles = AtomicBooleanProperty(false).apply { afterChange {  }}
     val coroutineScope = CoroutineScope(Dispatchers.IO + Job())
     val queryFlow = MutableStateFlow("")
-    var firstTimeQuery =false
+    var firstTimeQuery = false
 
 
 
@@ -55,6 +57,7 @@ class SftpFileContributor(p01: AnActionEvent) : SearchEverywhereContributor<Sftp
     }
 
     override fun getGroupName(): @Nls String {
+
         return  "ConnectHID SFTP"
     }
 
@@ -65,6 +68,7 @@ class SftpFileContributor(p01: AnActionEvent) : SearchEverywhereContributor<Sftp
     override fun showInFindResults(): Boolean {
         return  false
     }
+
 
     override fun getActions(onChanged: Runnable): MutableList<AnAction> {
         val actions = mutableListOf<AnAction>()
@@ -98,18 +102,44 @@ class SftpFileContributor(p01: AnActionEvent) : SearchEverywhereContributor<Sftp
            // pathAction?. = sshService.searchServers.firstOrNull()?.lastSearchPath ?: ""
             onChanged.run()
         }, project))
+
+        actions.add(TextSearchAction(findInFiles, onChanged))
+
         actions.add(com.connecthid.intellij.ui.filemanager.sftp.search.actions.PreviewAction())
+
+
         return actions
     }
+
+
 
     override fun fetchElements(
         pattern: String,
         indicator: ProgressIndicator,
-        consumer: Processor<in SftpFile>
+        consumer: Processor<in PsiFile>
     ) {
-        sshService.searchServers.forEach {
-            sshService.getConnection(it.stmpName)?.fileSystem?.searchFiles(pattern,it.lastSearchPath)?.forEach {
-                consumer.process(it)
+        sshService.searchServers.forEach { server ->
+            val connection = sshService.getConnection(server.stmpName)
+            val fileSystem = connection?.fileSystem
+
+            if (fileSystem != null) {
+                if (findInFiles.get()) {
+                    // Search within file contents
+                    fileSystem.searchTextInFiles(pattern, server.lastSearchPath).forEach {
+                        val psiFile = runReadAction {
+                            PsiManager.getInstance(project).findFile(it)
+                        }
+                        consumer.process(psiFile)
+                    }
+                } else {
+                    // Search by file name (existing functionality)
+                    fileSystem.searchFiles(pattern, server.lastSearchPath).forEach {
+                        val psiFile = runReadAction {
+                            PsiManager.getInstance(project).findFile(it)
+                        }
+                        consumer.process(psiFile)
+                    }
+                }
             }
         }
     }
@@ -119,39 +149,43 @@ class SftpFileContributor(p01: AnActionEvent) : SearchEverywhereContributor<Sftp
     }
 
     override fun processSelectedItem(
-        p0: SftpFile,
-        p1: Int,
-        p2: String
+        p0: PsiFile,
+        modifier: Int,
+        searchText: String
     ): Boolean {
-        val fileSystem = (p0.fileSystem as SftpFileSystem)
-        val fileStat = fileSystem.getFileStat(p0.path)
-        p0.fileEntry = fileStat
-        return if(fileStat != null) fileSystem.openFileInIDE(p0) else false
+        val file = (p0.virtualFile as?  SftpFile) ?: return false
+        val fileSystem = (file.fileSystem as SftpFileSystem)
+        return fileSystem.openFileInIDE(file)
     }
 
-    override fun getItemDescription(element: SftpFile): String? {
-        return super.getItemDescription(element)
+    override fun getItemDescription(element: PsiFile): String? {
+        return "test code"
     }
 
     override fun getDataForItem(
-        element: SftpFile,
+        element: PsiFile,
         dataId: String
     ): Any? {
+        if (CommonDataKeys.PSI_ELEMENT.name == dataId) {
+            return element // BAD: triggers warning if called on EDT
+        }
         return super.getDataForItem(element, dataId)
     }
 
-    override fun getElementsRenderer(): ListCellRenderer<in VirtualFile> {
-        return object : ListCellRenderer<VirtualFile> {
+    override fun getElementsRenderer(): ListCellRenderer<in PsiFile> {
+        return object : ListCellRenderer<PsiFile> {
             override fun getListCellRendererComponent(
-                list: JList<out VirtualFile>,
-                value: VirtualFile?,
+                list: JList<out PsiFile>,
+                value: PsiFile?,
                 index: Int,
                 isSelected: Boolean,
                 cellHasFocus: Boolean
             ): Component {
                 val label = JLabel()
+
                 if (value != null) {
-                    label.text = value.url
+                    val file = (value.virtualFile as  SftpFile)
+                    label.text = file.url
                     label.icon = FileTypeManager.getInstance().getFileTypeByFileName(value.name).icon
                 }
                 if (isSelected) {
@@ -174,6 +208,12 @@ class SftpFileContributor(p01: AnActionEvent) : SearchEverywhereContributor<Sftp
             RegexpAction(regexp, registerShortcut, onChanged)
         )
     }
+
+    override fun dispose() {
+        super.dispose()
+        coroutineScope.cancel()
+    }
+
 
 
     companion object {
