@@ -2,9 +2,9 @@ package com.connecthid.intellij.models
 
 import com.connecthid.intellij.utils.PasswordUtil
 import com.connecthid.intellij.utils.toImageIcon
-import com.intellij.openapi.util.Pass
 import com.intellij.util.xmlb.annotations.Attribute
 import com.intellij.util.xmlb.annotations.Tag
+import com.intellij.util.xmlb.annotations.Transient
 
 @Tag("server")
 data class Server(
@@ -18,7 +18,9 @@ data class Server(
     var systemInfo: SystemInfo = SystemInfo(),
     @Attribute var isInProgress: Boolean=false,
     @Attribute var lastSearchPath: String="",
-){
+) {
+    @Transient
+    private var password: String? = null
 
     val icon by lazy {
         systemInfo.osName.toImageIcon()
