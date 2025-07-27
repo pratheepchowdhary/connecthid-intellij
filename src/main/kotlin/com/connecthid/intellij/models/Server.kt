@@ -23,15 +23,6 @@ data class Server(
     val icon by lazy {
         systemInfo.osName.toImageIcon()
     }
-    var password: String?
-        get() = PasswordUtil.getPassword(stmpName)
-        set(value) {
-            if (value != null) {
-                PasswordUtil.storePassword(stmpName, value)
-            } else {
-                PasswordUtil.deletePassword(stmpName)
-            }
-        }
 
     val stmpName by lazy {
         "$username@${host}"
@@ -39,6 +30,17 @@ data class Server(
 
     val rootPath by lazy {
         if (username == "root") "/root" else "/home/${username}"
+    }
+
+    fun setPassword(password: String?) {
+        if (password != null) {
+            PasswordUtil.storePassword(stmpName, password)
+        } else {
+            PasswordUtil.deletePassword(stmpName)
+        }
+    }
+    fun getPassword(): String? {
+        return PasswordUtil.getPassword(stmpName)
     }
 
 }

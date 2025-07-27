@@ -40,7 +40,7 @@ class ServerConnectionService() : PersistentStateComponent<ServerConnectionState
             val connection = Server(host=host, username=username, port=port, authMethod=authMethod, privateKeyPath=privateKeyPath)
             state.connections.add(connection)
             updateSystemInfo(connection)
-            connection.password=password
+            connection.setPassword(password)
         }
     }
 
@@ -145,7 +145,7 @@ class ServerConnectionService() : PersistentStateComponent<ServerConnectionState
                     authMethod = if (privateKeyPath != null) AuthenticationMethod.PRIVATE_KEY else AuthenticationMethod.PASSWORD,
                     privateKeyPath = privateKeyPath
                 )
-                existingConnection.password=password
+                existingConnection.setPassword(password)
                 updateSystemInfo(state.connections[index])
             } else {
                 addServerConnection(host, username, port, 
@@ -231,4 +231,4 @@ class ServerConnectionService() : PersistentStateComponent<ServerConnectionState
     fun getConnectedServers(): List<String> {
         return connections.keys.toList()
     }
-} 
+}

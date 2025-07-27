@@ -36,7 +36,7 @@ import javax.swing.ListCellRenderer
 
 
 @OptIn(FlowPreview::class)
-class SftpFileContributor(val p01: AnActionEvent) : SearchEverywhereContributor<PsiFile> , SearchEverywherePreviewProvider,SearchFieldActionsContributor,SearchEverywhereExtendedInfoProvider{
+class SftpFileContributor(p01: AnActionEvent) : SearchEverywhereContributor<PsiFile> , SearchEverywherePreviewProvider,SearchFieldActionsContributor,SearchEverywhereExtendedInfoProvider{
     private val project: Project = p01.project!!
     private val sshService  = project.getSSHService()
     val word = AtomicBooleanProperty(false).apply { afterChange { //todo
@@ -48,7 +48,7 @@ class SftpFileContributor(val p01: AnActionEvent) : SearchEverywhereContributor<
     val coroutineScope = CoroutineScope(Dispatchers.IO + Job())
     val queryFlow = MutableStateFlow("")
     var firstTimeQuery = false
-    val tets : SearchEverywhereUI? = null
+
 
 
 
@@ -166,15 +166,7 @@ class SftpFileContributor(val p01: AnActionEvent) : SearchEverywhereContributor<
         return "test code"
     }
 
-    override fun getDataForItem(
-        element: PsiFile,
-        dataId: String
-    ): Any? {
 
-        // For all PSI-related data keys, return null to signal that they should be
-        // provided through DataSink.lazy by the SearchEverywhereUI
-        return null
-    }
 
     override fun getElementsRenderer(): ListCellRenderer<in PsiFile> {
         return object : ListCellRenderer<PsiFile> {
@@ -211,6 +203,10 @@ class SftpFileContributor(val p01: AnActionEvent) : SearchEverywhereContributor<
             WordAction(word, registerShortcut, onChanged),
             RegexpAction(regexp, registerShortcut, onChanged)
         )
+    }
+
+    override fun getDataForItem(element: PsiFile, dataId: String): Any? {
+        return super.getDataForItem(element, dataId)
     }
 
     override fun dispose() {

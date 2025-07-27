@@ -99,7 +99,7 @@ class ServerListPanel internal constructor(val project: Project): JBPanel<Server
             host = server.host,
             username = server.username,
             port = server.port,
-            password = server.password,
+            password = server.getPassword(),
             privateKeyPath = server.privateKeyPath
         )
         addServerDialog.window.addWindowListener(object : java.awt.event.WindowAdapter() {

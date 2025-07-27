@@ -3,7 +3,6 @@ package com.connecthid.intellij.ui.rsync
 import com.connecthid.intellij.PluginBundle
 import com.connecthid.intellij.getSSHService
 import com.connecthid.intellij.models.Server
-import com.connecthid.intellij.sshService
 import com.connecthid.intellij.ui.filemanager.sftp.SftpFolderPickerDialog
 import com.connecthid.intellij.ui.servers.AddServerDialog
 import com.intellij.openapi.fileChooser.FileChooserDescriptor
@@ -99,7 +98,7 @@ class AddRsyncDialog(val project: Project,): DialogWrapper(true) {
     }
 
     private fun getServersList(): List<String>{
-        return sshService.getSavedConnections().map {
+        return project.getSSHService().getSavedConnections().map {
             it.host
         }
     }

@@ -226,7 +226,7 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
         try{
             var connection = connectionService.getConnection(server.host,server.username)
             if (connection == null || !connection.isConnected()) {
-                connectionService.connect(server.host, server.username, server.password, port = server.port)
+                connectionService.connect(server.host, server.username, server.getPassword(), port = server.port)
                 connection = connectionService.getConnection(server.host,server.username)
             }
             connection?.let {
