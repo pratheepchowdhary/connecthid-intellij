@@ -23,7 +23,8 @@ import javax.swing.JButton
 import javax.swing.JPanel
 
 class ServerListPanel internal constructor(val project: Project): JBPanel<ServerListPanel>(), ServerItem.Listener  {
-    private val connectionService = project.getSSHService()
+    // Use lazy initialization to defer service access until actually needed
+    private val connectionService by lazy { project.getSSHService() }
     var devices: MutableList<Server> = emptyList<Server>().toMutableList()
         set(value) {
             field = value

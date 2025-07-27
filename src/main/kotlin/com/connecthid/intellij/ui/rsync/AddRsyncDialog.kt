@@ -19,7 +19,8 @@ import javax.swing.DefaultComboBoxModel
 import javax.swing.JComponent
 
 class AddRsyncDialog(val project: Project,): DialogWrapper(true) {
-    private val connectionService = project.getSSHService()
+    // Use lazy initialization to defer service access until actually needed
+    private val connectionService by lazy { project.getSSHService() }
     val propertyGraph = PropertyGraph()
     private val selectedHost = propertyGraph.property("" ?: "")
     private val localPath = propertyGraph.property("" ?: "")

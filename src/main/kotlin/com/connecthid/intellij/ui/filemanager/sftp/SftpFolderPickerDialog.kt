@@ -25,7 +25,8 @@ import javax.swing.tree.DefaultMutableTreeNode
 import javax.swing.tree.DefaultTreeModel
 
 class SftpFolderPickerDialog(val project: Project, val serverItem: Server): DialogWrapper(true),TreeExpansionListener {
-    val sshConnection =project.getSSHService()
+    // Use lazy initialization to defer service access until actually needed
+    val sshConnection by lazy { project.getSSHService() }
     private val coroutineScope = CoroutineScope(Dispatchers.Main + Job())
     private val fileSystem by lazy {
         println("Initializing SftpFileSystem for server: ${serverItem.host}")

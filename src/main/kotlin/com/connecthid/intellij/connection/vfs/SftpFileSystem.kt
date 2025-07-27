@@ -22,7 +22,8 @@ import java.util.concurrent.locks.ReentrantLock
 
 
 class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSystem() {
-    val connectionService = project.getSSHService()
+    // Use lazy initialization to defer service access until actually needed
+    val connectionService by lazy { project.getSSHService() }
     internal val fileCache = mutableMapOf<String, SftpFile>()
     private val listeners = mutableListOf<VirtualFileListener>()
 

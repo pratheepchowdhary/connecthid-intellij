@@ -46,7 +46,8 @@ open class AddServerDialog(val project: Project, val host: String? = null, val u
     val fileDescriptor = FileChooserDescriptor(true, false, false, false, false, false)
         .withFileFilter { file -> file.extension in listOf("pem", "ppk", "rsa") }
 
-    val sshConnection =project.getSSHService()
+    // Use lazy initialization to defer service access until actually needed
+    val sshConnection by lazy { project.getSSHService() }
 
     init {
         title = "Add Server"

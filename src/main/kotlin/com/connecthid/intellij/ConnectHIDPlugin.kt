@@ -12,14 +12,11 @@ import com.intellij.openapi.wm.ex.ToolWindowEx
 import com.intellij.ui.components.JBTabbedPane
 import com.intellij.ui.content.ContentFactory
 
-
-val service by lazy { ApplicationManager.getApplication().getService(ConnectHidServiceImpl::class.java) }
-val sshService by lazy { ApplicationManager.getApplication().getService(ServerConnectionService::class.java) }
 class ConnectHIDPlugin : ToolWindowFactory {
-
+    // Defer service retrieval to when they're actually needed
+    private fun getConnectHidService() = ApplicationManager.getApplication().getService(ConnectHidServiceImpl::class.java)
 
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
-
         // Create main tabbed pane
         val tabbedPane = JBTabbedPane()
         // Add panels to tabs with required services
@@ -32,7 +29,11 @@ class ConnectHIDPlugin : ToolWindowFactory {
         toolWindow.contentManager.addContent(content)
         val ex = toolWindow as ToolWindowEx
         ex.stretchWidth(toolWindow.component.preferredSize.width)
-
     }
 }
-fun Project.getSSHService(): ServerConnectionService = sshService
+
+fun Project.getSSHService(): ServerConnectionService =
+    ApplicationManager.getApplication().getService(ServerConnectionService::class.java)
+
+fun Project.getConnectHidService(): ConnectHidServiceImpl =
+    ApplicationManager.getApplication().getService(ConnectHidServiceImpl::class.java)
