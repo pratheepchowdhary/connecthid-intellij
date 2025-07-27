@@ -155,12 +155,25 @@ class SftpFile(
                 channel = fileSystem.getChannelFromPool() ?: throw IOException("Failed to get SFTP channel")
                 val inputStream = channel.get(pathLocation) ?: throw IOException("Failed to get input stream")
                 return@runReadAction object : InputStream() {
+                    private var isClosed = false
+
                     override fun read(): Int = inputStream.read()
+
+                    override fun read(b: ByteArray): Int = inputStream.read(b)
+
+                    override fun read(b: ByteArray, off: Int, len: Int): Int = inputStream.read(b, off, len)
+
+                    override fun skip(n: Long): Long = inputStream.skip(n)
+
+                    override fun available(): Int = inputStream.available()
+
                     override fun close() {
+                        if (isClosed) return
+                        isClosed = true
                         try {
                             inputStream.close()
                         } catch (e: Exception) {
-                            println("Error closing input stream: "+e.message)
+                            println("Error closing input stream: ${e.message}")
                         } finally {
                             fileSystem.releaseChannelToPool(channel)
                         }
