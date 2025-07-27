@@ -11,7 +11,9 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 
 class FindInFilesAction(val project: Project, val file: VirtualFile): AnAction({ "Find in Folder" }, AllIcons.Actions.Find) {
-    private  val sshService: ServerConnectionService  = project.getSSHService()
+    // Use lazy initialization to defer service access until actually needed
+    private val sshService by lazy { project.getSSHService() }
+
     override fun actionPerformed(p0: AnActionEvent) {
         val server=  (file.fileSystem as SftpFileSystem).server
         server.lastSearchPath = file.path

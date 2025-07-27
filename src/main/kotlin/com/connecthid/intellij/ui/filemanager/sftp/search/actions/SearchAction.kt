@@ -12,7 +12,9 @@ import com.intellij.openapi.project.Project
 import javax.swing.JComponent
 
 class SearchAction (val project: Project,val server: Server): SearchEverywhereAction() {
-    private  val sshService: ServerConnectionService  = project.getSSHService()
+    // Use lazy initialization to defer service access until actually needed
+    private val sshService by lazy { project.getSSHService() }
+
     override fun actionPerformed(e: AnActionEvent) {
         sshService.searchServers.clear()
         server.lastSearchPath = server.rootPath

@@ -45,6 +45,9 @@
 
     <searchEverywhereContributor implementation="com.connecthid.intellij.ui.filemanager.sftp.search.SftpFileContributorFactory"/>
 
+    <!-- Add startup activity to ensure proper initialization order -->
+    <postStartupActivity implementation="com.connecthid.intellij.ConnectHIDStartupActivity"/>
+
   </extensions>
 
   <actions>

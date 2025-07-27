@@ -33,7 +33,9 @@ import javax.swing.KeyStroke
 
 abstract class ServerChooserAction (project: Project): ActionGroup(), CustomComponentAction, DumbAware,
     SearchEverywhereToggleAction {
-        val sshService: ServerConnectionService  = project.getSSHService()
+        // Use lazy initialization to defer service access until actually needed
+        val sshService by lazy { project.getSSHService() }
+
     init {
         setPopup(true)
         getTemplatePresentation().setPerformGroup(true)

@@ -38,7 +38,8 @@ import javax.swing.ListCellRenderer
 @OptIn(FlowPreview::class)
 class SftpFileContributor(p01: AnActionEvent) : SearchEverywhereContributor<PsiFile> , SearchEverywherePreviewProvider,SearchFieldActionsContributor,SearchEverywhereExtendedInfoProvider{
     private val project: Project = p01.project!!
-    private val sshService  = project.getSSHService()
+    // Use lazy initialization to defer service access until actually needed
+    private val sshService by lazy { project.getSSHService() }
     val word = AtomicBooleanProperty(false).apply { afterChange { //todo
                                                                            } }
 
