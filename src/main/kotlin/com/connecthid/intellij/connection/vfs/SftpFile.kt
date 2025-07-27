@@ -1,5 +1,6 @@
 package com.connecthid.intellij.connection.vfs
 
+import com.intellij.openapi.application.runReadAction
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileSystem
 import com.jcraft.jsch.ChannelSftp
@@ -20,7 +21,7 @@ class SftpFile(
 
     override fun isWritable(): Boolean {
         if(fileEntry == null){
-            fileEntry = fileSystem.getFileStat(pathLocation)
+            fileEntry = runReadAction {fileSystem.getFileStat(pathLocation)}
             return fileEntry != null && fileEntry!!.isWritable()
         }
         return fileEntry!!.isWritable()
@@ -33,7 +34,7 @@ class SftpFile(
 
     override fun isDirectory(): Boolean {
         if (fileEntry == null) {
-            fileEntry = fileSystem.getFileStat(pathLocation)
+            fileEntry = runReadAction {fileSystem.getFileStat(pathLocation)}
             return fileEntry == null || fileEntry!!.isDir
         }
         return fileEntry!!.isDir
@@ -48,16 +49,17 @@ class SftpFile(
 
 
     override fun getChildren(): Array<VirtualFile> {
+        return runReadAction {
         if (children == null) {
             var channel: ChannelSftp? = null
             try {
                 channel = fileSystem.getChannelFromPool()
                 if (channel == null || !channel.isConnected) {
                     println("Failed to establish SFTP channel")
-                    return emptyArray()
+                    return@runReadAction emptyArray()
                 }
                 val currentPath = if (pathLocation == "/") "." else pathLocation
-                val files = channel.ls(currentPath) ?: return emptyArray()
+                val files = channel.ls(currentPath) ?: return@runReadAction emptyArray()
                 children = files
                     .mapNotNull { it as? ChannelSftp.LsEntry }
                     .filter { it.filename != "." && it.filename != ".." }
@@ -69,18 +71,19 @@ class SftpFile(
             } catch (e: Exception) {
                 println("Error listing directory: ${e.message}")
                 e.printStackTrace()
-                return emptyArray()
+                return@runReadAction emptyArray()
             } finally {
                 fileSystem.releaseChannelToPool(channel)
             }
         }
-        return children ?: emptyArray()
+         children ?: emptyArray()
+        }
     }
 
 
     override fun getTimeStamp(): Long {
         if (fileEntry == null) {
-            fileEntry = fileSystem.getFileStat(pathLocation)
+            fileEntry = runReadAction {fileSystem.getFileStat(pathLocation)}
             return  fileEntry ?.mTime?.toLong() ?: 0L
         }
         return fileEntry!!.aTime.toLong()
@@ -89,7 +92,7 @@ class SftpFile(
 
     override fun getModificationStamp(): Long {
         if (fileEntry == null) {
-            fileEntry = fileSystem.getFileStat(pathLocation)
+            fileEntry = runReadAction {fileSystem.getFileStat(pathLocation)}
             return  fileEntry ?.mTime?.toLong() ?: 0L
         }
         return fileEntry!!.mTime.toLong()
@@ -97,7 +100,7 @@ class SftpFile(
 
     override fun getLength(): Long {
         if (fileEntry == null) {
-            fileEntry = fileSystem.getFileStat(pathLocation)
+            fileEntry = runReadAction {fileSystem.getFileStat(pathLocation)}
             return  fileEntry?.size?.toLong() ?: 0L
         }
         return fileEntry!!.size.toLong()
@@ -131,38 +134,42 @@ class SftpFile(
     }
 
     override fun contentsToByteArray(): ByteArray {
-        var channel: ChannelSftp? = null
-        try {
-            channel = fileSystem.getChannelFromPool() ?: throw IOException("Failed to get SFTP channel")
-            val inputStream = channel.get(pathLocation) ?: throw IOException("Failed to get input stream")
-            return inputStream.readBytes()
-        } catch (e: Exception) {
-            throw IOException("Failed to read file contents: ${e.message}", e)
-        } finally {
-            fileSystem.releaseChannelToPool(channel)
+        return runReadAction {
+            var channel: ChannelSftp? = null
+            try {
+                channel = fileSystem.getChannelFromPool() ?: throw IOException("Failed to get SFTP channel")
+                val inputStream = channel.get(pathLocation) ?: throw IOException("Failed to get input stream")
+                return@runReadAction inputStream.readBytes()
+            } catch (e: Exception) {
+                throw IOException("Failed to read file contents: ${e.message}", e)
+            } finally {
+                fileSystem.releaseChannelToPool(channel)
+            }
         }
     }
 
     override fun getInputStream(): InputStream {
-        var channel: ChannelSftp? = null
-        try {
-            channel = fileSystem.getChannelFromPool() ?: throw IOException("Failed to get SFTP channel")
-            val inputStream = channel.get(pathLocation) ?: throw IOException("Failed to get input stream")
-            return object : InputStream() {
-                override fun read(): Int = inputStream.read()
-                override fun close() {
-                    try {
-                        inputStream.close()
-                    } catch (e: Exception) {
-                        println("Error closing input stream: "+e.message)
-                    } finally {
-                        fileSystem.releaseChannelToPool(channel)
+        return runReadAction {
+            var channel: ChannelSftp? = null
+            try {
+                channel = fileSystem.getChannelFromPool() ?: throw IOException("Failed to get SFTP channel")
+                val inputStream = channel.get(pathLocation) ?: throw IOException("Failed to get input stream")
+                return@runReadAction object : InputStream() {
+                    override fun read(): Int = inputStream.read()
+                    override fun close() {
+                        try {
+                            inputStream.close()
+                        } catch (e: Exception) {
+                            println("Error closing input stream: "+e.message)
+                        } finally {
+                            fileSystem.releaseChannelToPool(channel)
+                        }
                     }
                 }
+            } catch (e: Exception) {
+                fileSystem.releaseChannelToPool(channel)
+                throw IOException("Failed to get input stream: ${e.message}", e)
             }
-        } catch (e: Exception) {
-            fileSystem.releaseChannelToPool(channel)
-            throw IOException("Failed to get input stream: ${e.message}", e)
         }
     }
 

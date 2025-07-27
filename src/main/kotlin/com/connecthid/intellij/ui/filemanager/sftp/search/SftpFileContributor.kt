@@ -10,6 +10,7 @@ import com.connecthid.intellij.ui.filemanager.sftp.search.actions.TextSearchRigh
 import com.intellij.ide.actions.searcheverywhere.SearchEverywhereContributor
 import com.intellij.ide.actions.searcheverywhere.SearchEverywhereExtendedInfoProvider
 import com.intellij.ide.actions.searcheverywhere.SearchEverywherePreviewProvider
+import com.intellij.ide.actions.searcheverywhere.SearchEverywhereUI
 import com.intellij.ide.actions.searcheverywhere.SearchFieldActionsContributor
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
@@ -47,6 +48,7 @@ class SftpFileContributor(val p01: AnActionEvent) : SearchEverywhereContributor<
     val coroutineScope = CoroutineScope(Dispatchers.IO + Job())
     val queryFlow = MutableStateFlow("")
     var firstTimeQuery = false
+    val tets : SearchEverywhereUI? = null
 
 
 
@@ -135,6 +137,8 @@ class SftpFileContributor(val p01: AnActionEvent) : SearchEverywhereContributor<
                     // Search by file name (existing functionality)
                     fileSystem.searchFiles(pattern, server.lastSearchPath).forEach {
                         val psiFile = runReadAction {
+                            val fileSystem = (it.fileSystem as SftpFileSystem)
+                            it.fileEntry = fileSystem.getFileStat(it.pathLocation)
                             PsiManager.getInstance(project).findFile(it)
                         }
                         consumer.process(psiFile)
@@ -166,10 +170,10 @@ class SftpFileContributor(val p01: AnActionEvent) : SearchEverywhereContributor<
         element: PsiFile,
         dataId: String
     ): Any? {
-        if (CommonDataKeys.PSI_ELEMENT.name == dataId) {
-            return element // BAD: triggers warning if called on EDT
-        }
-        return super.getDataForItem(element, dataId)
+
+        // For all PSI-related data keys, return null to signal that they should be
+        // provided through DataSink.lazy by the SearchEverywhereUI
+        return null
     }
 
     override fun getElementsRenderer(): ListCellRenderer<in PsiFile> {
