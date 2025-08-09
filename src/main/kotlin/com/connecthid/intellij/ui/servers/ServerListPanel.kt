@@ -9,6 +9,7 @@ import com.connecthid.intellij.utils.removeI
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.project.Project
 import com.connecthid.intellij.connection.terminal.openTerminal
+import com.connecthid.intellij.models.getPassword
 import com.connecthid.intellij.ui.filemanager.sftp.openSFTP
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBLabel

@@ -3,6 +3,8 @@ package com.connecthid.intellij.utils
 import com.intellij.credentialStore.CredentialAttributes
 import com.intellij.credentialStore.Credentials
 import com.intellij.ide.passwordSafe.PasswordSafe
+import com.intellij.openapi.application.readAction
+import com.intellij.openapi.application.runReadAction
 
 object PasswordUtil {
     private const val SERVICE_NAME = "com.connecthid.intellij"
@@ -25,7 +27,7 @@ object PasswordUtil {
     fun getPassword(key: String): String? {
         val attributes = CredentialAttributes("$SERVICE_NAME:$key")
         val credentials = PasswordSafe.instance.get(attributes)
-        return credentials?.getPasswordAsString()
+         return  credentials?.getPasswordAsString()
     }
 
     /**

@@ -10,11 +10,9 @@ import com.connecthid.intellij.ui.filemanager.sftp.search.actions.TextSearchRigh
 import com.intellij.ide.actions.searcheverywhere.SearchEverywhereContributor
 import com.intellij.ide.actions.searcheverywhere.SearchEverywhereExtendedInfoProvider
 import com.intellij.ide.actions.searcheverywhere.SearchEverywherePreviewProvider
-import com.intellij.ide.actions.searcheverywhere.SearchEverywhereUI
 import com.intellij.ide.actions.searcheverywhere.SearchFieldActionsContributor
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
-import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.application.runReadAction
 import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.observable.properties.AtomicBooleanProperty
@@ -36,7 +34,7 @@ import javax.swing.ListCellRenderer
 
 
 @OptIn(FlowPreview::class)
-class SftpFileContributor(p01: AnActionEvent) : SearchEverywhereContributor<PsiFile> , SearchEverywherePreviewProvider,SearchFieldActionsContributor,SearchEverywhereExtendedInfoProvider{
+class SftpFileContributor(p01: AnActionEvent) : SearchEverywhereContributor<SftpPsiElement> , SearchEverywherePreviewProvider,SearchFieldActionsContributor,SearchEverywhereExtendedInfoProvider{
     private val project: Project = p01.project!!
     // Use lazy initialization to defer service access until actually needed
     private val sshService by lazy { project.getSSHService() }
@@ -119,7 +117,7 @@ class SftpFileContributor(p01: AnActionEvent) : SearchEverywhereContributor<PsiF
     override fun fetchElements(
         pattern: String,
         indicator: ProgressIndicator,
-        consumer: Processor<in PsiFile>
+        consumer: Processor<in SftpPsiElement>
     ) {
         sshService.searchServers.forEach { server ->
             val connection = sshService.getConnection(server.stmpName)
@@ -130,7 +128,7 @@ class SftpFileContributor(p01: AnActionEvent) : SearchEverywhereContributor<PsiF
                     // Search within file contents
                     fileSystem.searchTextInFiles(pattern, server.lastSearchPath).forEach {
                         val psiFile = runReadAction {
-                            PsiManager.getInstance(project).findFile(it)
+                            SftpPsiElement(PsiManager.getInstance(project).findFile(it)!!)
                         }
                         consumer.process(psiFile)
                     }
@@ -140,7 +138,7 @@ class SftpFileContributor(p01: AnActionEvent) : SearchEverywhereContributor<PsiF
                         val psiFile = runReadAction {
                             val fileSystem = (it.fileSystem as SftpFileSystem)
                             it.fileEntry = fileSystem.getFileStat(it.pathLocation)
-                            PsiManager.getInstance(project).findFile(it)
+                            SftpPsiElement(PsiManager.getInstance(project).findFile(it)!!)
                         }
                         consumer.process(psiFile)
                     }
@@ -154,26 +152,26 @@ class SftpFileContributor(p01: AnActionEvent) : SearchEverywhereContributor<PsiF
     }
 
     override fun processSelectedItem(
-        p0: PsiFile,
+        p0: SftpPsiElement,
         modifier: Int,
         searchText: String
     ): Boolean {
-        val file = (p0.virtualFile as?  SftpFile) ?: return false
+        val file = (p0.containingFile.virtualFile as?  SftpFile) ?: return false
         val fileSystem = (file.fileSystem as SftpFileSystem)
         return fileSystem.openFileInIDE(file)
     }
 
-    override fun getItemDescription(element: PsiFile): String? {
+    override fun getItemDescription(element: SftpPsiElement): String? {
         return "test code"
     }
 
 
 
-    override fun getElementsRenderer(): ListCellRenderer<in PsiFile> {
-        return object : ListCellRenderer<PsiFile> {
+    override fun getElementsRenderer(): ListCellRenderer<in SftpPsiElement> {
+        return object : ListCellRenderer<SftpPsiElement> {
             override fun getListCellRendererComponent(
-                list: JList<out PsiFile>,
-                value: PsiFile?,
+                list: JList<out SftpPsiElement>,
+                value: SftpPsiElement?,
                 index: Int,
                 isSelected: Boolean,
                 cellHasFocus: Boolean
@@ -181,9 +179,9 @@ class SftpFileContributor(p01: AnActionEvent) : SearchEverywhereContributor<PsiF
                 val label = JLabel()
 
                 if (value != null) {
-                    val file = (value.virtualFile as  SftpFile)
+                    val file = (value.containingFile.virtualFile as  SftpFile)
                     label.text = file.url
-                    label.icon = FileTypeManager.getInstance().getFileTypeByFileName(value.name).icon
+                    label.icon = FileTypeManager.getInstance().getFileTypeByFileName(value.containingFile.name).icon
                 }
                 if (isSelected) {
                     label.background = list.selectionBackground
@@ -206,7 +204,7 @@ class SftpFileContributor(p01: AnActionEvent) : SearchEverywhereContributor<PsiF
         )
     }
 
-    override fun getDataForItem(element: PsiFile, dataId: String): Any? {
+    override fun getDataForItem(element: SftpPsiElement, dataId: String): Any? {
         return super.getDataForItem(element, dataId)
     }
 

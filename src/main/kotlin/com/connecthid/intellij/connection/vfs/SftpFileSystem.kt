@@ -2,6 +2,7 @@ package com.connecthid.intellij.connection.vfs
 
 import com.connecthid.intellij.getSSHService
 import com.connecthid.intellij.models.Server
+import com.connecthid.intellij.models.getPassword
 import com.connecthid.intellij.services.SSHConnection
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditorManager

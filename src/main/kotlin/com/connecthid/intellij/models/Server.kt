@@ -4,7 +4,6 @@ import com.connecthid.intellij.utils.PasswordUtil
 import com.connecthid.intellij.utils.toImageIcon
 import com.intellij.util.xmlb.annotations.Attribute
 import com.intellij.util.xmlb.annotations.Tag
-import com.intellij.util.xmlb.annotations.Transient
 
 @Tag("server")
 data class Server(
@@ -19,8 +18,6 @@ data class Server(
     @Attribute var isInProgress: Boolean=false,
     @Attribute var lastSearchPath: String="",
 ) {
-    @Transient
-    private var password: String? = null
 
     val icon by lazy {
         systemInfo.osName.toImageIcon()
@@ -34,15 +31,17 @@ data class Server(
         if (username == "root") "/root" else "/home/${username}"
     }
 
-    fun setPassword(password: String?) {
-        if (password != null) {
-            PasswordUtil.storePassword(stmpName, password)
-        } else {
-            PasswordUtil.deletePassword(stmpName)
-        }
-    }
-    fun getPassword(): String? {
-        return PasswordUtil.getPassword(stmpName)
-    }
 
+}
+
+
+fun Server.setPassword(password: String?) {
+    if (password != null) {
+        PasswordUtil.storePassword(stmpName, password)
+    } else {
+        PasswordUtil.deletePassword(stmpName)
+    }
+}
+fun Server.getPassword(): String? {
+    return PasswordUtil.getPassword(stmpName)
 }

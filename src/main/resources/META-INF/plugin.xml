@@ -48,6 +48,10 @@
     <!-- Add startup activity to ensure proper initialization order -->
     <postStartupActivity implementation="com.connecthid.intellij.ConnectHIDStartupActivity"/>
 
+    <fileType name="ConnectHID URL"
+              implementationClass="com.connecthid.intellij.handler.ConnectHidUrlFileType"
+              fieldName="INSTANCE"/>
+
   </extensions>
 
   <actions>

@@ -7,8 +7,8 @@ import com.intellij.ide.actions.searcheverywhere.SearchEverywhereContributorFact
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.psi.PsiFile
 
-class SftpFileContributorFactory : SearchEverywhereContributorFactory<PsiFile> {
-    override fun createContributor(p0: AnActionEvent): SearchEverywhereContributor<PsiFile> {
+class SftpFileContributorFactory : SearchEverywhereContributorFactory<SftpPsiElement> {
+    override fun createContributor(p0: AnActionEvent): SearchEverywhereContributor<SftpPsiElement> {
         return SftpFileContributor(p0)
     }
 

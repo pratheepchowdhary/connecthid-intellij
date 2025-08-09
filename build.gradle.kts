@@ -21,6 +21,7 @@ kotlin {
 }
 
 
+
 dependencies {
   implementation("com.jcraft:jsch:0.1.55")
   implementation("com.github.docker-java:docker-java-core:3.3.4")
@@ -34,11 +35,15 @@ dependencies {
   intellijPlatform {
     intellijIdeaCommunity("2025.1")
     bundledPlugin("org.jetbrains.plugins.terminal")
+
   }
+
+
 }
 
 
 tasks {
+
   signPlugin {
     certificateChain.set(System.getenv("CERTIFICATE_CHAIN"))
     privateKey.set(System.getenv("PRIVATE_KEY"))

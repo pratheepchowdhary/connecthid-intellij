@@ -3,6 +3,8 @@ package com.connecthid.intellij.services
 import com.connecthid.intellij.models.AuthenticationMethod
 import com.connecthid.intellij.models.Server
 import com.connecthid.intellij.models.SystemInfo
+import com.connecthid.intellij.models.setPassword
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.State
 import com.intellij.openapi.components.Storage
@@ -21,6 +23,18 @@ class ServerConnectionService() : PersistentStateComponent<ServerConnectionState
     private val connections = ConcurrentHashMap<String, SSHConnection>()
     private var state = ServerConnectionState()
     var searchServers = arrayListOf<Server>()
+
+    init {
+        ApplicationManager.getApplication().invokeLater {
+            installUrlHandler()
+        }
+    }
+
+    private fun installUrlHandler() {
+        val scheme = "connecthid"
+
+
+    }
 
     override fun getState(): ServerConnectionState = state
 
