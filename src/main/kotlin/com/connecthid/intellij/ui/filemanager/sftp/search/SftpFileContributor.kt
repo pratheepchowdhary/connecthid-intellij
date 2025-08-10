@@ -136,14 +136,13 @@ class SftpFileContributor(p01: AnActionEvent) : SearchEverywhereContributor<Sftp
                     // Search by file name (existing functionality)
                     fileSystem.searchFiles(pattern, server.lastSearchPath).forEach {
                         val psiFile = runReadAction {
-                            val fileSystem = (it.fileSystem as SftpFileSystem)
-                            it.fileEntry = fileSystem.getFileStat(it.pathLocation)
                             SftpPsiElement(PsiManager.getInstance(project).findFile(it)!!)
                         }
                         consumer.process(psiFile)
                     }
                 }
             }
+
         }
     }
 

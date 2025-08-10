@@ -300,6 +300,33 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
 
     fun searchTextInFiles(pattern: String, path: String = server.rootPath): List<SftpFile> {
         val results = mutableListOf<SftpFile>()
+        val connection = getConnection() ?: return results
+        var execChannel: ChannelExec? = null
+        try {
+            // Use grep to search for pattern in files
+            // The -l option makes grep output only filenames instead of the matching lines
+            // The -r option makes grep search recursively
+            // We're redirecting stderr to /dev/null to ignore any permission errors
+            val escapedPattern = pattern.replace("'", "'\\''") // Escape single quotes for shell
+            val grepCommand = "grep -l -r '$escapedPattern' '$path' 2>/dev/null"
+
+            execChannel = connection.getExecChannelFromPool()
+            execChannel?.setCommand(grepCommand)
+            execChannel?.connect()
+            val input = execChannel?.inputStream
+            val foundFiles = input?.bufferedReader()?.readLines() ?: emptyList()
+            execChannel?.disconnect()
+
+            for (filePath in foundFiles) {
+                val file = SftpFile(filePath, this)
+                results.add(file)
+            }
+        } catch (e: Exception) {
+            println("Error searching text in files: ${e.message}")
+            e.printStackTrace()
+        } finally {
+            connection.releaseExecChannelToPool(execChannel)
+        }
         return results
     }
 
