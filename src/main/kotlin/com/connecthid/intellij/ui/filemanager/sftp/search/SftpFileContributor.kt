@@ -18,7 +18,7 @@ import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.observable.properties.AtomicBooleanProperty
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.Project
-import com.intellij.psi.PsiFile
+import com.intellij.openapi.util.Key
 import com.intellij.psi.PsiManager
 import com.intellij.util.Processor
 import kotlinx.coroutines.*
@@ -41,17 +41,15 @@ class SftpFileContributor(p01: AnActionEvent) : SearchEverywhereContributor<Sftp
     val word = AtomicBooleanProperty(false).apply { afterChange { //todo
                                                                            } }
 
+
+
+
     val case = AtomicBooleanProperty(false).apply { afterChange {  } }
     val regexp = AtomicBooleanProperty(false).apply { afterChange {  }}
     val findInFiles = AtomicBooleanProperty(false).apply { afterChange {  }}
     val coroutineScope = CoroutineScope(Dispatchers.IO + Job())
     val queryFlow = MutableStateFlow("")
     var firstTimeQuery = false
-
-
-
-
-
 
     override fun getSearchProviderId(): String {
         return "com.connecthid.intellij.ui.filemanager.sftp.search.SftpFileContributor"
@@ -142,7 +140,6 @@ class SftpFileContributor(p01: AnActionEvent) : SearchEverywhereContributor<Sftp
                     }
                 }
             }
-
         }
     }
 
@@ -163,8 +160,6 @@ class SftpFileContributor(p01: AnActionEvent) : SearchEverywhereContributor<Sftp
     override fun getItemDescription(element: SftpPsiElement): String? {
         return "test code"
     }
-
-
 
     override fun getElementsRenderer(): ListCellRenderer<in SftpPsiElement> {
         return object : ListCellRenderer<SftpPsiElement> {
@@ -212,13 +207,9 @@ class SftpFileContributor(p01: AnActionEvent) : SearchEverywhereContributor<Sftp
         coroutineScope.cancel()
     }
 
-
-
     companion object {
         // Standard sort weight for virtual file contributors in JetBrains IDEs is 400
         const val VIRTUAL_FILE_SORT_WEIGHT = 200
     }
-
-
 
 }
