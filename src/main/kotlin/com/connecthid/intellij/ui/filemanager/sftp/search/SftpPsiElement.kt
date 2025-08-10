@@ -1,13 +1,21 @@
 package com.connecthid.intellij.ui.filemanager.sftp.search
 
+import com.connecthid.intellij.connection.vfs.SftpMatchInfo
 import com.intellij.openapi.util.Key
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.impl.FakePsiElement
 
-class SftpPsiElement(private val psiFile: PsiFile) : FakePsiElement() {
+/**
+ * Represents a PSI element for SFTP search results with text highlighting support
+ */
+class SftpPsiElement(
+    private val psiFile: PsiFile,
+    private val matchInfo: SftpMatchInfo? = null
+) : FakePsiElement() {
     val DO_NOT_ADJUST_NAME_RANGE: Key<Boolean> = Key.create("UsageViewPanel.DO_NOT_ADJUST_NAME_RANGE")
+
     override fun getParent(): PsiElement {
         return psiFile
     }
@@ -17,23 +25,32 @@ class SftpPsiElement(private val psiFile: PsiFile) : FakePsiElement() {
     }
 
     override fun getName(): String? {
-        return psiFile.getName()
+        return matchInfo?.lineContent ?: psiFile.getName()
     }
 
     override fun getTextOffset(): Int {
-        return 5 // or another offset if you want
+        // Return the start offset of the match if available, otherwise default to 0
+        return matchInfo?.startOffset ?: 0
     }
+
     override fun getTextRange(): TextRange {
-        val parent: PsiElement? = getParent()
-        return TextRange(5,10)
+        // If we have match information, use it to create a text range
+        matchInfo?.let {
+            return TextRange(it.startOffset, it.endOffset)
+        }
+
+        // Fallback to default range
+        return psiFile.textRange ?: TextRange(0, 0)
     }
 
     @Suppress("UNCHECKED_CAST")
-    override fun <T> getUserData(key: Key<T?>): T? {
-        if (key === DO_NOT_ADJUST_NAME_RANGE) {
+    override fun <T> getUserData(key: Key<T?>): T?{
+        if(key.toString().equals(DO_NOT_ADJUST_NAME_RANGE.toString())){
             return true as T
         }
-        return super.getUserData(key)
+        else{
+            return super.getUserData(key)
+        }
     }
 
 }

@@ -298,28 +298,52 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
         connection.releaseChannelToPool(channel)
     }
 
-    fun searchTextInFiles(pattern: String, path: String = server.rootPath): List<SftpFile> {
-        val results = mutableListOf<SftpFile>()
+    fun searchTextInFiles(pattern: String, path: String = server.rootPath): List<SftpFileOccurrence> {
+        val results = mutableListOf<SftpFileOccurrence>()
         val connection = getConnection() ?: return results
         var execChannel: ChannelExec? = null
         try {
-            // Use grep to search for pattern in files
-            // The -l option makes grep output only filenames instead of the matching lines
+            // Use grep to search for pattern in files with line numbers and byte offsets
+            // The -n option makes grep output line numbers
+            // The -b option makes grep output byte offsets of each match
             // The -r option makes grep search recursively
-            // We're redirecting stderr to /dev/null to ignore any permission errors
             val escapedPattern = pattern.replace("'", "'\\''") // Escape single quotes for shell
-            val grepCommand = "grep -l -r '$escapedPattern' '$path' 2>/dev/null"
+            val grepCommand = "grep -n -b -r '$escapedPattern' '$path' 2>/dev/null"
 
             execChannel = connection.getExecChannelFromPool()
             execChannel?.setCommand(grepCommand)
             execChannel?.connect()
             val input = execChannel?.inputStream
-            val foundFiles = input?.bufferedReader()?.readLines() ?: emptyList()
+            val foundOccurrences = input?.bufferedReader()?.readLines() ?: emptyList()
             execChannel?.disconnect()
 
-            for (filePath in foundFiles) {
+            // Group occurrences by file path
+            val fileOccurrences = mutableMapOf<String, MutableList<SftpMatchInfo>>()
+
+            for (occurrence in foundOccurrences) {
+                // Parse output format: filepath:line_number:byte_offset:matching line text
+                val colonIndices = findFirstNColonIndices(occurrence, 3)
+                if (colonIndices.size >= 3) {
+                    val filePath = occurrence.substring(0, colonIndices[0])
+                    val lineNumber = occurrence.substring(colonIndices[0] + 1, colonIndices[1]).toIntOrNull() ?: 1
+                    val byteOffset = occurrence.substring(colonIndices[1] + 1, colonIndices[2]).toIntOrNull() ?: 0
+                    val lineContent = occurrence.substring(colonIndices[2] + 1)
+
+                    // Since grep -b returns the byte offset from the start of the line,
+                    // we can use it directly as the match offset in the line
+                    val matchOffset = byteOffset
+                    val matchEndOffset = matchOffset + pattern.length
+
+                    // Add this occurrence to our file matches
+                    val fileMatches = fileOccurrences.getOrPut(filePath) { mutableListOf() }
+                    fileMatches.add(SftpMatchInfo(lineNumber, matchOffset, matchEndOffset, lineContent))
+                }
+            }
+
+            // Create SftpFileOccurrence objects for each file with its matches
+            for ((filePath, matches) in fileOccurrences) {
                 val file = SftpFile(filePath, this)
-                results.add(file)
+                results.add(SftpFileOccurrence(file, matches))
             }
         } catch (e: Exception) {
             println("Error searching text in files: ${e.message}")
@@ -328,6 +352,21 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
             connection.releaseExecChannelToPool(execChannel)
         }
         return results
+    }
+
+    // Helper method to find the first N colon positions in a string
+    private fun findFirstNColonIndices(str: String, n: Int): List<Int> {
+        val indices = mutableListOf<Int>()
+        var pos = -1
+        repeat(n) {
+            pos = str.indexOf(':', pos + 1)
+            if (pos != -1) {
+                indices.add(pos)
+            } else {
+                return indices // Not enough colons found
+            }
+        }
+        return indices
     }
 
     fun searchFiles(pattern: String, path: String = server.rootPath): List<SftpFile> {
