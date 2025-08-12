@@ -308,7 +308,7 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
             // The -b option makes grep output byte offsets of each match
             // The -r option makes grep search recursively
             val escapedPattern = pattern.replace("'", "'\\''") // Escape single quotes for shell
-            val grepCommand = "grep -n -b -r '$escapedPattern' '$path' 2>/dev/null"
+            val grepCommand = "grep -n -b -r -o '$escapedPattern' '$path' 2>/dev/null"
 
             execChannel = connection.getExecChannelFromPool()
             execChannel?.setCommand(grepCommand)
@@ -326,7 +326,7 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
                 if (colonIndices.size >= 3) {
                     val filePath = occurrence.substring(0, colonIndices[0])
                     val lineNumber = occurrence.substring(colonIndices[0] + 1, colonIndices[1]).toIntOrNull() ?: 1
-                    val byteOffset = occurrence.substring(colonIndices[1] + 1, colonIndices[2]).toIntOrNull() ?: 0
+                    val byteOffset = occurrence.substring(colonIndices[1]+1  , colonIndices[2]).toIntOrNull() ?: 0
                     val lineContent = occurrence.substring(colonIndices[2] + 1)
 
                     // Since grep -b returns the byte offset from the start of the line,

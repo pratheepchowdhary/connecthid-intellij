@@ -151,7 +151,7 @@ class SftpFileContributor(p01: AnActionEvent) : SearchEverywhereContributor<Sftp
                             PsiManager.getInstance(project).findFile(it)
                         }
                         if (psiFile != null) {
-                            val file = SftpPsiElement(psiFile)
+                            val file =  SftpPsiElement(psiFile)
                             file.putUserData(DO_NOT_ADJUST_NAME_RANGE, true)
                             consumer.process(file)
                         }
