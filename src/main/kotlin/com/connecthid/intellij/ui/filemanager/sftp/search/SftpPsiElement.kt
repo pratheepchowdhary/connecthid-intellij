@@ -6,9 +6,6 @@ import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.impl.FakePsiElement
-import java.nio.charset.Charset
-import kotlin.let
-import kotlin.math.max
 
 
 /**
