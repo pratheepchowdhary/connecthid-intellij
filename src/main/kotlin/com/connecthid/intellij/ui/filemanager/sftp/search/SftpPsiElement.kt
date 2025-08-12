@@ -18,7 +18,6 @@ class SftpPsiElement(
     private val psiFile: PsiFile,
     private val matchInfo: SftpMatchInfo? = null
 ) : FakePsiElement() {
-    var textOffsetValue: Int = -1
 
     val DO_NOT_ADJUST_NAME_RANGE: Key<Boolean> = Key.create("UsageViewPanel.DO_NOT_ADJUST_NAME_RANGE")
 
@@ -31,9 +30,12 @@ class SftpPsiElement(
     }
 
     override fun getName(): String? {
-        return matchInfo?.lineContent ?: psiFile.getName()
+        matchInfo?.let {
+            return psiFile.name+":${it.lineNumber}"
+        }
+        return psiFile.getName()
     }
-    
+
     override fun getTextOffset(): Int {
         matchInfo?.let {
             return it.startOffset
@@ -59,11 +61,4 @@ class SftpPsiElement(
             return super.getUserData(key)
         }
     }
-
-
-
-
-
-
-
 }
