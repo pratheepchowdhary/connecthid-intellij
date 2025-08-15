@@ -15,13 +15,13 @@ class Button(text: String, fill: Boolean) : InstallButton(fill) {
 
     companion object {
         fun connectButton(isEnabled: Boolean = true): Button {
-            return Button(PluginBundle.message("connectButton"), false).apply {
+            return Button(PluginBundle.message("connect"), false).apply {
                 this.isEnabled = isEnabled
             }
         }
 
         fun disconnectButton(isEnabled: Boolean = true): Button {
-            return Button(PluginBundle.message("disconnectButton"), true).apply {
+            return Button(PluginBundle.message("disconnect"), true).apply {
                 this.isEnabled = isEnabled
             }
         }

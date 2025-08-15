@@ -255,7 +255,7 @@ fun Project.openSFTP(server: Server) {
         val sftpPanel = SftpExplorerPanel(this, server)
         val contentFactory = ContentFactory.getInstance()
         val content = contentFactory.createContent(sftpPanel, server.stmpName, false).apply {
-            setCloseable(true)
+            isCloseable = true
             setDisposer(sftpPanel)  // Ensure proper cleanup
         }
         window.contentManager.addContent(content)
@@ -275,7 +275,7 @@ fun Project.openSFTP(server: Server) {
             val sftpPanel = SftpExplorerPanel(this, server)
             val contentFactory = ContentFactory.getInstance()
             val content = contentFactory.createContent(sftpPanel, server.stmpName, false).apply {
-                setCloseable(true)
+                isCloseable = true
                 setDisposer(sftpPanel)  // Ensure proper cleanup
             }
             toolWindow.contentManager.addContent(content)

@@ -2,6 +2,7 @@ package com.connecthid.intellij.services
 
 import com.connecthid.intellij.connection.vfs.SftpFileSystem
 import com.jcraft.jsch.*
+import com.jetbrains.rd.util.printlnError
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
@@ -25,13 +26,13 @@ class SSHConnection(
 ) {
     private val jsch = JSch()
     private var session: Session? = null
-    private var channel: Channel? = null
     // SFTP Channel Pooling
     private val channelPool = mutableListOf<ChannelSftp>()
     // Use a single lock for both pools
     private val channelPoolLock = ReentrantLock()
     private val channelAvailable: Condition = channelPoolLock.newCondition()
     var maxChannels = 5
+    private var totalChannels = 0 // Tracks all open channels (in pool + checked out)
     var fileSystem : SftpFileSystem? = null
 
     // Exec Channel Pooling
@@ -67,7 +68,6 @@ class SSHConnection(
 
     fun disconnect() {
         fileSystem = null
-        channel?.disconnect()
         session?.disconnect()
     }
 
@@ -87,12 +87,10 @@ class SSHConnection(
         if (!isConnected()) {
             connect()
         }
-
+        val channel = getExecChannelFromPool()
         try {
-            channel = session?.openChannel("exec")
-            (channel as ChannelExec).setCommand(command)
+            channel?.setCommand(command)
             channel?.connect()
-
             val inputStream = channel?.inputStream
             val errorStream = (channel as ChannelExec).errStream
 
@@ -102,12 +100,11 @@ class SSHConnection(
             if (error.isNotEmpty()) {
                 throw IOException("Command execution failed: $error")
             }
-
             return output
         } catch (e: JSchException) {
             throw IOException("Failed to execute command: ${e.message}", e)
         } finally {
-            channel?.disconnect()
+            releaseExecChannelToPool(channel)
         }
     }
 
@@ -116,23 +113,42 @@ class SSHConnection(
     fun getChannelFromPool(): ChannelSftp? {
         channelPoolLock.lock()
         try {
-            channelPool.removeIf { !it.isConnected }
-            execChannelPool.removeIf { !it.isConnected }
+            cleanupChannels()
+            printlnError("[getChannelFromPool] Enter: totalChannels=$totalChannels, poolSize=${channelPool.size}")
             if (channelPool.isNotEmpty()) {
-                return channelPool.removeAt(0)
+                val ch = channelPool.removeAt(0)
+                printlnError("[getChannelFromPool] Reusing channel from pool. totalChannels=$totalChannels, poolSize=${channelPool.size}")
+                return ch
             }
-            if ((channelPool.size + execChannelPool.size) < maxChannels) {
+            if (totalChannels < maxChannels) {
                 if (!isConnected()) connect()
                 val channel = session?.openChannel("sftp") as? ChannelSftp
                 channel?.connect()
+                if (channel != null) {
+                    totalChannels++
+                    printlnError("[getChannelFromPool] Created new SFTP channel. totalChannels=$totalChannels")
+                }
                 return channel
             }
             var waited = 0L
             val maxWait = 10000L // 10 seconds max wait
             while (channelPool.isEmpty() && waited < maxWait) {
                 channelAvailable.awaitNanos(500_000_000) // 0.5s
+                printlnError("[getChannelFromPool] Waiting for available SFTP channel... totalChannels=$totalChannels")
                 waited += 500
             }
+            // Re-check if we can create a new channel after waiting
+            if (channelPool.isEmpty() && totalChannels < maxChannels) {
+                if (!isConnected()) connect()
+                val channel = session?.openChannel("sftp") as? ChannelSftp
+                channel?.connect()
+                if (channel != null) {
+                    totalChannels++
+                    printlnError("[getChannelFromPool] Created new SFTP channel after wait. totalChannels=$totalChannels")
+                }
+                return channel
+            }
+            printlnError("[getChannelFromPool] Returning null. totalChannels=$totalChannels, poolSize=${channelPool.size}")
             return if (channelPool.isNotEmpty()) channelPool.removeAt(0) else null
         } finally {
             channelPoolLock.unlock()
@@ -143,13 +159,17 @@ class SSHConnection(
         if (channel == null) return
         channelPoolLock.lock()
         try {
-            if (channel.isConnected && (channelPool.size + execChannelPool.size) <= maxChannels) {
+            if (channel.isConnected && totalChannels <= maxChannels) {
                 channelPool.add(channel)
                 channelAvailable.signal()
+                printlnError("[releaseChannelToPool] Channel returned to pool. totalChannels=$totalChannels, poolSize=${channelPool.size}")
             } else {
                 try { channel.disconnect() } catch (_: Exception) {}
+                totalChannels--
+                printlnError("[releaseChannelToPool] Channel disconnected and totalChannels decremented. totalChannels=$totalChannels")
             }
         } finally {
+            cleanupChannels()
             channelPoolLock.unlock()
         }
     }
@@ -157,22 +177,40 @@ class SSHConnection(
     fun getExecChannelFromPool(): ChannelExec? {
         channelPoolLock.lock()
         try {
-            channelPool.removeIf { !it.isConnected }
-            execChannelPool.removeIf { !it.isConnected }
+            cleanupChannels()
+            printlnError("[getExecChannelFromPool] Enter: totalChannels=$totalChannels, poolSize=${execChannelPool.size}")
             if (execChannelPool.isNotEmpty()) {
-                return execChannelPool.removeAt(0)
+                val ch = execChannelPool.removeAt(0)
+                printlnError("[getExecChannelFromPool] Reusing exec channel from pool. totalChannels=$totalChannels, poolSize=${execChannelPool.size}")
+                return ch
             }
-            if ((channelPool.size + execChannelPool.size) < maxChannels) {
+            if (totalChannels < maxChannels) {
                 if (!isConnected()) connect()
                 val channel = session?.openChannel("exec") as? ChannelExec
+                if (channel != null) {
+                    totalChannels++
+                    printlnError("[getExecChannelFromPool] Created new exec channel. totalChannels=$totalChannels")
+                }
                 return channel
             }
             var waited = 0L
             val maxWait = 10000L // 10 seconds max wait
             while (execChannelPool.isEmpty() && waited < maxWait) {
                 channelAvailable.awaitNanos(500_000_000) // 0.5s
+                printlnError("[getExecChannelFromPool] Waiting for exec channel... totalChannels=$totalChannels")
                 waited += 500
             }
+            // Re-check if we can create a new channel after waiting
+            if (execChannelPool.isEmpty() && totalChannels < maxChannels) {
+                if (!isConnected()) connect()
+                val channel = session?.openChannel("exec") as? ChannelExec
+                if (channel != null) {
+                    totalChannels++
+                    printlnError("[getExecChannelFromPool] Created new exec channel after wait. totalChannels=$totalChannels")
+                }
+                return channel
+            }
+            printlnError("[getExecChannelFromPool] Returning null. totalChannels=$totalChannels, poolSize=${execChannelPool.size}")
             return if (execChannelPool.isNotEmpty()) execChannelPool.removeAt(0) else null
         } finally {
             channelPoolLock.unlock()
@@ -183,15 +221,37 @@ class SSHConnection(
         if (channel == null) return
         channelPoolLock.lock()
         try {
-            if (channel.isConnected && (channelPool.size + execChannelPool.size) <= maxChannels) {
+            if (channel.isConnected && totalChannels <= maxChannels) {
                 execChannelPool.add(channel)
                 channelAvailable.signal()
+                printlnError("[releaseExecChannelToPool] Exec channel returned to pool. totalChannels=$totalChannels, poolSize=${execChannelPool.size}")
             } else {
                 try { channel.disconnect() } catch (_: Exception) {}
+                totalChannels--
+                printlnError("[releaseExecChannelToPool] Exec channel disconnected and totalChannels decremented. totalChannels=$totalChannels")
             }
         } finally {
+            cleanupChannels()
             channelPoolLock.unlock()
         }
+    }
+
+    private fun cleanupChannels() {
+        val before = channelPool.size
+        channelPool.removeIf { !it.isConnected }
+        val after = channelPool.size
+        if (before - after > 0) {
+            totalChannels -= (before - after)
+            printlnError("[cleanupChannels] Removed ${before - after} SFTP channels. totalChannels=$totalChannels")
+        }
+        val beforeExec = execChannelPool.size
+        execChannelPool.removeIf { !it.isConnected }
+        val afterExec = execChannelPool.size
+        if (beforeExec - afterExec > 0) {
+            totalChannels -= (beforeExec - afterExec)
+            printlnError("[cleanupChannels] Removed ${beforeExec - afterExec} exec channels. totalChannels=$totalChannels")
+        }
+        printlnError("[cleanupChannels] Available SFTP channels: ${channelPool.size}, Exec channels: ${execChannelPool.size}, Total channels: $totalChannels")
     }
 
     fun uploadFile(localPath: String, remotePath: String) {
@@ -344,6 +404,7 @@ class SSHConnection(
                 try {
                     if (it.isConnected) it.disconnect()
                 } catch (_: Exception) {}
+                totalChannels--
             }
             channelPool.clear()
 
@@ -351,6 +412,7 @@ class SSHConnection(
                 try {
                     if (it.isConnected) it.disconnect()
                 } catch (_: Exception) {}
+                totalChannels--
             }
             execChannelPool.clear()
             channelAvailable.signalAll()
