@@ -41,10 +41,7 @@ class SftpFileContributor(p01: AnActionEvent) : SearchEverywhereContributor<Sftp
     // Use lazy initialization to defer service access until actually needed
     private val sshService by lazy { project.getSSHService() }
     val DO_NOT_ADJUST_NAME_RANGE: Key<Boolean> = Key.create("UsageViewPanel.DO_NOT_ADJUST_NAME_RANGE")
-    val word = AtomicBooleanProperty(false).apply { afterChange { //todo
-                                                                           } }
-
-
+    val word = AtomicBooleanProperty(false).apply { afterChange {  } }
 
 
     val case = AtomicBooleanProperty(false).apply { afterChange {  } }
