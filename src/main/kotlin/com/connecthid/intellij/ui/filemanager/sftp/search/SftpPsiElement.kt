@@ -28,7 +28,7 @@ class SftpPsiElement(
 
     override fun getName(): String? {
         matchInfo?.let {
-            return psiFile.name+":${it.lineNumber}"
+            return "${it.lineNumber}:${it.startOffset}"
         }
         return psiFile.getName()
     }
