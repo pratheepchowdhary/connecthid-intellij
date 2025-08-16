@@ -254,6 +254,22 @@ fun showSftpPopupMenu(
             }
         }
     })
+    // --- Upload and Download Actions ---
+    if (isDirectory) {
+        actionGroup.add(object : AnAction({ "Upload..." }, AllIcons.Actions.Upload) {
+            override fun actionPerformed(e: AnActionEvent) {
+                // Upload handler (implemented below)
+                SftpTransferActions.uploadToRemote(project, file)
+            }
+        })
+    }
+    actionGroup.add(object : AnAction({ "Download..." }, AllIcons.Actions.Download) {
+        override fun actionPerformed(e: AnActionEvent) {
+            // Download handler (implemented below)
+            SftpTransferActions.downloadFromRemote(project, file)
+        }
+    })
+    // --- End Upload and Download Actions ---
 
     val popupMenu = ActionManager.getInstance().createActionPopupMenu("CustomPopup", actionGroup)
     popupMenu.component.show(tree, x, y)

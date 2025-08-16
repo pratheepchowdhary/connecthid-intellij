@@ -5,6 +5,7 @@ import com.connecthid.intellij.connection.vfs.SftpFileOccurrence
 import com.connecthid.intellij.connection.vfs.SftpFileSystem
 import com.connecthid.intellij.connection.vfs.SftpMatchInfo
 import com.connecthid.intellij.getSSHService
+import com.connecthid.intellij.models.Server
 import com.connecthid.intellij.ui.filemanager.sftp.search.actions.SelectPathAction
 import com.connecthid.intellij.ui.filemanager.sftp.search.actions.SelectServerAction
 import com.connecthid.intellij.ui.filemanager.sftp.search.actions.TextSearchAction
@@ -41,12 +42,26 @@ class SftpFileContributor(p01: AnActionEvent) : SearchEverywhereContributor<Sftp
     // Use lazy initialization to defer service access until actually needed
     private val sshService by lazy { project.getSSHService() }
     val DO_NOT_ADJUST_NAME_RANGE: Key<Boolean> = Key.create("UsageViewPanel.DO_NOT_ADJUST_NAME_RANGE")
-    val word = AtomicBooleanProperty(false).apply { afterChange {  } }
-
-
-    val case = AtomicBooleanProperty(false).apply { afterChange {  } }
-    val regexp = AtomicBooleanProperty(false).apply { afterChange {  }}
-    val findInFiles = AtomicBooleanProperty(false).apply { afterChange {  }}
+    val word = AtomicBooleanProperty(false).apply { afterChange {
+         if(getSelectedServer()!=null && getSelectedServer()?.word==it) return@afterChange
+         getSelectedServer()?.word=it
+         sshService.saveState()
+    } }
+    val case = AtomicBooleanProperty(false).apply { afterChange {
+        if(getSelectedServer()!=null && getSelectedServer()?.case==it) return@afterChange
+        getSelectedServer()?.case=it
+        sshService.saveState()
+    } }
+    val regexp = AtomicBooleanProperty(false).apply { afterChange {
+        if(getSelectedServer()!=null && getSelectedServer()?.regexp==it) return@afterChange
+        getSelectedServer()?.regexp=it
+        sshService.saveState()
+    }}
+    val findInFiles = AtomicBooleanProperty(false).apply { afterChange {
+        if(getSelectedServer()!=null && getSelectedServer()?.findInFiles==it) return@afterChange
+        getSelectedServer()?.findInFiles=it
+        sshService.saveState()
+    }}
     val coroutineScope = CoroutineScope(Dispatchers.IO + Job())
     val queryFlow = MutableStateFlow("")
     var firstTimeQuery = false
@@ -70,6 +85,12 @@ class SftpFileContributor(p01: AnActionEvent) : SearchEverywhereContributor<Sftp
 
 
     override fun getActions(onChanged: Runnable): MutableList<AnAction> {
+        getSelectedServer()?.let { server ->
+            word.set(server.word)
+            case.set(server.case)
+            regexp.set(server.regexp)
+            findInFiles.set(server.findInFiles)
+        }
         val actions = mutableListOf<AnAction>()
         var pathAction: SelectPathAction? = null
         sshService.searchServers.firstOrNull { server ->
@@ -98,7 +119,6 @@ class SftpFileContributor(p01: AnActionEvent) : SearchEverywhereContributor<Sftp
             actions.add(pathAction)
         }
         actions.add(SelectServerAction(onChanged = {
-           // pathAction?. = sshService.searchServers.firstOrNull()?.lastSearchPath ?: ""
             onChanged.run()
         }, project))
 
@@ -110,6 +130,12 @@ class SftpFileContributor(p01: AnActionEvent) : SearchEverywhereContributor<Sftp
         return actions
     }
 
+    fun getSelectedServer(): Server? {
+        return sshService.searchServers.firstOrNull()
+    }
+
+
+
 
 
     override fun fetchElements(
@@ -117,14 +143,25 @@ class SftpFileContributor(p01: AnActionEvent) : SearchEverywhereContributor<Sftp
         indicator: ProgressIndicator,
         consumer: Processor<in SftpPsiElement>
     ) {
+
+
         sshService.searchServers.forEach { server ->
             val connection = sshService.getConnection(server.stmpName)
+            val wordFlag = server.word
+            val caseFlag = server.case
+            val regexpFlag = server.regexp
             val fileSystem = connection?.fileSystem
 
             if (fileSystem != null) {
                 if (findInFiles.get()) {
                     // Search within file contents and handle multiple occurrences
-                    val fileOccurrences: List<SftpFileOccurrence> = fileSystem.searchTextInFiles(pattern, server.lastSearchPath)
+                    val fileOccurrences: List<SftpFileOccurrence> = fileSystem.searchTextInFiles(
+                        pattern,
+                        server.lastSearchPath,
+                        wordFlag,
+                        caseFlag,
+                        regexpFlag
+                    )
 
                     for (fileOccurrence in fileOccurrences) {
                         val file = fileOccurrence.file
@@ -143,7 +180,13 @@ class SftpFileContributor(p01: AnActionEvent) : SearchEverywhereContributor<Sftp
                     }
                 } else {
                     // Search by file name (existing functionality)
-                    fileSystem.searchFiles(pattern, server.lastSearchPath).forEach {
+                    fileSystem.searchFiles(
+                        pattern,
+                        server.lastSearchPath,
+                        wordFlag,
+                        caseFlag,
+                        regexpFlag
+                    ).forEach {
                         val psiFile = runReadAction {
                             PsiManager.getInstance(project).findFile(it)
                         }

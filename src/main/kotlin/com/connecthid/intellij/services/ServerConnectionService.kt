@@ -114,6 +114,10 @@ class ServerConnectionService() : PersistentStateComponent<ServerConnectionState
     fun removeServerConnection(host: String,username: String) {
         state.connections.removeIf { it.host == host }
         // Trigger state change to ensure persistence
+        saveState()
+    }
+    fun saveState() {
+        // Trigger state change to ensure persistence
         state = state.copy(connections = state.connections.toMutableList())
     }
 

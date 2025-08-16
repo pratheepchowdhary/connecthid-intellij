@@ -17,6 +17,11 @@ data class Server(
     var systemInfo: SystemInfo = SystemInfo(),
     @Attribute var isInProgress: Boolean=false,
     @Attribute var lastSearchPath: String="",
+    @Attribute var case: Boolean=false,
+    @Attribute var word: Boolean=false,
+    @Attribute var regexp: Boolean=false,
+    @Attribute var findInFiles: Boolean=false
+
 ) {
 
     val icon by lazy {

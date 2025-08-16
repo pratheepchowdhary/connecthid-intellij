@@ -304,18 +304,27 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
         connection.releaseChannelToPool(channel)
     }
 
-    fun searchTextInFiles(pattern: String, path: String = server.rootPath): List<SftpFileOccurrence> {
+    fun searchTextInFiles(
+        pattern: String,
+        path: String = server.rootPath,
+        word: Boolean = false,
+        case: Boolean = false,
+        regexp: Boolean = false
+    ): List<SftpFileOccurrence> {
         val results = mutableListOf<SftpFileOccurrence>()
         val connection = getConnection() ?: return results
         var execChannel: ChannelExec? = null
         try {
-            // Use grep to search for pattern in files with line numbers and byte offsets
-            // The -n option makes grep output line numbers
-            // The -b option makes grep output byte offsets of each match
-            // The -r option makes grep search recursively
+            // Build grep options based on flags
+            val options = mutableListOf("-n", "-b", "-r", "-o")
+            if (word) options.add("-w")
+            if (!case) options.add("-i")
+            if (!regexp) options.add("-F")
             // Exclude hidden files and folders
-            val escapedPattern = pattern.replace("'", "'\\''") // Escape single quotes for shell
-            val grepCommand = "grep -n -b -r -o --exclude-dir='.*' --exclude='.*' '$escapedPattern' '$path' 2>/dev/null"
+            val escapedPattern = pattern.replace("'", "'\\''")
+            val grepCommand = "grep ${options.joinToString(" ")} --exclude-dir='.*' --exclude='.*' '$escapedPattern' '$path' 2>/dev/null"
+
+            println("Searching with command: $grepCommand")
 
             execChannel = connection.getExecChannelFromPool()
             execChannel?.setCommand(grepCommand)
@@ -339,7 +348,7 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
                     // Since grep -b returns the byte offset from the start of the line,
                     // we can use it directly as the match offset in the line
                     val matchOffset = byteOffset
-                    val matchEndOffset = matchOffset + pattern.length
+                    val matchEndOffset = matchOffset + lineContent.count()
 
                     // Add this occurrence to our file matches
                     val fileMatches = fileOccurrences.getOrPut(filePath) { mutableListOf() }
@@ -376,7 +385,13 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
         return indices
     }
 
-    fun searchFiles(pattern: String, path: String = server.rootPath): List<SftpFile> {
+    fun searchFiles(
+        pattern: String,
+        path: String = server.rootPath,
+        word: Boolean = false,
+        case: Boolean = false,
+        regexp: Boolean = false
+    ): List<SftpFile> {
         val results = mutableListOf<SftpFile>()
         if (pattern.length < 2) {
             return results
@@ -384,8 +399,28 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
         val connection = getConnection() ?: return results
         var execChannel: ChannelExec? = null
         try {
-            val remotePattern = if (pattern.contains("*")) pattern else "*$pattern*"
-            val findCommand = "find '$path' -type f -name '$remotePattern' 2>/dev/null"
+            // Build find command based on flags
+            val findOptions = mutableListOf<String>()
+            var findPattern = pattern
+            var findFlag = "-name"
+            if (regexp) {
+                findFlag = "-regex"
+                // For regex, pattern should be a full path regex, so prepend '.*' if not present
+                if (!findPattern.startsWith(".*")) findPattern = ".*" + findPattern
+            } else if (word) {
+                // For word, match exact file name
+                findFlag = "-name"
+                findPattern = pattern
+            } else {
+                // Default: substring match
+                findFlag = if (case) "-name" else "-iname"
+                findPattern = if (pattern.contains("*")) pattern else "*$pattern*"
+            }
+            // Exclude hidden files and folders
+            val excludeHidden = "! -path '*/.*'"
+            val findCommand = "find '$path' -type f $excludeHidden $findFlag '$findPattern' 2>/dev/null"
+
+            println("Searching with command: $findCommand")
             execChannel = connection.getExecChannelFromPool()
             execChannel?.setCommand(findCommand)
             execChannel?.connect()
