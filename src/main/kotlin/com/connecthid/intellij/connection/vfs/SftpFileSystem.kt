@@ -223,6 +223,11 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
 
     override fun isReadOnly(): Boolean = false
 
+    fun isConnected(): Boolean {
+        val connection = connectionService.getConnection(server.host,server.username)
+        return connection?.isConnected() ?: false
+    }
+
 
     internal fun getConnection(): SSHConnection? {
         connectionLock.lock()

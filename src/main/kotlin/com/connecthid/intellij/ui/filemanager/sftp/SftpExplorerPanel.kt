@@ -1,5 +1,6 @@
 package com.connecthid.intellij.ui.filemanager.sftp
 
+import com.connecthid.intellij.connection.vfs.SftpFile
 import com.connecthid.intellij.connection.vfs.SftpFileSystem
 import com.connecthid.intellij.models.Server
 import com.connecthid.intellij.ui.filemanager.sftp.actions.SftpToolbarActions
@@ -73,7 +74,7 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(B
     init {
         println("Initializing SftpPanel for server: ${serverItem.host}")
         // Create the root node
-        rootNode = SftpTreeNode(fileSystem.findFileByPath(rootPath))
+        rootNode = SftpTreeNode(SftpFile(rootPath,fileSystem))
         rootNode.add(DefaultMutableTreeNode("Loading..."))
         // Create the tree model
         treeModel = DefaultTreeModel(rootNode)
@@ -90,7 +91,7 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(B
 
         // Add the tree to a scroll pane
         fileScrollView = com.intellij.ui.components.JBScrollPane(tree)
-        
+
         // Configure loading label
         loadingLabel.apply {
             horizontalAlignment = SwingConstants.CENTER
