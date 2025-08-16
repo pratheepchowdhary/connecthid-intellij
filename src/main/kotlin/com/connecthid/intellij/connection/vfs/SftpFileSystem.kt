@@ -27,6 +27,7 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
     val connectionService by lazy { project.getSSHService() }
     internal val fileCache = mutableMapOf<String, SftpFile>()
     private val listeners = mutableListOf<VirtualFileListener>()
+    var showHiddenFiles = true // This can be a setting in the future to toggle hidden files visibility
 
     private val fileEditor by  lazy { FileEditorManager.getInstance(project) }
     private val connectionLock = ReentrantLock()
@@ -307,8 +308,9 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
             // The -n option makes grep output line numbers
             // The -b option makes grep output byte offsets of each match
             // The -r option makes grep search recursively
+            // Exclude hidden files and folders
             val escapedPattern = pattern.replace("'", "'\\''") // Escape single quotes for shell
-            val grepCommand = "grep -n -b -r -o '$escapedPattern' '$path' 2>/dev/null"
+            val grepCommand = "grep -n -b -r -o --exclude-dir='.*' --exclude='.*' '$escapedPattern' '$path' 2>/dev/null"
 
             execChannel = connection.getExecChannelFromPool()
             execChannel?.setCommand(grepCommand)

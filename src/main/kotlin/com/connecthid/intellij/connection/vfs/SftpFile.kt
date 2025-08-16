@@ -51,6 +51,7 @@ class SftpFile(
     override fun getChildren(): Array<VirtualFile> {
         return runReadAction {
         if (children == null) {
+            // show hidden files and folder based on fileSystem.showHiddenFiles
             var channel: ChannelSftp? = null
             try {
                 channel = fileSystem.getChannelFromPool()
@@ -60,9 +61,13 @@ class SftpFile(
                 }
                 val currentPath = if (pathLocation == "/") "." else pathLocation
                 val files = channel.ls(currentPath) ?: return@runReadAction emptyArray()
-                children = files
+                val entries = files
                     .mapNotNull { it as? ChannelSftp.LsEntry }
                     .filter { it.filename != "." && it.filename != ".." }
+                    .filter { fileSystem.showHiddenFiles || !it.filename.startsWith(".") }
+                // Sort: folders first, then files, both alphabetically
+                val sortedEntries = entries.sortedWith(compareBy<ChannelSftp.LsEntry>({ !it.attrs.isDir }, { it.filename.lowercase() }))
+                children = sortedEntries
                     .map {
                         val childPath = if (pathLocation == "/") "/${it.filename}" else "$pathLocation/${it.filename}"
                         SftpFile(childPath, fileSystem, it.attrs)
