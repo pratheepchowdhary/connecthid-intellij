@@ -1,6 +1,6 @@
 package com.connecthid.intellij.ui.filemanager.sftp.search
 
-import com.connecthid.intellij.connection.vfs.SftpMatchInfo
+import com.connecthid.intellij.connection.sftp.SftpMatchInfo
 import com.intellij.openapi.util.Key
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement

@@ -1,6 +1,6 @@
 package com.connecthid.intellij.ui.filemanager.sftp
 
-import com.connecthid.intellij.connection.vfs.SftpFileSystem
+import com.connecthid.intellij.connection.sftp.SftpFileSystem
 import com.connecthid.intellij.getSSHService
 import com.connecthid.intellij.models.Server
 import com.intellij.openapi.project.Project

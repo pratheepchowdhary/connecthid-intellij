@@ -51,3 +51,6 @@ object ImageExt{
 fun String.toImageIcon(): ImageIcon {
     return ImageExt.osImages[this.lowercase()] ?: ImageIcon()
 }
+fun String.isWindows(): Boolean {
+    return this.lowercase().contains("windows")
+}

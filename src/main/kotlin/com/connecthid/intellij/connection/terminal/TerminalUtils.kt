@@ -11,6 +11,7 @@ import com.jediterm.terminal.ProcessTtyConnector
 import com.jediterm.terminal.TtyConnector
 import org.apache.commons.lang3.StringUtils
 import org.jetbrains.plugins.terminal.ProxyTtyConnector
+import org.jetbrains.plugins.terminal.ShellStartupOptions
 import org.jetbrains.plugins.terminal.TerminalToolWindowManager
 import org.jetbrains.plugins.terminal.TerminalUtil
 import java.nio.file.Path
@@ -46,10 +47,12 @@ object SshTerminalUtils {
         username: String,
         password: String? = null,
         privateKey: String? = null,
-        port: Int = 22
+        port: Int = 22,
+        workingDir: String? = null,
     ) {
         val manager = TerminalToolWindowManager.getInstance(project)
-        manager.createNewSession(SshTerminalRunner(project,host, port, username, password, privateKey))
+        val runner = SshTerminalRunner(project,host, port, username, password, privateKey,workingDir)
+        manager.createNewSession(runner)
     }
 
     fun openSshSession1(
@@ -130,6 +133,6 @@ object SshTerminalUtils {
 
 }
 
-fun Project.openTerminal(server: Server){
-    SshTerminalUtils.openSshSession(this,server.host,server.username,server.getPassword(),server.privateKeyPath,server.port)
+fun Project.openTerminal(server: Server,path: String?=null){
+    SshTerminalUtils.openSshSession(this,server.host,server.username,server.getPassword(),server.privateKeyPath,server.port,path)
 }

@@ -1,4 +1,4 @@
-package com.connecthid.intellij.connection.vfs
+package com.connecthid.intellij.connection.sftp
 
 /**
  * Class that holds information about matches of a search pattern in a specific file.

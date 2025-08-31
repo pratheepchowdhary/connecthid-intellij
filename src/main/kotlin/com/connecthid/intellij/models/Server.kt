@@ -28,6 +28,7 @@ data class Server(
         systemInfo.osName.toImageIcon()
     }
 
+
     val stmpName by lazy {
         "$username@${host}"
     }

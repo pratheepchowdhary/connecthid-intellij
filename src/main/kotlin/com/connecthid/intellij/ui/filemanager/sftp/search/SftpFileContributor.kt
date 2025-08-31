@@ -1,9 +1,8 @@
 package com.connecthid.intellij.ui.filemanager.sftp.search
 
-import com.connecthid.intellij.connection.vfs.SftpFile
-import com.connecthid.intellij.connection.vfs.SftpFileOccurrence
-import com.connecthid.intellij.connection.vfs.SftpFileSystem
-import com.connecthid.intellij.connection.vfs.SftpMatchInfo
+import com.connecthid.intellij.connection.sftp.SftpFile
+import com.connecthid.intellij.connection.sftp.SftpFileOccurrence
+import com.connecthid.intellij.connection.sftp.SftpFileSystem
 import com.connecthid.intellij.getSSHService
 import com.connecthid.intellij.models.Server
 import com.connecthid.intellij.ui.filemanager.sftp.search.actions.SelectPathAction

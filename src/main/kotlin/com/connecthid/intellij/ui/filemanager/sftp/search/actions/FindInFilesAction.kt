@@ -1,8 +1,7 @@
 package com.connecthid.intellij.ui.filemanager.sftp.search.actions
 
-import com.connecthid.intellij.connection.vfs.SftpFileSystem
+import com.connecthid.intellij.connection.sftp.SftpFileSystem
 import com.connecthid.intellij.getSSHService
-import com.connecthid.intellij.services.ServerConnectionService
 import com.intellij.icons.AllIcons
 import com.intellij.ide.actions.searcheverywhere.SearchEverywhereManager
 import com.intellij.openapi.actionSystem.AnAction

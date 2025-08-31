@@ -1,4 +1,4 @@
-package com.connecthid.intellij.connection.vfs
+package com.connecthid.intellij.connection.sftp
 
 import com.intellij.openapi.application.runReadAction
 import com.intellij.openapi.vfs.VirtualFile

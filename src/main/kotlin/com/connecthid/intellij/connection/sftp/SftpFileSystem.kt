@@ -1,18 +1,19 @@
-package com.connecthid.intellij.connection.vfs
+package com.connecthid.intellij.connection.sftp
 
 import com.connecthid.intellij.getSSHService
 import com.connecthid.intellij.models.Server
 import com.connecthid.intellij.models.getPassword
 import com.connecthid.intellij.services.SSHConnection
+import com.connecthid.intellij.utils.isWindows
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditorManager
-import com.intellij.openapi.fileEditor.FileEditorManagerListener
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileListener
 import com.intellij.openapi.vfs.VirtualFileSystem
+import com.intellij.openapi.vfs.isFile
 import com.jcraft.jsch.ChannelExec
 import com.jcraft.jsch.ChannelSftp
 import com.jcraft.jsch.Session
@@ -20,6 +21,7 @@ import com.jcraft.jsch.SftpATTRS
 import java.io.IOException
 import java.io.InputStream
 import java.util.concurrent.locks.ReentrantLock
+import kotlin.collections.iterator
 
 
 class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSystem() {
@@ -75,15 +77,36 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
         return findFileByPath(path)
     }
 
+    private fun deleteRecursiveSftp(channel: ChannelSftp, vFile: VirtualFile) {
+        if (vFile.isDirectory) {
+            val children = vFile.children.toList() // cache once
+            for (child in children) {
+                deleteRecursiveSftp(channel, child) // reuse same channel
+            }
+            channel.rmdir(vFile.path) // remove empty dir
+        } else {
+            channel.rm(vFile.path) // remove file
+        }
+    }
     override fun deleteFile(requestor: Any?, vFile: VirtualFile) {
         var channel: ChannelSftp? = null
+
         val connection = getConnection() ?: return
         try {
-            channel = connection.getChannelFromPool() ?: return
-            if (vFile.isDirectory) {
-                channel.rmdir(vFile.path)
-            } else {
-                channel.rm(vFile.path)
+            if(server.systemInfo.osName.isWindows() || !vFile.isDirectory){
+                channel = connection.getChannelFromPool() ?: return
+                if (vFile.isDirectory) {
+                    if (vFile.children.isNotEmpty()) {
+                        // ✅ Reuse the same channel for the whole recursion
+                        deleteRecursiveSftp(channel, vFile)
+                    } else {
+                        channel.rmdir(vFile.path)
+                    }
+                } else {
+                    channel.rm(vFile.path)
+                }
+            } else if(vFile.isDirectory){
+                connection.execute("rm -rf '${vFile.path}'")
             }
             fileCache.remove(vFile.path)
         } catch (e: Exception) {
@@ -460,6 +483,46 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
             connection.releaseExecChannelToPool(execChannel)
         }
         return results
+    }
+
+    fun archiveFile(virtualFile: VirtualFile): VirtualFile?{
+        val sftpFile = virtualFile as? SftpFile ?: return null
+        var channel: ChannelExec? = null
+        val connection = getConnection() ?: return null
+        try {
+            channel = connection.getExecChannelFromPool() ?: return null
+            val parentPath = sftpFile.getParent()?.path ?: return null
+            val fileName = sftpFile.name
+            val zipFileName = if(sftpFile.isDirectory) "$fileName.zip" else "$fileName.zip"
+            val zipFilePath = "$parentPath/$zipFileName"
+            val zipCommand = if(sftpFile.isDirectory){
+                "cd '$parentPath' && zip -r '$zipFileName' '$fileName'"
+            }else{
+                "cd '$parentPath' && zip '$zipFileName' '$fileName'"
+            }
+            println("Zipping with command: $zipCommand")
+            channel.setCommand(zipCommand)
+            channel.connect()
+            while (!channel.isClosed) {
+                Thread.sleep(100)
+            }
+            val exitStatus = channel.exitStatus
+            if (exitStatus == 0) {
+                println("Zip created at: $zipFilePath")
+                // Invalidate cache for parent directory to reflect new zip file
+                fileCache.remove(parentPath)
+                return findFileByPath(zipFilePath)
+            } else {
+                println("Failed to create zip. Exit status: $exitStatus")
+                return null
+            }
+        } catch (e: Exception) {
+            println("Error zipping file: ${e.message}")
+            e.printStackTrace()
+            return  null
+        } finally {
+            connection.releaseExecChannelToPool(channel)
+        }
     }
 
 }

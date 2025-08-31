@@ -1,7 +1,7 @@
 package com.connecthid.intellij.ui.filemanager.sftp
 
-import com.connecthid.intellij.connection.vfs.SftpFile
-import com.connecthid.intellij.connection.vfs.SftpFileSystem
+import com.connecthid.intellij.connection.sftp.SftpFile
+import com.connecthid.intellij.connection.sftp.SftpFileSystem
 import com.connecthid.intellij.models.Server
 import com.connecthid.intellij.ui.filemanager.sftp.actions.SftpToolbarActions
 import com.intellij.icons.AllIcons
@@ -30,7 +30,7 @@ import javax.swing.tree.TreePath
 import java.util.function.Supplier
 
 class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(BorderLayout()), TreeExpansionListener, TreeSelectionListener, com.intellij.openapi.Disposable {
-    private val tree: Tree
+    val tree: Tree
     val treeModel: DefaultTreeModel
     val rootNode: SftpTreeNode
     val fileSystem by lazy {
@@ -69,7 +69,7 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(B
         }
     }
 
-    private var lastSelectedNode: DefaultMutableTreeNode? = null
+    var lastSelectedNode: DefaultMutableTreeNode? = null
 
     init {
         println("Initializing SftpPanel for server: ${serverItem.host}")
@@ -118,7 +118,9 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(B
             override fun mouseClicked(e: MouseEvent) {
                 if(SwingUtilities.isRightMouseButton(e)){
                     lastSelectedNode?.let {
-                        showPopupMenu(e.x, e.y, it)
+                        val selectedNodes: List<SftpTreeNode> = tree.getSelectedNodes(SftpTreeNode::class.java, null).toList()
+
+                        showPopupMenu(e.x, e.y, selectedNodes)
                     }
                 }
                 else if(e.clickCount == 2){
@@ -135,12 +137,10 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(B
         })
     }
 
-    fun showPopupMenu(x: Int, y: Int, selectedNode: DefaultMutableTreeNode) {
+    fun showPopupMenu(x: Int, y: Int, selectedNodes: List<SftpTreeNode>) {
         showSftpPopupMenu(
             tree = tree,
             project = project,
-            treeModel = treeModel,
-            selectedNode = selectedNode,
             x = x,
             y = y
         )
@@ -174,6 +174,7 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(B
             loadingPanel.isVisible = false
         }
     }
+
 
     private suspend fun addChildren(parentNode: DefaultMutableTreeNode, dir: VirtualFile) = withContext(Dispatchers.Main) {
         try {
@@ -285,3 +286,4 @@ fun Project.openSFTP(server: Server) {
         }
     }
 }
+

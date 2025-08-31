@@ -11,7 +11,8 @@ class SshTtyConnector(
     private val port: Int = 22,
     private val user: String,
     private val password: String? = null,
-    private val privateKeyPath: String? = null
+    private val privateKeyPath: String? = null,
+    private val workingDir: String? = null
 ) : TtyConnector {
 
     private lateinit var session: Session
@@ -50,6 +51,12 @@ class SshTtyConnector(
         outputStream = channel.outputStream
 
         channel.connect(3000)
+        workingDir?.let {
+            val cmd = "cd $it\n"
+            outputStream.write(cmd.toByteArray(Charsets.UTF_8))
+            outputStream.flush()
+            println("Sent working directory command: $cmd")
+        }
         isRunning = true
 
         println("ChannelShell connected.")

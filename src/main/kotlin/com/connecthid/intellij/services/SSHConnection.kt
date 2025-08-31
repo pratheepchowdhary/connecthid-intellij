@@ -1,6 +1,6 @@
 package com.connecthid.intellij.services
 
-import com.connecthid.intellij.connection.vfs.SftpFileSystem
+import com.connecthid.intellij.connection.sftp.SftpFileSystem
 import com.jcraft.jsch.*
 import com.jetbrains.rd.util.printlnError
 import java.io.ByteArrayOutputStream
