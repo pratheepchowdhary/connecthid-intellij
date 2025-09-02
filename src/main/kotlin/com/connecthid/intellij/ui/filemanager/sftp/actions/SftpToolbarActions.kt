@@ -62,7 +62,7 @@ class SftpToolbarActions(private val panel: SftpExplorerPanel,val serverItem: Se
     private fun createNewFolderAction() = object : AnAction({ "New Folder" }, AllIcons.Actions.NewFolder) {
         override fun actionPerformed(e: AnActionEvent) {
             println("New folder action triggered")
-            panel.tree.createFolder()
+            panel.tree.createFolder(panel.project)
         }
     }
 

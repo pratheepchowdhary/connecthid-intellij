@@ -11,12 +11,15 @@ import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
+import com.jcraft.jsch.ChannelSftp
+import com.jcraft.jsch.SftpProgressMonitor
 import java.io.File
+import java.io.IOException
 import kotlin.to
 
 class SftpDownloadTask private constructor(
     project: Project,
-    private val downloads: List<Pair<SftpFile, File>>,   // unified list of remote→local
+    private val downloads: List<Pair<SftpFile, File>>,
     private val callback: (Boolean, String) -> Unit,
 ) : Task.Backgroundable(
     project,
@@ -55,42 +58,71 @@ class SftpDownloadTask private constructor(
             callback(false, e.message ?: "Unknown error")
         }
     }
-    private fun downloadFile(remote: SftpFile, local: File,canclelled: () -> Boolean, progress: (Double) -> Unit) {
-        // temp file to avoid exposing partial downloads
+    private fun downloadFile(
+        remote: SftpFile,
+        local: File,
+        cancelled: () -> Boolean,
+        progress: (Double) -> Unit   // 0–100 %
+    ) {
         val tempFile = File(local.parentFile, "${local.name}.part")
+
+        val fileSystem = remote.fileSystem as? SftpFileSystem
+            ?: throw IOException("Invalid remote file system")
+
+        val channel = fileSystem.getChannelFromPool()
+            ?: throw IOException("Failed to get SFTP channel")
+
         try {
-            remote.inputStream.use { input ->
-                tempFile.outputStream().use { output ->
-                    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-                    var bytesCopied: Long = 0
-                    val totalBytes = remote.length  // size of remote file if available
+            val monitor = object : SftpProgressMonitor {
+                private var transferred: Long = 0
+                private var fileSize: Long = 0
+                private var lastPercent = 0.0
 
-                    var bytes = input.read(buffer)
-                    while (bytes >= 0) {
-                        if (canclelled()) return
-                        output.write(buffer, 0, bytes)
-                        bytesCopied += bytes
+                override fun init(op: Int, src: String?, dest: String?, max: Long) {
+                    fileSize = max
+                    transferred = 0
+                    lastPercent = 0.0
+                }
 
-                        // update fraction if size is known
-                        if (totalBytes > 0) {
-                            val fileProgress = bytesCopied.toDouble() / totalBytes
-                            progress((fileProgress))
+                override fun count(count: Long): Boolean {
+                    if (cancelled()) return false // abort transfer
+                    transferred += count
+                    if (fileSize > 0) {
+                        val percent = (transferred.toDouble() / fileSize)
+                        println(percent)
+                        if (percent > lastPercent) {
+                            lastPercent = percent
+                            progress(percent)
                         }
-                        bytes = input.read(buffer)
                     }
+                    return true
+                }
+
+                override fun end() {
+                    // called when done or aborted
                 }
             }
+
+            // synchronous → blocks until complete or cancelled
+            channel.get(remote.path, tempFile.absolutePath, monitor)
+
             // replace final file atomically
-            if (local.exists()) local.delete()
-            if (!tempFile.renameTo(local)) {
-                throw RuntimeException("Failed to rename ${tempFile.name} → ${local.name}")
+            if (!cancelled()) {
+                if (local.exists()) local.delete()
+                if (!tempFile.renameTo(local)) {
+                    throw IOException("Failed to rename ${tempFile.name} → ${local.name}")
+                }
+            } else {
+                tempFile.delete()
             }
-        }catch (e: Exception) {
+
+        } catch (e: Exception) {
             tempFile.delete()
-            throw e
+            println(e.message)
+        } finally {
+            fileSystem.releaseChannelToPool(channel)
         }
     }
-
 
     override fun onCancel() {
         super.onCancel()
@@ -163,19 +195,22 @@ class SftpUploadTask private constructor(
         }
     }
 
-    private fun uploadFile(local: File, remoteDir: SftpFile,canclelled: () -> Boolean, progress: (Double) -> Unit) {
+    private fun uploadFile(local: File, remoteDir: SftpFile,cancelled: () -> Boolean, progress: (Double) -> Unit) {
         if (!local.exists() || !local.isFile) throw IllegalArgumentException("Local file does not exist: ${local.path}")
-        val remoteFile = SftpFile("${remoteDir.pathLocation}/${local.name}",remoteDir.fileSystem as SftpFileSystem)
+        val fileSystem  = remoteDir.fileSystem as? SftpFileSystem ?: return
+        var channel: ChannelSftp? = null
         try {
+            channel = fileSystem.getChannelFromPool() ?: throw IOException("Failed to get SFTP channel")
+            val outputStream = channel.put("${remoteDir.pathLocation}/${local.name}") ?: throw IOException("Failed to get output stream")
             local.inputStream().use { input ->
-                remoteFile.getOutputStream(null, -1, -1).use { output ->
+                outputStream.use { output ->
                     val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
                     var bytesCopied: Long = 0
                     val totalBytes = local.length()
 
                     var bytes = input.read(buffer)
                     while (bytes >= 0) {
-                        if (canclelled()) return
+                        if (cancelled()) return
                         output.write(buffer, 0, bytes)
                         bytesCopied += bytes
 
@@ -189,7 +224,9 @@ class SftpUploadTask private constructor(
                 }
             }
         }catch (e: Exception) {
-            throw e
+            println(e.message)
+        } finally {
+            fileSystem.releaseChannelToPool(channel)
         }
     }
     override fun onCancel() {
@@ -247,22 +284,15 @@ fun SftpFileSystem.uploadSftpFiles(remoteDir: SftpFile) {
                     NotificationType.INFORMATION
                 )
             } else {
-                if (msg == "Cancelled"){
-                    notifyLater(
-                        project,
-                        "Upload ",
-                        "Upload Canceled: ${localFiles.size} file(s) to ${remoteDir.pathLocation}",
-                        NotificationType.ERROR)
+                val title = if (msg == "Cancelled") "Upload Cancelled" else "Upload Failed"
+                val message = if (msg == "Cancelled") {
+                    "Upload of ${localFiles.size} file(s) to ${remoteDir.pathLocation} was cancelled."
                 } else {
-                    notifyLater(
-                        project,
-                        "Upload Failed",
-                        "Upload failed: $msg",
-                        NotificationType.ERROR
-                    )
+                    "Upload failed: $msg"
                 }
+                val type = if (msg == "Cancelled") NotificationType.WARNING else NotificationType.ERROR
+                notifyLater(project, title, message, type)
             }
-
         }
         .build()
 
@@ -323,20 +353,14 @@ fun SftpFileSystem.downloadSftpFiles(files: List<SftpFile>) {
                 }
 
             } else {
-                if (msg == "Cancelled"){
-                    notifyLater(
-                        project,
-                        "Download",
-                        "Download Canceled",
-                        NotificationType.ERROR)
+                val title = if (msg == "Cancelled") "Download Cancelled" else "Download Failed"
+                val message = if (msg == "Cancelled") {
+                    "Download was cancelled."
                 } else {
-                    notifyLater(
-                        project,
-                        "Download Failed",
-                        "Download failed: $msg",
-                        NotificationType.ERROR
-                    )
+                    "Download failed: $msg"
                 }
+                val type = if (msg == "Cancelled") NotificationType.WARNING else NotificationType.ERROR
+                notifyLater(project, title, message, type)
                 println("❌ Failed: $msg")
             }
         }

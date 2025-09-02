@@ -235,14 +235,12 @@ class ServerItem(val device: Server, val connectionService: ServerConnectionServ
         if(connectionService.isConnected(device.host,device.username)){
             actionGroup.add(object : AnAction({ PluginBundle.message("disconnect")}, AllIcons.Debugger.KillProcess) {
                 override fun actionPerformed(e: AnActionEvent) {
-                    println("Rename action triggered")
                     listener?.onDisconnectButtonClicked(device)
                 }
             })
         } else {
             actionGroup.add(object : AnAction({ PluginBundle.message("connect")}, AllIcons.Debugger.ThreadRunning) {
                 override fun actionPerformed(e: AnActionEvent) {
-                    println("Rename action triggered")
                     listener?.onConnectButtonClicked(device)
                 }
             })

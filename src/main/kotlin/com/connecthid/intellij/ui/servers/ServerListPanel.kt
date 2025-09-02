@@ -11,6 +11,9 @@ import com.intellij.openapi.project.Project
 import com.connecthid.intellij.connection.terminal.openTerminal
 import com.connecthid.intellij.models.getPassword
 import com.connecthid.intellij.ui.filemanager.sftp.openSFTP
+import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.application.runReadAction
+import com.intellij.openapi.progress.runBackgroundableTask
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPanel
@@ -115,12 +118,12 @@ class ServerListPanel internal constructor(val project: Project): JBPanel<Server
         addServerDialog.show()
     }
 
-    override fun onConnectButtonClicked(device: Server) {
-        project.openSFTP(device)
+    override fun onConnectButtonClicked(server: Server) {
+        connectionService.connect(server.host,server.username,server.getPassword(),server.port,server.privateKeyPath)
     }
 
     override fun onDisconnectButtonClicked(device: Server) {
-        TODO("Not yet implemented")
+        connectionService.disconnect(device.host,device.username)
     }
 
     override fun onOpenConsoleButtonClicked(device: Server) {

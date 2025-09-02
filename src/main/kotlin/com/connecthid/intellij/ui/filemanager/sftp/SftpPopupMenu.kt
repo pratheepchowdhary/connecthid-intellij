@@ -52,7 +52,7 @@ fun showSftpPopupMenu(
         // Folder creation
         newActionGroup.add(object : AnAction({ "Folder" }, AllIcons.Actions.NewFolder) {
             override fun actionPerformed(e: AnActionEvent) {
-                tree.createFolder()
+                tree.createFolder(project)
             }
         })
         newActionGroup.addSeparator()
@@ -89,11 +89,11 @@ fun showSftpPopupMenu(
     }
     actionGroup.addSeparator()
     if (!multipleFiles) {
-        actionGroup.add(object : AnAction({ "Find Usages" }) {
-            override fun actionPerformed(e: AnActionEvent) {
-                Messages.showInfoMessage(tree, "Find Usages action not implemented.", "Info")
-            }
-        })
+//        actionGroup.add(object : AnAction({ "Find Usages" }) {
+//            override fun actionPerformed(e: AnActionEvent) {
+//                Messages.showInfoMessage(tree, "Find Usages action not implemented.", "Info")
+//            }
+//        })
         if (isDirectory) {
             // Find in Folder
             actionGroup.add(FindInFilesAction(project, file))
@@ -172,7 +172,7 @@ private fun findTreePathForFile(selectedNode: DefaultMutableTreeNode,treeModel: 
     return TreePath(treeModel.getPathToRoot(node))
 }
 
-fun Tree.createFolder(){
+fun Tree.createFolder(project: Project){
     val selectedNodes = this.getSelectedNodes(SftpTreeNode::class.java, null).toList()
     if (selectedNodes.size != 1) return
     val directory = selectedNodes[0].userObject as? SftpFile ?: return
@@ -210,8 +210,9 @@ fun Tree.createFolder(){
                         }
                     }
                 }
+                project.showNotification("Folder Created", "Successfully created folder: ${newDir.name}",com.intellij.notification.NotificationType.INFORMATION)
             } catch (ex: Exception) {
-                Messages.showErrorDialog(this, "Failed to create folder: ${ex.message}")
+                project.showNotification("Folder Creation Failed", "Failed to create folder: ${ex.message}",com.intellij.notification.NotificationType.ERROR)
             }
         }
     }
@@ -257,8 +258,9 @@ fun Tree.createFile(project: Project){
                         }
                     }
                 }
+                project.showNotification("File Created", "Successfully created file: ${newFile.name}",com.intellij.notification.NotificationType.INFORMATION)
             } catch (ex: Exception) {
-                Messages.showErrorDialog(this, "Failed to create file: ${ex.message}")
+                project.showNotification("File Creation Failed", "Failed to create file: ${ex.message}",com.intellij.notification.NotificationType.ERROR)
             }
         }
     }

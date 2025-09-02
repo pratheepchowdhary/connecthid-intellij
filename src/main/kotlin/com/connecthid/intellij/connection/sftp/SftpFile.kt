@@ -49,7 +49,7 @@ class SftpFile(
 
 
     override fun getChildren(): Array<VirtualFile> {
-        return runReadAction {
+            return runReadAction {
         if (children == null) {
             // show hidden files and folder based on fileSystem.showHiddenFiles
             var channel: ChannelSftp? = null
@@ -60,6 +60,7 @@ class SftpFile(
                     return@runReadAction emptyArray()
                 }
                 val currentPath = if (pathLocation == "/") "." else pathLocation
+                println(currentPath)
                 val files = channel.ls(currentPath) ?: return@runReadAction emptyArray()
                 val entries = files
                     .mapNotNull { it as? ChannelSftp.LsEntry }
