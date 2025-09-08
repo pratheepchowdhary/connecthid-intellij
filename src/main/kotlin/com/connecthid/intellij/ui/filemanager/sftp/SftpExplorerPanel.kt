@@ -5,6 +5,9 @@ import com.connecthid.intellij.connection.sftp.SftpFileSystem
 import com.connecthid.intellij.models.Server
 import com.connecthid.intellij.ui.filemanager.sftp.actions.SftpToolbarActions
 import com.intellij.icons.AllIcons
+import com.intellij.ide.dnd.DnDDragStartBean
+import com.intellij.ide.dnd.DnDEvent
+import com.intellij.ide.dnd.DnDSupport
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.wm.ToolWindowAnchor
@@ -120,7 +123,7 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(B
                     lastSelectedNode?.let {
                         val selectedNodes: List<SftpTreeNode> = tree.getSelectedNodes(SftpTreeNode::class.java, null).toList()
 
-                        showPopupMenu(e.x, e.y, selectedNodes)
+                        showPopupMenu(e.x, e.y)
                     }
                 }
                 else if(e.clickCount == 2){
@@ -135,9 +138,57 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(B
                 }
             }
         })
+        DnDSupport.createBuilder(tree).setDisposableParent(this).setBeanProvider { info ->
+            val sel = tree.selectionPaths?.toList().orEmpty()
+            if (sel.isEmpty()) null else DnDDragStartBean(
+                DraggedNodes(sel)
+            )
+        }.setTargetChecker { event ->
+            val tp = tree.getPathForLocation(event.point.x, event.point.y)
+            val target = tp?.lastPathComponent as? SftpTreeNode
+            val dragged = (event.attachedObject as? DraggedNodes)
+                ?.paths?.map { it.lastPathComponent as SftpTreeNode }
+                ?: emptyList()
+
+            val ok = dragged.isNotEmpty() && canDrop(dragged, target)
+
+            if (ok && tp != null) {
+                val bounds = tree.getPathBounds(tp)
+                if (bounds != null) {
+                    event.setHighlighting(tree, DnDEvent.DropTargetHighlightingType.RECTANGLE)
+                }
+            } else {
+                event.hideHighlighter()
+            }
+
+            ok
+        }.setDropHandler { event ->
+            val dragged = (event.attachedObject as? DraggedNodes)
+                ?.paths?.map { it.lastPathComponent as SftpTreeNode } ?: return@setDropHandler
+            val tp = tree.getPathForLocation(event.point.x, event.point.y) ?: return@setDropHandler
+            val target = tp.lastPathComponent as? SftpTreeNode ?: return@setDropHandler
+
+            if (!canDrop(dragged, target)) return@setDropHandler
+
+            // 🔹 Update the tree model
+            for (node in dragged) {
+                val parent = node.parent as? SftpTreeNode ?: continue
+                treeModel.removeNodeFromParent(node)
+                treeModel.insertNodeInto(node, target, target.childCount)
+            }
+
+            // 🔹 Expand the drop target so user sees changes
+            tree.expandPath(tp)
+        }.install()
+    }
+    fun canDrop(dragged: List<SftpTreeNode>, target: SftpTreeNode?): Boolean {
+        if (target == null || !target.file.isDirectory) return false
+        // prevent dropping into itself/descendants
+        if (dragged.any { it == target || it.isNodeDescendant(target) }) return false
+        return true
     }
 
-    fun showPopupMenu(x: Int, y: Int, selectedNodes: List<SftpTreeNode>) {
+    fun showPopupMenu(x: Int, y: Int) {
         showSftpPopupMenu(
             tree = tree,
             project = project,
@@ -287,3 +338,5 @@ fun Project.openSFTP(server: Server) {
     }
 }
 
+// What gets carried around in drag event
+data class DraggedNodes(val paths: List<TreePath>)

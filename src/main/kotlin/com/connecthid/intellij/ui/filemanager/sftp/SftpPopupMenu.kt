@@ -5,6 +5,7 @@ import com.connecthid.intellij.connection.sftp.SftpFile
 import com.connecthid.intellij.connection.sftp.SftpFileSystem
 import com.connecthid.intellij.connection.sftp.downloadSftpFiles
 import com.connecthid.intellij.connection.sftp.uploadSftpFiles
+import com.connecthid.intellij.getSSHService
 import com.connecthid.intellij.ui.filemanager.sftp.search.actions.FindInFilesAction
 import com.connecthid.intellij.utils.showNotification
 import com.intellij.icons.AllIcons
@@ -13,6 +14,7 @@ import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.invokeLater
 import com.intellij.openapi.application.runWriteAction
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
@@ -38,6 +40,7 @@ fun showSftpPopupMenu(
     val file = selectedNodes[0].userObject as? SftpFile ?: return
     val server = (file.fileSystem as? SftpFileSystem)?.server ?: return
     val multipleFiles = selectedNodes.size > 1
+    val service = project.getSSHService()
 
     val actionGroup = DefaultActionGroup()
     val isDirectory = file.isDirectory
@@ -84,6 +87,26 @@ fun showSftpPopupMenu(
         actionGroup.add(object : AnAction({ "Paste" }, AllIcons.Actions.MenuPaste) {
             override fun actionPerformed(e: AnActionEvent) {
                 Messages.showInfoMessage(tree, "Paste action not implemented.", "Info")
+            }
+        })
+    }
+    if(isDirectory){
+        // add to workspace
+        actionGroup.add(object : AnAction({ "Add to Workspace" }, AllIcons.Actions.AddDirectory){
+            override fun actionPerformed(e: AnActionEvent) {
+                // show dialog with workspace name as input with folder name
+                invokeLater {
+                    val folderName = Messages.showInputDialog(
+                        tree,
+                        "Enter workspace name:",
+                        "Add to Workspace",
+                        Messages.getQuestionIcon(),
+                        file.name,
+                        null
+                    ) ?: return@invokeLater
+                    if(folderName.isBlank()) return@invokeLater
+                    service.addWorkspace(server = server.stmpName, path = file.path, folderName = folderName)
+                }
             }
         })
     }

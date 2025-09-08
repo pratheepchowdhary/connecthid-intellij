@@ -3,6 +3,7 @@ package com.connecthid.intellij.services
 import com.connecthid.intellij.models.AuthenticationMethod
 import com.connecthid.intellij.models.Server
 import com.connecthid.intellij.models.SystemInfo
+import com.connecthid.intellij.models.Workspace
 import com.connecthid.intellij.models.setPassword
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.PersistentStateComponent
@@ -15,7 +16,8 @@ import java.util.concurrent.ConcurrentHashMap
 
 
 data class ServerConnectionState(
-    var connections: MutableList<Server> = mutableListOf()
+    var connections: MutableList<Server> = mutableListOf(),
+    var workspaces: MutableList<Workspace> = mutableListOf()
 )
 
 @State(name = "ServerConnectionService", storages = [Storage("server-connections.xml")])
@@ -56,6 +58,23 @@ class ServerConnectionService() : PersistentStateComponent<ServerConnectionState
             updateSystemInfo(connection)
             connection.setPassword(password)
         }
+    }
+
+    fun addWorkspace(server: String, path: String, folderName: String) {
+        if (!state.workspaces.any { it.server == server && it.path == path }) {
+            val workspace = Workspace(server = server, path = path, folderName = folderName)
+            state.workspaces.add(workspace)
+            saveState()
+        }
+    }
+
+    fun removeWorkspace(server: String, path: String) {
+        state.workspaces.removeIf { it.server == server && it.path == path }
+        saveState()
+    }
+
+    fun getWorkspaces(): List<Workspace> {
+        return state.workspaces.toList()
     }
 
     private fun updateSystemInfo(server: Server) {
@@ -118,7 +137,7 @@ class ServerConnectionService() : PersistentStateComponent<ServerConnectionState
     }
     fun saveState() {
         // Trigger state change to ensure persistence
-        state = state.copy(connections = state.connections.toMutableList())
+        state = state.copy(connections = state.connections.toMutableList(), workspaces = state.workspaces.toMutableList())
     }
 
     fun getSavedConnections(): List<Server> {
