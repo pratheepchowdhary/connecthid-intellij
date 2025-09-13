@@ -217,6 +217,25 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Email:** support@connecthid.com
 - **Website:** [https://connecthid.com](https://connecthid.com)
 
+## 👤 About the Author
+
+**Pratheep Chowdhary** is the creator and maintainer of ConnectHID. As a passionate developer focused on improving developer productivity and cloud infrastructure management, Pratheep has designed this plugin to bridge the gap between local development and remote server management.
+
+### Connect with Pratheep:
+- **GitHub:** [@pratheepchowdhary](https://github.com/pratheepchowdhary)
+- **LinkedIn:** [Connect on LinkedIn](https://linkedin.com/in/pratheepchowdhary)
+- **Email:** [pratheep@connecthid.com](mailto:pratheep@connecthid.com)
+- **Website:** [ConnectHID](https://connecthid.com)
+
+### Professional Background:
+Pratheep specializes in:
+- **DevOps & Cloud Infrastructure** - Expert in server management and automation
+- **IntelliJ Plugin Development** - Deep knowledge of JetBrains Platform SDK
+- **Kotlin Development** - Proficient in modern Kotlin practices and patterns
+- **Remote Development Tools** - Focus on developer experience and productivity
+
+*"Building tools that make developers' lives easier and more productive is my passion. ConnectHID represents my vision of seamless integration between local development environments and remote infrastructure."* - Pratheep Chowdhary
+
 ## 🎉 Acknowledgments
 
 - JetBrains for the IntelliJ Platform
