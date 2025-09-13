@@ -3,11 +3,14 @@ package com.connecthid.intellij.ui.filemanager.sftp
 import com.connecthid.intellij.connection.sftp.SftpFile
 import com.connecthid.intellij.connection.sftp.SftpFileSystem
 import com.connecthid.intellij.models.Server
+import com.connecthid.intellij.models.Workspace
 import com.connecthid.intellij.ui.filemanager.sftp.actions.SftpToolbarActions
 import com.intellij.icons.AllIcons
 import com.intellij.ide.dnd.DnDDragStartBean
 import com.intellij.ide.dnd.DnDEvent
 import com.intellij.ide.dnd.DnDSupport
+import com.intellij.openapi.actionSystem.AnAction
+import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.wm.ToolWindowAnchor
@@ -22,6 +25,7 @@ import java.awt.Color
 import java.awt.Rectangle
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
+import java.util.function.Supplier
 import javax.swing.*
 import javax.swing.event.TreeExpansionEvent
 import javax.swing.event.TreeExpansionListener
@@ -30,9 +34,8 @@ import javax.swing.event.TreeSelectionListener
 import javax.swing.tree.DefaultMutableTreeNode
 import javax.swing.tree.DefaultTreeModel
 import javax.swing.tree.TreePath
-import java.util.function.Supplier
 
-class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(BorderLayout()), TreeExpansionListener, TreeSelectionListener, com.intellij.openapi.Disposable {
+class SftpExplorerPanel(val project: Project, val serverItem: Server, showToolbar: Boolean = true,val panelId: String="ConnectHID:SFTP",val rootPath: String = serverItem.rootPath) : JPanel(BorderLayout()), TreeExpansionListener, TreeSelectionListener, com.intellij.openapi.Disposable {
     val tree: Tree
     val treeModel: DefaultTreeModel
     val rootNode: SftpTreeNode
@@ -41,9 +44,7 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(B
         SftpFileSystem(project, serverItem)
     }
 
-    val rootPath by lazy {
-        serverItem.rootPath
-    }
+
 
     val coroutineScope = CoroutineScope(Dispatchers.Main + Job())
     private var fileScrollView: com.intellij.ui.components.JBScrollPane
@@ -78,6 +79,7 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(B
         println("Initializing SftpPanel for server: ${serverItem.host}")
         // Create the root node
         rootNode = SftpTreeNode(SftpFile(rootPath,fileSystem))
+
         rootNode.add(DefaultMutableTreeNode("Loading..."))
         // Create the tree model
         treeModel = DefaultTreeModel(rootNode)
@@ -89,8 +91,10 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(B
         tree.addTreeSelectionListener(this)
 
         // Use the new toolbar actions class
-        val toolbarActions = SftpToolbarActions(this, serverItem = serverItem)
-        add(toolbarActions.createToolbar(), BorderLayout.NORTH)
+        if (showToolbar) {
+            val toolbarActions = SftpToolbarActions(this, serverItem = serverItem)
+            add(toolbarActions.createToolbar(), BorderLayout.NORTH)
+        }
 
         // Add the tree to a scroll pane
         fileScrollView = com.intellij.ui.components.JBScrollPane(tree)
@@ -255,10 +259,6 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(B
     override fun treeCollapsed(event: TreeExpansionEvent) {}
 
 
-    override fun removeNotify() {
-        super.removeNotify()
-        coroutineScope.cancel()
-    }
 
     override fun valueChanged(event: TreeSelectionEvent?) {
         val selectedPath = event?.path
@@ -279,7 +279,7 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server) : JPanel(B
 
 fun Project.closeSFTP(panel: SftpExplorerPanel) {
     val manager = ToolWindowManager.getInstance(this)
-    val toolWindow = manager.getToolWindow("ConnectHID:SFTP")
+    val toolWindow = manager.getToolWindow(panel.panelId)
     toolWindow?.let { window ->
         // Find and remove all contents
         val existingPanel = toolWindow.contentManager.contents.firstOrNull { content ->
@@ -295,14 +295,69 @@ fun Project.closeSFTP(panel: SftpExplorerPanel) {
     }
 }
 
-fun Project.openSFTP(server: Server) {
+fun Project.openProject(server: Server, workspace: Workspace )  {
+
+    val manager = ToolWindowManager.getInstance(this)
+    val panelId = server.stmpName+":"+workspace.folderName
+    val toolWindow = manager.getToolWindow(panelId)
+    if (toolWindow == null) {
+        val window = manager.registerToolWindow(panelId) {
+            icon = AllIcons.Nodes.WebFolder
+            canCloseContent = false
+            anchor = ToolWindowAnchor.LEFT
+            stripeTitle = Supplier{workspace.folderName}
+        }
+        val sftpPanel = SftpExplorerPanel(this, server,false,panelId,workspace.path)
+        val contentFactory = ContentFactory.getInstance()
+        val content = contentFactory.createContent(sftpPanel, "", true).apply {
+            isCloseable = false
+            setDisposer(sftpPanel)  // Ensure proper cleanup
+        }
+        window.setTitleActions(listOf(object : AnAction({ "Stop" }, AllIcons.Actions.Suspend) {
+            override fun actionPerformed(e: AnActionEvent) {
+              sftpPanel.project.closeSFTP(sftpPanel)
+            }
+        }))
+        window.contentManager.addContent(content)
+        window.activate { window.show() }
+    } else {
+        // Check if panel for this server already exists
+        val existingPanel = toolWindow.contentManager.contents.firstOrNull { content ->
+            (content.component as? SftpExplorerPanel)?.serverItem?.host == server.host &&
+                    (content.component as? SftpExplorerPanel)?.serverItem?.username == server.username
+        }
+
+        if (existingPanel != null) {
+            toolWindow.activate { toolWindow.show() }
+        } else {
+            val sftpPanel = SftpExplorerPanel(this, server,false,panelId,workspace.path)
+            val contentFactory = ContentFactory.getInstance()
+            val content = contentFactory.createContent(sftpPanel, "", true).apply {
+                isCloseable = false
+                setDisposer(sftpPanel)  // Ensure proper cleanup
+            }
+            toolWindow.setTitleActions(listOf(object : AnAction({ "Stop" }, AllIcons.Actions.Suspend) {
+                override fun actionPerformed(e: AnActionEvent) {
+                    sftpPanel.project.closeSFTP(sftpPanel)
+                }
+            }))
+            toolWindow.contentManager.addContent(content)
+            toolWindow.activate { toolWindow.show() }
+        }
+    }
+
+}
+
+
+
+fun Project.openSFTP(server: Server,side: ToolWindowAnchor = ToolWindowAnchor.RIGHT) {
     val manager = ToolWindowManager.getInstance(this)
     val toolWindow = manager.getToolWindow("ConnectHID:SFTP")
     if (toolWindow == null) {
         val window = manager.registerToolWindow("ConnectHID:SFTP") {
             icon = AllIcons.Nodes.WebFolder
             canCloseContent = true
-            anchor = ToolWindowAnchor.RIGHT
+            anchor = side
             stripeTitle = Supplier{"SFTP Explorer"}
         }
         val sftpPanel = SftpExplorerPanel(this, server)
@@ -340,3 +395,6 @@ fun Project.openSFTP(server: Server) {
 
 // What gets carried around in drag event
 data class DraggedNodes(val paths: List<TreePath>)
+
+
+

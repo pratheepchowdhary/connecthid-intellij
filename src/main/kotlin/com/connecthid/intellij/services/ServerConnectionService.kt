@@ -228,6 +228,10 @@ class ServerConnectionService() : PersistentStateComponent<ServerConnectionState
         return connections["$username@${host}"]
     }
 
+    fun getServer(server: String): Server?{
+        return state.connections.firstOrNull() { it.stmpName.equals(server) }
+    }
+
     fun getConnection(userAtHost: String): SSHConnection? {
         return connections[userAtHost]
     }

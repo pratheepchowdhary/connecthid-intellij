@@ -2,6 +2,7 @@ package com.connecthid.intellij.ui.workspaces
 
 import com.connecthid.intellij.getSSHService
 import com.connecthid.intellij.models.Workspace
+import com.connecthid.intellij.ui.filemanager.sftp.openProject
 import com.connecthid.intellij.ui.servers.ServerListPanel
 import com.intellij.openapi.project.Project
 import com.intellij.ui.JBColor
@@ -50,11 +51,14 @@ class WorkSpacesPanel internal constructor(val project: Project) : JBPanel<Serve
             val item = WorkspaceItem(workspace)
             item.listener = object : WorkspaceItem.Listener {
                 override fun onOpenWorkspaceClicked(workspace: Workspace) {
-                    javax.swing.JOptionPane.showMessageDialog(this@WorkSpacesPanel, "Open workspace: ${'$'}{workspace.folderName}")
+                    connection.getServer(workspace.server)?.let {
+                        project.openProject(it, workspace)
+                    }
                 }
                 override fun onDeleteWorkspaceClicked(workspace: Workspace) {
                     javax.swing.JOptionPane.showMessageDialog(this@WorkSpacesPanel, "Delete workspace: ${'$'}{workspace.folderName}")
                     workspaces.remove(workspace)
+                    connection.removeWorkspace(workspace.server,workspace.path)
                     rebuildUi()
                 }
             }

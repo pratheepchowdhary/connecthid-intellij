@@ -29,6 +29,8 @@
   <depends>com.intellij.modules.platform</depends>
   <depends>com.intellij.modules.lang</depends>
   <depends>org.jetbrains.plugins.terminal</depends>
+
+
   <extensions defaultExtensionNs="com.intellij">
     <applicationService
                 serviceImplementation="com.connecthid.intellij.services.ConnectHidServiceImpl"/>
@@ -44,6 +46,7 @@
             displayType="BALLOON" />
 
     <searchEverywhereContributor implementation="com.connecthid.intellij.ui.filemanager.sftp.search.SftpFileContributorFactory"/>
+
 
 
   </extensions>

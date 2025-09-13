@@ -1,7 +1,12 @@
 package com.connecthid.intellij.ui.workspaces
 
+import com.connecthid.intellij.PluginBundle
 import com.connecthid.intellij.models.Workspace
 import com.intellij.icons.AllIcons
+import com.intellij.openapi.actionSystem.ActionManager
+import com.intellij.openapi.actionSystem.AnAction
+import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPanel
@@ -37,7 +42,7 @@ class WorkspaceItem(val workspace: Workspace) : JBPanel<WorkspaceItem>(GridBagLa
         preferredSize = Dimension(0, LIST_ITEM_HEIGHT)
 
         val iconLabel = JBLabel(AllIcons.Nodes.Workspace).apply {
-            preferredSize = Dimension(40, 40)
+            preferredSize = Dimension(80, 80)
         }
         add(iconLabel, GridBagConstraints().apply {
             gridx = 0
@@ -103,14 +108,26 @@ class WorkspaceItem(val workspace: Workspace) : JBPanel<WorkspaceItem>(GridBagLa
     }
 
     private fun showPopupMenu(button: JButton) {
-        val popupMenu = JPopupMenu()
-        val openItem = javax.swing.JMenuItem("Open")
-        val deleteItem = javax.swing.JMenuItem("Delete")
-        openItem.addActionListener { listener?.onOpenWorkspaceClicked(workspace) }
-        deleteItem.addActionListener { listener?.onDeleteWorkspaceClicked(workspace) }
-        popupMenu.add(openItem)
-        popupMenu.add(deleteItem)
-        popupMenu.show(button, button.width, button.height)
+        val actionGroup = DefaultActionGroup()
+        actionGroup.add(object : AnAction({ PluginBundle.message("open_workspace") }, AllIcons.Nodes.WebFolder) {
+            override fun actionPerformed(e: AnActionEvent) {
+                listener?.onOpenWorkspaceClicked(workspace)
+            }
+        })
+        actionGroup.addSeparator()
+        actionGroup.add(object : AnAction({ PluginBundle.message("edit") }, AllIcons.Actions.Edit) {
+            override fun actionPerformed(e: AnActionEvent) {
+                // Optionally implement edit logic here
+            }
+        })
+        actionGroup.addSeparator()
+        actionGroup.add(object : AnAction({ PluginBundle.message("delete") }, AllIcons.Actions.DeleteTag) {
+            override fun actionPerformed(e: AnActionEvent) {
+                listener?.onDeleteWorkspaceClicked(workspace)
+            }
+        })
+        val popupMenu = ActionManager.getInstance().createActionPopupMenu("WorkspacePopup", actionGroup)
+        popupMenu.component.show(button, button.width, button.height)
     }
 
     interface Listener {
