@@ -73,3 +73,4 @@ class WorkSpacesPanel internal constructor(val project: Project) : JBPanel<Serve
         rebuildUi()
     }
 }
+

@@ -2,6 +2,8 @@ package com.connecthid.intellij.connection.sftp
 
 import com.connecthid.intellij.getSSHService
 import com.connecthid.intellij.models.Server
+import com.connecthid.intellij.models.SftpFileOccurrence
+import com.connecthid.intellij.models.SftpMatchInfo
 import com.connecthid.intellij.models.getPassword
 import com.connecthid.intellij.services.SSHConnection
 import com.connecthid.intellij.utils.isWindows
@@ -13,7 +15,6 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileListener
 import com.intellij.openapi.vfs.VirtualFileSystem
-import com.intellij.openapi.vfs.isFile
 import com.jcraft.jsch.ChannelExec
 import com.jcraft.jsch.ChannelSftp
 import com.jcraft.jsch.Session

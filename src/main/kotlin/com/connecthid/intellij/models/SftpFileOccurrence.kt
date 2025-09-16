@@ -1,4 +1,6 @@
-package com.connecthid.intellij.connection.sftp
+package com.connecthid.intellij.models
+
+import com.connecthid.intellij.connection.sftp.SftpFile
 
 /**
  * Class that holds information about matches of a search pattern in a specific file.

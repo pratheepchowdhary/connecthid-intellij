@@ -1,11 +1,9 @@
 package com.connecthid.intellij.ui.filemanager.sftp
 
+import com.connecthid.intellij.connection.sftp.*
 import com.connecthid.intellij.connection.terminal.openTerminal
-import com.connecthid.intellij.connection.sftp.SftpFile
-import com.connecthid.intellij.connection.sftp.SftpFileSystem
-import com.connecthid.intellij.connection.sftp.downloadSftpFiles
-import com.connecthid.intellij.connection.sftp.uploadSftpFiles
 import com.connecthid.intellij.getSSHService
+import com.connecthid.intellij.models.SftpTransferData
 import com.connecthid.intellij.ui.filemanager.sftp.search.actions.FindInFilesAction
 import com.connecthid.intellij.utils.showNotification
 import com.intellij.icons.AllIcons
@@ -17,13 +15,15 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.invokeLater
 import com.intellij.openapi.application.runWriteAction
 import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.ui.treeStructure.Tree
 import java.awt.Toolkit
+import java.awt.datatransfer.DataFlavor
 import java.awt.datatransfer.StringSelection
-import javax.swing.JTree
+import java.io.File
 import javax.swing.SwingUtilities
 import javax.swing.tree.DefaultMutableTreeNode
 import javax.swing.tree.DefaultTreeModel
@@ -49,7 +49,7 @@ fun showSftpPopupMenu(
         // File creation
         newActionGroup.add(object : AnAction({ "File" }, AllIcons.Actions.AddFile) {
             override fun actionPerformed(e: AnActionEvent) {
-              tree.createFile(project)
+                tree.createFile(project)
             }
         })
         // Folder creation
@@ -65,13 +65,13 @@ fun showSftpPopupMenu(
     // Move (not implemented, placeholder)
     actionGroup.add(object : AnAction({ "Move" }, AllIcons.Actions.MenuCut) {
         override fun actionPerformed(e: AnActionEvent) {
-            Messages.showInfoMessage(tree, "Move action not implemented.", "Info")
+            tree.cut()
         }
     })
     // Copy (not implemented, placeholder)
     actionGroup.add(object : AnAction({ "Copy" }, AllIcons.Actions.Copy) {
         override fun actionPerformed(e: AnActionEvent) {
-            Messages.showInfoMessage(tree, "Copy action not implemented.", "Info")
+            tree.copy()
         }
     })
     if (!multipleFiles) {
@@ -84,15 +84,17 @@ fun showSftpPopupMenu(
             }
         })
         // Paste (not implemented, placeholder)
-        actionGroup.add(object : AnAction({ "Paste" }, AllIcons.Actions.MenuPaste) {
-            override fun actionPerformed(e: AnActionEvent) {
-                Messages.showInfoMessage(tree, "Paste action not implemented.", "Info")
-            }
-        })
+        if (file.isWritable) {
+            actionGroup.add(object : AnAction({ "Paste" }, AllIcons.Actions.MenuPaste) {
+                override fun actionPerformed(e: AnActionEvent) {
+                    tree.paste()
+                }
+            })
+        }
     }
-    if(isDirectory){
+    if (isDirectory) {
         // add to workspace
-        actionGroup.add(object : AnAction({ "Add to Workspace" }, AllIcons.Actions.AddDirectory){
+        actionGroup.add(object : AnAction({ "Add to Workspace" }, AllIcons.Actions.AddDirectory) {
             override fun actionPerformed(e: AnActionEvent) {
                 // show dialog with workspace name as input with folder name
                 invokeLater {
@@ -104,7 +106,7 @@ fun showSftpPopupMenu(
                         file.name,
                         null
                     ) ?: return@invokeLater
-                    if(folderName.isBlank()) return@invokeLater
+                    if (folderName.isBlank()) return@invokeLater
                     service.addWorkspace(server = server.stmpName, path = file.path, folderName = folderName)
                 }
             }
@@ -124,7 +126,7 @@ fun showSftpPopupMenu(
         // Rename
         actionGroup.add(object : AnAction({ "Rename" }, AllIcons.Actions.Edit) {
             override fun actionPerformed(e: AnActionEvent) {
-                   tree.renameNode(project)
+                tree.renameNode(project)
             }
         })
         actionGroup.addSeparator()
@@ -161,15 +163,15 @@ fun showSftpPopupMenu(
     }
     actionGroup.addSeparator()
     // Delete
-    if(multipleFiles || file.isWritable){
-    actionGroup.add(object : AnAction({ "Delete" }, AllIcons.Actions.DeleteTag) {
-        override fun actionPerformed(e: AnActionEvent) {
-             tree.deleteSelectedNode(project)
-        }
-    })
+    if (multipleFiles || file.isWritable) {
+        actionGroup.add(object : AnAction({ "Delete" }, AllIcons.Actions.DeleteTag) {
+            override fun actionPerformed(e: AnActionEvent) {
+                tree.deleteSelectedNode(project)
+            }
+        })
     }
     // --- Upload and Download Actions ---
-    if (isDirectory&&!multipleFiles) {
+    if (isDirectory && !multipleFiles) {
         actionGroup.add(object : AnAction({ "Upload..." }, AllIcons.Actions.Upload) {
             override fun actionPerformed(e: AnActionEvent) {
                 tree.uploadFiles()
@@ -190,16 +192,16 @@ fun showSftpPopupMenu(
 }
 
 
-private fun findTreePathForFile(selectedNode: DefaultMutableTreeNode,treeModel: DefaultTreeModel): TreePath? {
+private fun findTreePathForFile(selectedNode: DefaultMutableTreeNode, treeModel: DefaultTreeModel): TreePath? {
     val node = selectedNode.parent ?: return null
     return TreePath(treeModel.getPathToRoot(node))
 }
 
-fun Tree.createFolder(project: Project){
+fun Tree.createFolder(project: Project) {
     val selectedNodes = this.getSelectedNodes(SftpTreeNode::class.java, null).toList()
     if (selectedNodes.size != 1) return
     val directory = selectedNodes[0].userObject as? SftpFile ?: return
-    if(!directory.isDirectory) return
+    if (!directory.isDirectory) return
     ApplicationManager.getApplication().invokeLater {
         val folderName = Messages.showInputDialog(
             this,
@@ -233,19 +235,27 @@ fun Tree.createFolder(project: Project){
                         }
                     }
                 }
-                project.showNotification("Folder Created", "Successfully created folder: ${newDir.name}",com.intellij.notification.NotificationType.INFORMATION)
+                project.showNotification(
+                    "Folder Created",
+                    "Successfully created folder: ${newDir.name}",
+                    com.intellij.notification.NotificationType.INFORMATION
+                )
             } catch (ex: Exception) {
-                project.showNotification("Folder Creation Failed", "Failed to create folder: ${ex.message}",com.intellij.notification.NotificationType.ERROR)
+                project.showNotification(
+                    "Folder Creation Failed",
+                    "Failed to create folder: ${ex.message}",
+                    com.intellij.notification.NotificationType.ERROR
+                )
             }
         }
     }
 }
 
-fun Tree.createFile(project: Project){
+fun Tree.createFile(project: Project) {
     val selectedNodes = this.getSelectedNodes(SftpTreeNode::class.java, null).toList()
     if (selectedNodes.size != 1) return
     val directory = selectedNodes[0].userObject as? SftpFile ?: return
-    if(!directory.isDirectory) return
+    if (!directory.isDirectory) return
     ApplicationManager.getApplication().invokeLater {
         val fileName = Messages.showInputDialog(
             this,
@@ -281,15 +291,85 @@ fun Tree.createFile(project: Project){
                         }
                     }
                 }
-                project.showNotification("File Created", "Successfully created file: ${newFile.name}",com.intellij.notification.NotificationType.INFORMATION)
+                project.showNotification(
+                    "File Created",
+                    "Successfully created file: ${newFile.name}",
+                    com.intellij.notification.NotificationType.INFORMATION
+                )
             } catch (ex: Exception) {
-                project.showNotification("File Creation Failed", "Failed to create file: ${ex.message}",com.intellij.notification.NotificationType.ERROR)
+                project.showNotification(
+                    "File Creation Failed",
+                    "Failed to create file: ${ex.message}",
+                    com.intellij.notification.NotificationType.ERROR
+                )
             }
         }
     }
 }
 
-fun Tree.downloadFiles(){
+fun Tree.cut() {
+    val selectedNodes = this.getSelectedNodes(SftpTreeNode::class.java, null).toList()
+    if (selectedNodes.size == 0) return
+    val files = selectedNodes.mapNotNull { it.userObject as? SftpFile }
+    if (files.isEmpty()) return
+    val transferable = SftpFileTransferable(files,true)
+    CopyPasteManager.getInstance().setContents(transferable)
+}
+
+fun Tree.copy() {
+    val selectedNodes = this.getSelectedNodes(SftpTreeNode::class.java, null).toList()
+    if (selectedNodes.size == 0) return
+    val files = selectedNodes.mapNotNull { it.userObject as? SftpFile }
+    if (files.isEmpty()) return
+    val transferable = SftpFileTransferable(files)
+    CopyPasteManager.getInstance().setContents(transferable)
+}
+
+fun Tree.paste() {
+    CopyPasteManager.getInstance().contents?.let {
+        val selectedNodes = this.getSelectedNodes(SftpTreeNode::class.java, null).toList()
+        if (selectedNodes.size != 1) return
+        val file = selectedNodes[0].userObject as? SftpFile ?: return
+        if (!file.isDirectory) return
+        val fileSystem = file.fileSystem as? SftpFileSystem ?: return
+        if (it.isDataFlavorSupported(SftpFileTransferable.SFTP_FLAVOR)) {
+            val sftpTransferData = it.getTransferData(SftpFileTransferable.SFTP_FLAVOR) as SftpTransferData
+            if(!sftpTransferData.cut){
+                fileSystem.copyFiles(sftpTransferData.files,file)
+                {
+                    println("Upload completed, refreshing tree...")
+                    invokeLater {
+                        if(!selectedNodes[0].isAttchedToTree()) return@invokeLater
+                        this.refreshSelectedNode(selectedNodes[0])
+                    }
+                }
+            }else{
+                fileSystem.moveFiles(sftpTransferData.files,file)
+                {
+                    println("Upload completed, refreshing tree...")
+                    invokeLater {
+                        if(!selectedNodes[0].isAttchedToTree()) return@invokeLater
+                        this.refreshSelectedNode(selectedNodes[0])
+                    }
+                }
+            }
+
+        } else if (it.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) {
+            val files = (it.getTransferData(DataFlavor.javaFileListFlavor) as? List<File>) ?: return
+            fileSystem.uploadSftpFiles(file, files)
+            {
+                println("Upload completed, refreshing tree...")
+                invokeLater {
+                    if(!selectedNodes[0].isAttchedToTree()) return@invokeLater
+                    this.refreshSelectedNode(selectedNodes[0])
+                }
+            }
+        }
+    }
+}
+
+
+fun Tree.downloadFiles() {
     val selectedNodes = this.getSelectedNodes(SftpTreeNode::class.java, null).toList()
     if (selectedNodes.size == 0) return
     val files = selectedNodes.mapNotNull { it.userObject as? SftpFile }
@@ -298,17 +378,23 @@ fun Tree.downloadFiles(){
     fileSystem.downloadSftpFiles(files)
 }
 
-fun Tree.uploadFiles(){
+fun Tree.uploadFiles() {
     val selectedNodes = this.getSelectedNodes(SftpTreeNode::class.java, null).toList()
     if (selectedNodes.size != 1) return
     val file = selectedNodes[0].userObject as? SftpFile ?: return
     if (!file.isDirectory) return
     val fileSystem = file.fileSystem as? SftpFileSystem ?: return
-    fileSystem.uploadSftpFiles(file)
+    fileSystem.uploadSftpFiles(file){
+        println("Upload completed, refreshing tree...")
+        invokeLater {
+            if(!selectedNodes[0].isAttchedToTree()) return@invokeLater
+            this.refreshSelectedNode(selectedNodes[0])
+        }
+    }
 
 }
 
-fun Tree.renameNode(project: Project){
+fun Tree.renameNode(project: Project) {
     val selectedNodes = this.getSelectedNodes(SftpTreeNode::class.java, null).toList()
     if (selectedNodes.size != 1) return
     val file = selectedNodes[0].userObject as? SftpFile ?: return
@@ -322,7 +408,7 @@ fun Tree.renameNode(project: Project){
         null
     ) ?: return
     if (newName.isBlank() || newName == oldName) return
-     runWriteAction {
+    runWriteAction {
         try {
             val parent = file.parent
             val newPath = if (parent != null) "${parent.path}/$newName" else newName
@@ -341,39 +427,49 @@ fun Tree.renameNode(project: Project){
                     this.expandPath(path)
                 }
             }
-            project.showNotification("Rename Successful", "Successfully renamed to $newName",com.intellij.notification.NotificationType.INFORMATION)
+            project.showNotification(
+                "Rename Successful",
+                "Successfully renamed to $newName",
+                com.intellij.notification.NotificationType.INFORMATION
+            )
         } catch (ex: Exception) {
-            project.showNotification("Rename Failed", "Failed to rename: ${ex.message}",com.intellij.notification.NotificationType.ERROR)
+            project.showNotification(
+                "Rename Failed",
+                "Failed to rename: ${ex.message}",
+                com.intellij.notification.NotificationType.ERROR
+            )
         }
     }
 
 }
 
-fun Tree.deleteSelectedNode(project: Project) {
-   val selectedNodes = this.getSelectedNodes(SftpTreeNode::class.java, null).toList()
+fun Tree.deleteSelectedNode(project: Project,deleteNodes: List<SftpTreeNode>?=null) {
+    val selectedNodes = if(deleteNodes != null) deleteNodes else this.getSelectedNodes(SftpTreeNode::class.java, null).toList()
     if (selectedNodes.size == 0) return
     val file = selectedNodes[0].userObject as? SftpFile ?: return
     val treeModel = this.model as? DefaultTreeModel ?: return
     val multipleFiles = selectedNodes.size > 1
-    val confirm = Messages.showYesNoDialog(
-        this,
-        "Delete ${if(!multipleFiles) file.name else "${selectedNodes.size} files"} ?",
-        "Confirm Delete",
-        Messages.getQuestionIcon()
-    )
-    if (confirm != Messages.YES) return
+    if (deleteNodes == null) {
+        val confirm = Messages.showYesNoDialog(
+            this,
+            "Delete ${if (!multipleFiles) file.name else "${selectedNodes.size} files"} ?",
+            "Confirm Delete",
+            Messages.getQuestionIcon()
+        )
+        if (confirm != Messages.YES) return
+    }
 
 
     runWriteAction {
         try {
             selectedNodes.forEach {
-                val f = (it.userObject as? SftpFile)?: return@forEach
+                val f = (it.userObject as? SftpFile) ?: return@forEach
                 if (!f.isWritable) return@forEach
                 if (FileEditorManager.getInstance(project).isFileOpen(f)) {
                     FileEditorManager.getInstance(project).closeFile(f)
                 }
                 val parent = f.parent
-                val parentPath = if (parent != null) findTreePathForFile(selectedNode = it,treeModel) else null
+                val parentPath = if (parent != null) findTreePathForFile(selectedNode = it, treeModel) else null
                 val nodePath = TreePath(it.path)
                 f.delete(this)
                 if (parentPath != null) {
@@ -385,30 +481,39 @@ fun Tree.deleteSelectedNode(project: Project) {
                     }
                 }
             }
-            project.showNotification("Delete Successful", "Successfully deleted ${if(!multipleFiles) file.name else "${selectedNodes.size} files"}",com.intellij.notification.NotificationType.INFORMATION)
+            project.showNotification(
+                "Delete Successful",
+                "Successfully deleted ${if (!multipleFiles) file.name else "${selectedNodes.size} files"}",
+                com.intellij.notification.NotificationType.INFORMATION
+            )
         } catch (ex: Exception) {
-            project.showNotification("Delete Failed", "Failed to delete: ${ex.message}",com.intellij.notification.NotificationType.ERROR)
+            project.showNotification(
+                "Delete Failed",
+                "Failed to delete: ${ex.message}",
+                com.intellij.notification.NotificationType.ERROR
+            )
         }
     }
 
 
 }
 
-fun Tree.refreshSelectedNode() {
-    val selectedNodes: List<SftpTreeNode> = this.getSelectedNodes(SftpTreeNode::class.java, null).toList()
-    if(selectedNodes.size == 1){
+fun Tree.refreshSelectedNode(selectedNode: SftpTreeNode? = null) {
+    println("Refreshing selected node...")
+    val selectedNodes: List<SftpTreeNode> = if(selectedNode!=null) listOf(selectedNode) else this.getSelectedNodes(SftpTreeNode::class.java, null).toList()
+    if (selectedNodes.size == 1) {
         val node = selectedNodes.first()
         val file = node.userObject as? SftpFile ?: return
         if (!file.isDirectory) return
-        file.refresh(false,true){
+        file.refresh(false, true) {
 
         }
         node.removeAllChildren()
         node.add(DefaultMutableTreeNode("Loading...")) // Placeholder for loading
         (this.model as? DefaultTreeModel)?.reload(node)
-         val path = TreePath(node.path)
-         collapsePath(path)
-         expandPath(path)
+        val path = TreePath(node.path)
+        collapsePath(path)
+        expandPath(path)
         return
     }
 }

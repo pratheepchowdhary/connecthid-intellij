@@ -1,10 +1,10 @@
 package com.connecthid.intellij.ui.filemanager.sftp.search
 
 import com.connecthid.intellij.connection.sftp.SftpFile
-import com.connecthid.intellij.connection.sftp.SftpFileOccurrence
 import com.connecthid.intellij.connection.sftp.SftpFileSystem
 import com.connecthid.intellij.getSSHService
 import com.connecthid.intellij.models.Server
+import com.connecthid.intellij.models.SftpFileOccurrence
 import com.connecthid.intellij.ui.filemanager.sftp.search.actions.SelectPathAction
 import com.connecthid.intellij.ui.filemanager.sftp.search.actions.SelectServerAction
 import com.connecthid.intellij.ui.filemanager.sftp.search.actions.TextSearchAction
@@ -16,7 +16,6 @@ import com.intellij.ide.actions.searcheverywhere.SearchFieldActionsContributor
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.application.runReadAction
-import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.observable.properties.AtomicBooleanProperty
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.Project
@@ -28,10 +27,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.filter
 import org.jetbrains.annotations.Nls
-import java.awt.Component
 import java.lang.Runnable
-import javax.swing.JLabel
-import javax.swing.JList
 import javax.swing.ListCellRenderer
 
 
@@ -229,37 +225,10 @@ class SftpFileContributor(p01: AnActionEvent) : SearchEverywhereContributor<Sftp
         return file.path
     }
 
+
+
     override fun getElementsRenderer(): ListCellRenderer<in SftpPsiElement> {
-        return object : ListCellRenderer<SftpPsiElement> {
-            override fun getListCellRendererComponent(
-                list: JList<out SftpPsiElement>,
-                value: SftpPsiElement?,
-                index: Int,
-                isSelected: Boolean,
-                cellHasFocus: Boolean
-            ): Component {
-                val label = JLabel()
-
-                if (value != null) {
-                    val file = (value.containingFile.virtualFile as SftpFile)
-
-                    // Display the line content with match information if this is a text match
-                    if (value.getName() != file.name) {
-                        label.text = "${file.name}: ${value.getName()}"
-                    } else {
-                        label.text = file.url
-                    }
-
-                    label.icon = FileTypeManager.getInstance().getFileTypeByFileName(value.containingFile.name).icon
-                }
-                if (isSelected) {
-                    label.background = list.selectionBackground
-                    label.foreground = list.selectionForeground
-                    label.isOpaque = true
-                }
-                return label
-            }
-        }
+        return SftpFileContributorItem()
     }
 
     override fun createRightActions(

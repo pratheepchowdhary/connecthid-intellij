@@ -6,11 +6,14 @@ import com.connecthid.intellij.models.Server
 import com.connecthid.intellij.models.Workspace
 import com.connecthid.intellij.ui.filemanager.sftp.actions.SftpToolbarActions
 import com.intellij.icons.AllIcons
+import com.intellij.ide.CopyProvider
+import com.intellij.ide.CutProvider
+import com.intellij.ide.DataManager
+import com.intellij.ide.PasteProvider
 import com.intellij.ide.dnd.DnDDragStartBean
 import com.intellij.ide.dnd.DnDEvent
 import com.intellij.ide.dnd.DnDSupport
-import com.intellij.openapi.actionSystem.AnAction
-import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.actionSystem.*
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.wm.ToolWindowAnchor
@@ -35,7 +38,8 @@ import javax.swing.tree.DefaultMutableTreeNode
 import javax.swing.tree.DefaultTreeModel
 import javax.swing.tree.TreePath
 
-class SftpExplorerPanel(val project: Project, val serverItem: Server, showToolbar: Boolean = true,val panelId: String="ConnectHID:SFTP",val rootPath: String = serverItem.rootPath) : JPanel(BorderLayout()), TreeExpansionListener, TreeSelectionListener, com.intellij.openapi.Disposable {
+class SftpExplorerPanel(val project: Project, val serverItem: Server, showToolbar: Boolean = true,val panelId: String="ConnectHID:SFTP",val rootPath: String = serverItem.rootPath) : JPanel(BorderLayout()), TreeExpansionListener, TreeSelectionListener, com.intellij.openapi.Disposable ,CopyProvider,
+    PasteProvider, CutProvider{
     val tree: Tree
     val treeModel: DefaultTreeModel
     val rootNode: SftpTreeNode
@@ -74,6 +78,7 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server, showToolba
     }
 
     var lastSelectedNode: DefaultMutableTreeNode? = null
+
 
     init {
         println("Initializing SftpPanel for server: ${serverItem.host}")
@@ -125,8 +130,6 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server, showToolba
             override fun mouseClicked(e: MouseEvent) {
                 if(SwingUtilities.isRightMouseButton(e)){
                     lastSelectedNode?.let {
-                        val selectedNodes: List<SftpTreeNode> = tree.getSelectedNodes(SftpTreeNode::class.java, null).toList()
-
                         showPopupMenu(e.x, e.y)
                     }
                 }
@@ -140,6 +143,14 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server, showToolba
                         }
                     }
                 }
+            }
+        })
+        DataManager.registerDataProvider(tree, DataProvider { dataId: String? ->
+            when {
+                PlatformDataKeys.COPY_PROVIDER.`is`(dataId) -> this
+                PlatformDataKeys.PASTE_PROVIDER.`is`(dataId) -> this
+                PlatformDataKeys.CUT_PROVIDER.`is`(dataId) -> this
+                else -> null
             }
         })
         DnDSupport.createBuilder(tree).setDisposableParent(this).setBeanProvider { info ->
@@ -266,14 +277,72 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server, showToolba
         if (selectedNode != null) {
             lastSelectedNode = selectedNode
             println("Tree item selected: ${selectedNode.userObject}")
-            // You can add more logic here, e.g., update UI, load file/folder details, etc.
+        } else {
+            println("No tree item selected")
+            lastSelectedNode = null
         }
     }
 
     override fun dispose() {
         // Cleanup resources
         coroutineScope.cancel()
+        DataManager.removeDataProvider(tree)
         fileSystem.getConnection()?.disconnectAllChannels()
+    }
+
+    override fun performCopy(p0: DataContext) {
+        println("Copy action triggered")
+        tree.copy()
+    }
+
+    override fun isCopyEnabled(p0: DataContext): Boolean {
+        val sftpFiles = tree.selectionPaths?.mapNotNull { path ->
+            (path.lastPathComponent as? SftpTreeNode)?.file
+        } ?: return false
+
+        return   sftpFiles.size > 0
+    }
+
+    override fun isCopyVisible(p0: DataContext): Boolean {
+        return true
+    }
+
+    override fun performPaste(p0: DataContext) {
+        println("Paste action triggered")
+        tree.paste()
+    }
+
+    override fun isPastePossible(p0: DataContext): Boolean {
+        val sftpFiles = tree.selectionPaths?.mapNotNull { path ->
+            (path.lastPathComponent as? SftpTreeNode)?.file
+        } ?: return false
+
+        return   sftpFiles.size == 1 && sftpFiles[0].isDirectory && sftpFiles[0].isWritable
+
+    }
+
+    override fun isPasteEnabled(p0: DataContext): Boolean {
+        return true
+    }
+
+    override fun performCut(p0: DataContext) {
+        println("Cut action triggered")
+        tree.cut()
+    }
+
+    override fun isCutEnabled(p0: DataContext): Boolean {
+        val sftpFiles = tree.selectionPaths?.mapNotNull { path ->
+            (path.lastPathComponent as? SftpTreeNode)?.file
+        } ?: return false
+        // check all files are writable
+        if(sftpFiles.any { !it.isWritable }){
+            return false
+        }
+        return   sftpFiles.size > 0
+    }
+
+    override fun isCutVisible(p0: DataContext): Boolean {
+        return  true
     }
 }
 

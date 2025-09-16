@@ -158,6 +158,7 @@ class SftpDownloadTask private constructor(
     }
 }
 
+
 class SftpUploadTask private constructor(
     project: Project,
     private val uploads: List<File>,   // unified list of local→remoteDir
@@ -265,14 +266,220 @@ class SftpUploadTask private constructor(
     }
 }
 
-fun SftpFileSystem.uploadSftpFiles(remoteDir: SftpFile) {
-    val descriptor = FileChooserDescriptorFactory.createMultipleFilesNoJarsDescriptor()
-    descriptor.title = "Select Files or Folders to Upload"
-    descriptor.description = "Choose files or folders to upload to the remote directory."
-    val localFiles = FileChooser.chooseFiles(descriptor, project, null).toList()
-    if (localFiles.isEmpty()) return
+
+class SftpCopyTask private constructor(
+    project: Project,
+    private val filesToCopy: List<SftpFile>,   // unified list of local→remoteDir
+    private val remoteDir: SftpFile,
+    private val callback: (Boolean, String) -> Unit,
+) : Task.Backgroundable(
+    project,
+    buildTitle(filesToCopy),
+    true
+) {
+    override fun run(indicator: ProgressIndicator) {
+        indicator.isIndeterminate = false
+        try {
+            val total = filesToCopy.size
+            for ((index, remote) in filesToCopy.withIndex()) {
+                if (indicator.isCanceled) return
+
+                indicator.text = "Copying ${remote.name}"
+                indicator.text2 = "File ${index + 1} of $total → ${remoteDir.name}"
+
+                // perform copy operation here
+                // For example, you might want to download the file and then upload it to the new location
+                // This is a placeholder for the actual copy logic
+                Thread.sleep(500) // Simulate time taken to copy
+
+                indicator.fraction = (index + 1).toDouble() / total
+            }
+            if (!indicator.isCanceled) {
+                callback(true, "Copied $total file(s)")
+            }
+        } catch (e: Exception) {
+            callback(false, e.message ?: "Unknown error")
+        }
+
+    }
+
+
+    companion object {
+        private fun buildTitle(filesToCopy: List<SftpFile>): String =
+            when {
+                filesToCopy.size== 1 -> "Copying ${filesToCopy.first().name}..."
+                filesToCopy.isNotEmpty() -> "Copying ${filesToCopy.size} files..."
+                else -> "Copying..."
+            }
+    }
+
+    // ---------- Builder ----------
+    class Builder(private val project: Project) {
+        private var filesToCopy: List<SftpFile> = emptyList()
+        private lateinit var remoteDir: SftpFile
+        private var callback: (Boolean, String) -> Unit = { _, _ -> }
+        fun filesToCopy(list: List<SftpFile>) = apply { this.filesToCopy = list }
+        fun remoteDir(dir: SftpFile) = apply {
+            this.remoteDir= dir
+        }
+        fun callback(cb: (Boolean, String) -> Unit) = apply {
+            this.callback =
+                cb
+        }
+        fun build(): SftpCopyTask {
+            require(filesToCopy.isNotEmpty()) { "At least one upload must be provided" }
+            return SftpCopyTask(project, filesToCopy,remoteDir, callback)
+        }
+    }
+
+}
+
+class SftpMoveTask private constructor(
+    project: Project,
+    private val filesToMove: List<SftpFile>,   // unified list of local→remoteDir
+    private val remoteDir: SftpFile,
+    private val callback: (Boolean, String) -> Unit,
+) : Task.Backgroundable(
+    project,
+    buildTitle(filesToMove),
+    true
+){
+    override fun run(p0: ProgressIndicator) {
+        p0.isIndeterminate = false
+        try {
+            val total = filesToMove.size
+            for ((index, remote) in filesToMove.withIndex()) {
+                if (p0.isCanceled) return
+
+                p0.text = "Moving ${remote.name}"
+                p0.text2 = "File ${index + 1} of $total → ${remoteDir.name}"
+
+                // perform move operation here
+                // For example, you might want to download the file and then upload it to the new location
+                // This is a placeholder for the actual move logic
+                Thread.sleep(500) // Simulate time taken to move
+
+                p0.fraction = (index + 1).toDouble() / total
+            }
+            if (!p0.isCanceled) {
+                callback(true, "Moved $total file(s)")
+            }
+        } catch (e: Exception) {
+            callback(false, e.message ?: "Unknown error")
+        }
+
+    }
+
+    companion object {
+        private fun buildTitle(filesToMove: List<SftpFile>): String =
+            when {
+                filesToMove.size== 1 -> "Moving ${filesToMove.first().name}..."
+                filesToMove.isNotEmpty() -> "Moving ${filesToMove.size} files..."
+                else -> "Moving..."
+            }
+    }
+
+    // ---------- Builder ----------
+    class Builder(private val project: Project) {
+        private var filesToMove: List<SftpFile> = emptyList()
+        private lateinit var remoteDir: SftpFile
+        private var callback: (Boolean, String) -> Unit = { _, _ -> }
+        fun filesToCopy(list: List<SftpFile>) = apply { this.filesToMove = list }
+        fun remoteDir(dir: SftpFile) = apply {
+            this.remoteDir= dir
+        }
+        fun callback(cb: (Boolean, String) -> Unit) = apply {
+            this.callback =
+                cb
+        }
+        fun build(): SftpMoveTask {
+            require(filesToMove.isNotEmpty()) { "At least one upload must be provided" }
+            return SftpMoveTask(project, filesToMove,remoteDir, callback)
+        }
+    }
+
+}
+
+
+fun SftpFileSystem.copyFiles(files: List<SftpFile>, targetDir: SftpFile, callback: (Boolean) -> Unit={}) {
+    if (files.isEmpty()) return
+    val task = SftpCopyTask.Builder(project)
+        .filesToCopy(files)
+        .remoteDir(targetDir)
+        .callback { success, msg ->
+            if (success) {
+                println("✅ Copied successfully: $msg")
+                notifyLater(
+                    project,
+                    "Copied",
+                    "Copy completed: ${files.size} file(s) to ${targetDir.pathLocation}",
+                    NotificationType.INFORMATION
+                )
+                callback(true)
+            } else {
+                val title = if (msg == "Cancelled") "Copy Cancelled" else "Copy Failed"
+                val message = if (msg == "Cancelled") {
+                    "Copy of ${files.size} file(s) to ${targetDir.pathLocation} was cancelled."
+                } else {
+                    "Copy failed: $msg"
+                }
+                val type = if (msg == "Cancelled") NotificationType.WARNING else NotificationType.ERROR
+                notifyLater(project, title, message, type)
+                callback(false)
+            }
+        }
+        .build()
+    task.queue()
+
+}
+
+fun SftpFileSystem.moveFiles(files: List<SftpFile>, targetDir: SftpFile, callback: (Boolean) -> Unit={}) {
+    if (files.isEmpty()) return
+    val task = SftpMoveTask.Builder(project)
+        .filesToCopy(files)
+        .remoteDir(targetDir)
+        .callback { success, msg ->
+            if (success) {
+                println("✅ Moved successfully: $msg")
+                notifyLater(
+                    project,
+                    "Moved",
+                    "Move completed: ${files.size} file(s) to ${targetDir.pathLocation}",
+                    NotificationType.INFORMATION
+                )
+                callback(true)
+            } else {
+                val title = if (msg == "Cancelled") "Move Cancelled" else "Move Failed"
+                val message = if (msg == "Cancelled") {
+                    "Move of ${files.size} file(s) to ${targetDir.pathLocation} was cancelled."
+                } else {
+                    "Move failed: $msg"
+                }
+                val type = if (msg == "Cancelled") NotificationType.WARNING else NotificationType.ERROR
+                notifyLater(project, title, message, type)
+                callback(false)
+            }
+        }
+        .build()
+    task.queue()
+
+}
+
+
+fun SftpFileSystem.uploadSftpFiles(remoteDir: SftpFile, needUpload: List<File> = emptyList(),callback: (Boolean) -> Unit={}) {
+    var files = needUpload.filter { it.exists() && it.isFile }
+    if (files.isEmpty()) {
+        val descriptor = FileChooserDescriptorFactory.createMultipleFilesNoJarsDescriptor()
+        descriptor.title = "Select Files or Folders to Upload"
+        descriptor.description = "Choose files or folders to upload to the remote directory."
+        val localFiles = FileChooser.chooseFiles(descriptor, project, null).toList()
+        if (localFiles.isEmpty()) return
+        else files = localFiles.map {
+            File(it.path)
+        }
+    }
     val task = SftpUploadTask.Builder(project)
-        .uploads(localFiles.map { File(it.path) })
+        .uploads(files)
         .remoteDir(remoteDir)
         .callback { success, msg ->
             if (success) {
@@ -280,18 +487,20 @@ fun SftpFileSystem.uploadSftpFiles(remoteDir: SftpFile) {
                 notifyLater(
                     project,
                     "Uploaded",
-                    "Upload completed: ${localFiles.size} file(s) to ${remoteDir.pathLocation}",
+                    "Upload completed: ${files.size} file(s) to ${remoteDir.pathLocation}",
                     NotificationType.INFORMATION
                 )
+                callback(true)
             } else {
                 val title = if (msg == "Cancelled") "Upload Cancelled" else "Upload Failed"
                 val message = if (msg == "Cancelled") {
-                    "Upload of ${localFiles.size} file(s) to ${remoteDir.pathLocation} was cancelled."
+                    "Upload of ${files.size} file(s) to ${remoteDir.pathLocation} was cancelled."
                 } else {
                     "Upload failed: $msg"
                 }
                 val type = if (msg == "Cancelled") NotificationType.WARNING else NotificationType.ERROR
                 notifyLater(project, title, message, type)
+                callback(false)
             }
         }
         .build()
