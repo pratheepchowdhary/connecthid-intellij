@@ -1,7 +1,7 @@
 package com.connecthid.intellij.connection.sftp
 
 import com.connecthid.intellij.models.SftpTransferData
-import com.intellij.openapi.vfs.VirtualFile
+import com.connecthid.intellij.ui.filemanager.sftp.SftpTreeNode
 import java.awt.datatransfer.DataFlavor
 import java.awt.datatransfer.Transferable
 import java.awt.datatransfer.UnsupportedFlavorException
@@ -9,7 +9,7 @@ import java.io.File
 
 
 class SftpFileTransferable(
-    private val sftpFiles: List<SftpFile>, val cut: Boolean = false
+    private val sftpFiles: List<SftpFile>, val selectedNodes: List<SftpTreeNode>, val cut: Boolean = false
 ) : Transferable {
     companion object {
          val SFTP_FLAVOR by lazy {
@@ -41,7 +41,7 @@ class SftpFileTransferable(
             return stringRepresentation
         }
         else if (flavor == SFTP_FLAVOR) {
-           return SftpTransferData(sftpFiles,cut)
+           return SftpTransferData(sftpFiles,selectedNodes,cut)
         }
         throw UnsupportedFlavorException(flavor)
     }

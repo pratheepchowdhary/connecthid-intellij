@@ -11,6 +11,7 @@ import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.fileTypes.FileTypeManager
+import com.intellij.openapi.fileTypes.ex.FileTypeChooser
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileListener
@@ -237,6 +238,34 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
         }
     }
 
+    fun copyFile(targetFile: VirtualFile, destinationFile: VirtualFile) {
+        // Copy targetFile to destinationFile path using ssh if not windows
+        val connection = getConnection() ?: return
+        try {
+            if (server.systemInfo.osName.isWindows()) {
+                throw IOException("Copy not supported on Windows servers")
+            } else {
+                connection.execute("cp -r '${targetFile.path}' '${destinationFile.path}'")
+            }
+        } catch (e: Exception) {
+            throw IOException(e.message)
+        }
+    }
+
+    fun moveFile(targetFile: VirtualFile, destinationFile: VirtualFile) {
+        // Copy targetFile to destinationFile path using ssh if not windows
+        val connection = getConnection() ?: return
+        try {
+            if (server.systemInfo.osName.isWindows()) {
+                throw IOException("Copy not supported on Windows servers")
+            } else {
+                connection.execute("mv '${targetFile.path}' '${destinationFile.path}'")
+            }
+        } catch (e: Exception) {
+            throw IOException(e.message)
+        }
+    }
+
     override fun addVirtualFileListener(listener: VirtualFileListener) {
         listeners.add(listener)
     }
@@ -295,6 +324,10 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
             val fileType = FileTypeManager.getInstance().getFileTypeByFileName(file.name)
             if (fileType.isBinary) {
                 // For binary files, just open them directly
+                val extension = file.extension ?: return false
+
+                // Show the IntelliJ "Associate File Type" dialog
+                FileTypeChooser.associateFileType(extension)
                 fileEditor.openFile(file, true)
             } else {
                 // For text files, ensure proper text editor

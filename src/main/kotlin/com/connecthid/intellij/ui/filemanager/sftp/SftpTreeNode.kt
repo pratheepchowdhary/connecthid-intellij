@@ -10,6 +10,8 @@ class SftpTreeNode(var file: VirtualFile) : DefaultMutableTreeNode() {
 
 
         override fun toString(): String = file.name
+          fun getFilePath(): String = file.path
+
     }
 
 fun DefaultMutableTreeNode.isAttchedToTree(): Boolean {

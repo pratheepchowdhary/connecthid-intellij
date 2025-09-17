@@ -1,5 +1,6 @@
 package com.connecthid.intellij.connection.sftp
 
+import com.connecthid.intellij.utils.isWindows
 import com.connecthid.intellij.utils.showNotification
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.application.ApplicationManager
@@ -196,6 +197,8 @@ class SftpUploadTask private constructor(
         }
     }
 
+
+
     private fun uploadFile(local: File, remoteDir: SftpFile,cancelled: () -> Boolean, progress: (Double) -> Unit) {
         if (!local.exists() || !local.isFile) throw IllegalArgumentException("Local file does not exist: ${local.path}")
         val fileSystem  = remoteDir.fileSystem as? SftpFileSystem ?: return
@@ -287,10 +290,10 @@ class SftpCopyTask private constructor(
                 indicator.text = "Copying ${remote.name}"
                 indicator.text2 = "File ${index + 1} of $total → ${remoteDir.name}"
 
-                // perform copy operation here
-                // For example, you might want to download the file and then upload it to the new location
-                // This is a placeholder for the actual copy logic
-                Thread.sleep(500) // Simulate time taken to copy
+                copyFile(remote, remoteDir,{ indicator.isCanceled }) { it ->
+                    indicator.fraction = it
+                    indicator.text2 = "File ${index + 1} of $total — ${(it*100).toInt()}%"
+                }
 
                 indicator.fraction = (index + 1).toDouble() / total
             }
@@ -301,6 +304,16 @@ class SftpCopyTask private constructor(
             callback(false, e.message ?: "Unknown error")
         }
 
+    }
+
+    private fun copyFile(targetFile: VirtualFile, destinationFile: VirtualFile,cancelled: () -> Boolean, progress: (Double) -> Unit) {
+        val fileSystem  = remoteDir.fileSystem as? SftpFileSystem ?: return
+        if(!fileSystem.server.systemInfo.osName.isWindows()){
+            fileSystem.copyFile(targetFile,destinationFile)
+            progress(1.0)
+        } else {
+
+        }
     }
 
 
@@ -354,10 +367,10 @@ class SftpMoveTask private constructor(
                 p0.text = "Moving ${remote.name}"
                 p0.text2 = "File ${index + 1} of $total → ${remoteDir.name}"
 
-                // perform move operation here
-                // For example, you might want to download the file and then upload it to the new location
-                // This is a placeholder for the actual move logic
-                Thread.sleep(500) // Simulate time taken to move
+                moveFile(remote, remoteDir,{ p0.isCanceled }) { it ->
+                    p0.fraction = it
+                    p0.text2 = "File ${index + 1} of $total — ${(it*100).toInt()}%"
+                }
 
                 p0.fraction = (index + 1).toDouble() / total
             }
@@ -368,6 +381,16 @@ class SftpMoveTask private constructor(
             callback(false, e.message ?: "Unknown error")
         }
 
+    }
+
+    private fun moveFile(targetFile: VirtualFile, destinationFile: VirtualFile,cancelled: () -> Boolean, progress: (Double) -> Unit) {
+        val fileSystem  = remoteDir.fileSystem as? SftpFileSystem ?: return
+        if(!fileSystem.server.systemInfo.osName.isWindows()){
+            fileSystem.moveFile(targetFile,destinationFile)
+            progress(1.0)
+        } else {
+
+        }
     }
 
     companion object {

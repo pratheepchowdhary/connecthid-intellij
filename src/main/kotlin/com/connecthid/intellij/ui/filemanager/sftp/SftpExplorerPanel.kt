@@ -9,6 +9,7 @@ import com.intellij.icons.AllIcons
 import com.intellij.ide.CopyProvider
 import com.intellij.ide.CutProvider
 import com.intellij.ide.DataManager
+import com.intellij.ide.DeleteProvider
 import com.intellij.ide.PasteProvider
 import com.intellij.ide.dnd.DnDDragStartBean
 import com.intellij.ide.dnd.DnDEvent
@@ -39,6 +40,7 @@ import javax.swing.tree.DefaultTreeModel
 import javax.swing.tree.TreePath
 
 class SftpExplorerPanel(val project: Project, val serverItem: Server, showToolbar: Boolean = true,val panelId: String="ConnectHID:SFTP",val rootPath: String = serverItem.rootPath) : JPanel(BorderLayout()), TreeExpansionListener, TreeSelectionListener, com.intellij.openapi.Disposable ,CopyProvider,
+    DeleteProvider,
     PasteProvider, CutProvider{
     val tree: Tree
     val treeModel: DefaultTreeModel
@@ -150,6 +152,7 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server, showToolba
                 PlatformDataKeys.COPY_PROVIDER.`is`(dataId) -> this
                 PlatformDataKeys.PASTE_PROVIDER.`is`(dataId) -> this
                 PlatformDataKeys.CUT_PROVIDER.`is`(dataId) -> this
+                PlatformDataKeys.DELETE_ELEMENT_PROVIDER.`is`(dataId) -> this
                 else -> null
             }
         })
@@ -343,6 +346,21 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server, showToolba
 
     override fun isCutVisible(p0: DataContext): Boolean {
         return  true
+    }
+
+    override fun deleteElement(dataContext: DataContext) {
+        tree.deleteSelectedNode(project)
+    }
+
+    override fun canDeleteElement(dataContext: DataContext): Boolean {
+        val sftpFiles = tree.selectionPaths?.mapNotNull { path ->
+            (path.lastPathComponent as? SftpTreeNode)?.file
+        } ?: return false
+        // check all files are writable
+        if(sftpFiles.any { !it.isWritable }){
+            return false
+        }
+        return   sftpFiles.size > 0
     }
 }
 

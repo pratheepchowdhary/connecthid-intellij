@@ -6,7 +6,10 @@ import com.connecthid.intellij.getSSHService
 import com.connecthid.intellij.models.SftpTransferData
 import com.connecthid.intellij.ui.filemanager.sftp.search.actions.FindInFilesAction
 import com.connecthid.intellij.utils.showNotification
+import com.intellij.history.LocalHistory
 import com.intellij.icons.AllIcons
+import com.intellij.ide.bookmark.BookmarkType
+import com.intellij.ide.bookmark.BookmarksManager
 import com.intellij.openapi.actionSystem.ActionManager
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
@@ -141,9 +144,9 @@ fun showSftpPopupMenu(
 
         }
         // Bookmarks (not implemented, placeholder)
-        actionGroup.add(object : AnAction({ "Bookmarks" }) {
+        actionGroup.add(object : AnAction({ "Bookmark"},AllIcons.Actions.AddList ) {
             override fun actionPerformed(e: AnActionEvent) {
-                Messages.showInfoMessage(tree, "Bookmarks action not implemented.", "Info")
+                addFileBookmark(project,file,"")
             }
         })
 
@@ -191,6 +194,24 @@ fun showSftpPopupMenu(
 
 }
 
+fun showLocalHistory(project: Project, file: VirtualFile) {
+    LocalHistory.getInstance()
+}
+
+fun addFileBookmark(project: Project, file: VirtualFile, description: String? = null) {
+    val manager = BookmarksManager.getInstance(project) ?: return
+
+    // Get or create a group named "SFTP Bookmarks"
+    val group = manager.getGroup("ConnectHID") ?: manager.addGroup("ConnectHID", true) ?: return
+
+    // Create a bookmark from the VirtualFile
+    val bookmark = manager.createBookmark(file) ?: return
+
+    // Add the bookmark to the group if allowed
+    if (group.canAdd(bookmark)) {
+        group.add(bookmark, BookmarkType.DEFAULT, description)
+    }
+}
 
 private fun findTreePathForFile(selectedNode: DefaultMutableTreeNode, treeModel: DefaultTreeModel): TreePath? {
     val node = selectedNode.parent ?: return null
@@ -312,7 +333,7 @@ fun Tree.cut() {
     if (selectedNodes.size == 0) return
     val files = selectedNodes.mapNotNull { it.userObject as? SftpFile }
     if (files.isEmpty()) return
-    val transferable = SftpFileTransferable(files,true)
+    val transferable = SftpFileTransferable(files,selectedNodes,true)
     CopyPasteManager.getInstance().setContents(transferable)
 }
 
@@ -321,7 +342,7 @@ fun Tree.copy() {
     if (selectedNodes.size == 0) return
     val files = selectedNodes.mapNotNull { it.userObject as? SftpFile }
     if (files.isEmpty()) return
-    val transferable = SftpFileTransferable(files)
+    val transferable = SftpFileTransferable(files, selectedNodes)
     CopyPasteManager.getInstance().setContents(transferable)
 }
 
@@ -344,12 +365,20 @@ fun Tree.paste() {
                     }
                 }
             }else{
+                val selectedFilesNodes = sftpTransferData.nodes
                 fileSystem.moveFiles(sftpTransferData.files,file)
                 {
                     println("Upload completed, refreshing tree...")
                     invokeLater {
-                        if(!selectedNodes[0].isAttchedToTree()) return@invokeLater
-                        this.refreshSelectedNode(selectedNodes[0])
+                       val data =  getSelectedNodeParent(selectedFilesNodes).filter {
+                            it.isAttchedToTree()
+                        }.toMutableList()
+                        if(selectedNodes[0].isAttchedToTree()){
+                           data.add(selectedNodes[0])
+                        }
+                        val nodes = getTopMostNodes(data)
+                        nodes.forEach { refreshSelectedNode(it) }
+
                     }
                 }
             }
@@ -366,6 +395,35 @@ fun Tree.paste() {
             }
         }
     }
+}
+
+
+fun getSelectedNodeParent(list: List<SftpTreeNode>): List<SftpTreeNode> {
+    if (list.isEmpty()) return emptyList()
+    val parentSet = mutableSetOf<SftpTreeNode>()
+    list.forEach { node ->
+        val parent = node.parent as? SftpTreeNode
+        if (parent != null && !parentSet.contains(parent)) {
+            parentSet.add(parent)
+            println(parent.file.path)
+        }
+    }
+    return parentSet.toList()
+}
+
+fun getTopMostNodes(nodes: List<SftpTreeNode>): List<SftpTreeNode> {
+    // Sort by path to ensure parents come before children
+    val sorted = nodes.sortedBy { it.getFilePath() }
+
+    val topMost = mutableListOf<SftpTreeNode>()
+    for (node in sorted) {
+        val path = node.getFilePath()
+        // Add this node only if no existing topMost node is a parent of it
+        if (topMost.none { path.startsWith(it.getFilePath() + "/") }) {
+            topMost.add(node)
+        }
+    }
+    return topMost
 }
 
 
@@ -499,7 +557,7 @@ fun Tree.deleteSelectedNode(project: Project,deleteNodes: List<SftpTreeNode>?=nu
 }
 
 fun Tree.refreshSelectedNode(selectedNode: SftpTreeNode? = null) {
-    println("Refreshing selected node...")
+    println("Refreshing selected node...${selectedNode?.userObject.toString()}")
     val selectedNodes: List<SftpTreeNode> = if(selectedNode!=null) listOf(selectedNode) else this.getSelectedNodes(SftpTreeNode::class.java, null).toList()
     if (selectedNodes.size == 1) {
         val node = selectedNodes.first()
