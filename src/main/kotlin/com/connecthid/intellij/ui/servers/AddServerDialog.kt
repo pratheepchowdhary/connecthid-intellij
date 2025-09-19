@@ -127,7 +127,7 @@ open class AddServerDialog(val project: Project, val host: String? = null, val u
     }
     override fun createLeftSideActions(): Array<Action> {
         return arrayOf<Action>(object : AbstractAction(PluginBundle.message("testconnection")) {
-            override fun actionPerformed(@NotNull e: ActionEvent) {
+            override fun actionPerformed(  e: ActionEvent) {
                 //show loader while testing connection inside a dialog like circular progress bar inside a dialog
                 testConnection()
             }

@@ -83,9 +83,3 @@ class VirtualFileDirectoryNode(
     }
 }
 
-fun showVirtualTree(project: Project, rootDir: VirtualFile) {
-    val pane = VirtualFileTreePane(project, rootDir)
-    val projectView = ProjectView.getInstance(project)
-    projectView.addProjectPane(pane)
-    projectView.changeView(pane.id)
-}

@@ -1,15 +1,8 @@
 package com.connecthid.intellij.ui.filemanager.sftp.actions
 
 import com.connecthid.intellij.models.Server
-import com.connecthid.intellij.ui.filemanager.sftp.SftpExplorerPanel
-import com.connecthid.intellij.ui.filemanager.sftp.closeSFTP
-import com.connecthid.intellij.ui.filemanager.sftp.createFile
-import com.connecthid.intellij.ui.filemanager.sftp.createFolder
-import com.connecthid.intellij.ui.filemanager.sftp.deleteSelectedNode
-import com.connecthid.intellij.ui.filemanager.sftp.downloadFiles
-import com.connecthid.intellij.ui.filemanager.sftp.refreshSelectedNode
+import com.connecthid.intellij.ui.filemanager.sftp.*
 import com.connecthid.intellij.ui.filemanager.sftp.search.actions.SearchAction
-import com.connecthid.intellij.ui.filemanager.sftp.uploadFiles
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.actionSystem.*
 import com.intellij.ui.components.JBPanel

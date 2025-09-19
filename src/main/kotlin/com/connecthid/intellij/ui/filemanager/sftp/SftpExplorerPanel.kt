@@ -5,6 +5,7 @@ import com.connecthid.intellij.connection.sftp.SftpFileSystem
 import com.connecthid.intellij.models.Server
 import com.connecthid.intellij.models.Workspace
 import com.connecthid.intellij.ui.filemanager.sftp.actions.SftpToolbarActions
+import com.intellij.execution.impl.EditConfigurationsDialog
 import com.intellij.icons.AllIcons
 import com.intellij.ide.CopyProvider
 import com.intellij.ide.CutProvider
@@ -433,6 +434,10 @@ fun Project.openProject(server: Server, workspace: Workspace )  {
         }
     }
 
+    fun showEditConfigurationsDialog(project: Project) {
+        val dialog = EditConfigurationsDialog(project)
+        dialog.show()  // Opens the dialog
+    }
 }
 
 
