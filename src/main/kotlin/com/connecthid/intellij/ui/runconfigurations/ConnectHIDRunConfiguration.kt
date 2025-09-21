@@ -106,6 +106,7 @@ class ConnectHIDRunConfiguration(
         JDOMExternalizerUtil.writeField(element, INTERPRETER_OPTIONS_TAG, myInterpreterOptions)
         JDOMExternalizerUtil.writeField(element, EXECUTE_IN_TERMINAL_TAG, myExecuteInTerminal.toString())
         JDOMExternalizerUtil.writeField(element, EXECUTE_SCRIPT_FILE_TAG, myExecuteScriptFile.toString())
+        JDOMExternalizerUtil.writeField(element, SERVER_TAG, server)
         myEnvData.writeExternal(element)
     }
 
@@ -122,6 +123,7 @@ class ConnectHIDRunConfiguration(
             JDOMExternalizerUtil.readField(element, EXECUTE_IN_TERMINAL_TAG, Boolean.TRUE.toString()).toBoolean()
         myExecuteScriptFile =
             JDOMExternalizerUtil.readField(element, EXECUTE_SCRIPT_FILE_TAG, Boolean.TRUE.toString()).toBoolean()
+        server = readStringTagValue(element, SERVER_TAG)
         myEnvData = EnvironmentVariablesData.readExternal(element)
     }
 

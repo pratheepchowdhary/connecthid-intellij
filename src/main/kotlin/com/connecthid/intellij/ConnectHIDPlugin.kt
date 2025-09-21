@@ -28,7 +28,7 @@ class ConnectHIDPlugin : ToolWindowFactory {
         tabbedPane.addTab("Servers", ServerListPanel(project))
         tabbedPane.addTab("Workspaces", WorkSpacesPanel(project))
         tabbedPane.addTab("Scripts", ScriptsPanel(project))
-        tabbedPane.addTab("Rsync", FileSyncPanel(project))
+        //tabbedPane.addTab("Rsync", FileSyncPanel(project))
         // Add content to tool window
         val contentFactory = ContentFactory.getInstance()
         val content = contentFactory.createContent(tabbedPane, "", false)

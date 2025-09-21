@@ -37,6 +37,11 @@ class ConnectHIDSettingsEditor(val project: Project, val task: RunConfigurationT
     private var myScriptFileWorkingDirectory: TextFieldWithBrowseButton? = null
     private var myScriptWorkingDirectory: TextFieldWithBrowseButton? = null
     private var myInterpreterSelector: TextFieldWithBrowseButton? = null
+    private var localTargetPath: TextFieldWithBrowseButton?=null
+    private var remoteUploadPath: TextFieldWithBrowseButton?=null
+    private var localDownloadPath: TextFieldWithBrowseButton?=null
+    private var remoteTargetPath: TextFieldWithBrowseButton?=null
+
     private var myInterpreterOptions: RawCommandLineEditor? = null
     private var myExecuteFileInTerminal: JBCheckBox? = null
     private var myExecuteScriptInTerminal: JBCheckBox? = null
@@ -58,7 +63,7 @@ class ConnectHIDSettingsEditor(val project: Project, val task: RunConfigurationT
             project, FileChooserDescriptorFactory.createSingleFileDescriptor()
                 .withTitle(PluginBundle.message("sh.label.choose.shell.script"))
         )
-        val desc =  FileChooserDescriptor(
+        val remoteFileChooserDescriptor =  FileChooserDescriptor(
             false,  // chooseFiles
             true,  // chooseFolders
             false, // chooseJars
@@ -66,20 +71,26 @@ class ConnectHIDSettingsEditor(val project: Project, val task: RunConfigurationT
             false,
             false
         ).apply {
-            isForcedToUseIdeaFileChooser = task == RunConfigurationTask.RemoteScript
+            isForcedToUseIdeaFileChooser = true
         }
+
+        if(task == RunConfigurationTask.Download){
+
+        } else if (task == RunConfigurationTask.Upload){
+
+        }
+
 
         myScriptFileWorkingDirectory!!.addActionListener {
             val selectedServer = hostBox!!.selectedItem as String
             val server  = service.getServer(selectedServer) ?: return@addActionListener
             val file = virtualFileSystem.findFileByPath(server.sftpRootPath)
-            desc.setRoots(file)
-            FileChooser.chooseFile(desc, project, file) { chosen ->
+            remoteFileChooserDescriptor.setRoots(file)
+            FileChooser.chooseFile(remoteFileChooserDescriptor, project,null) { chosen ->
                 if (chosen != null) {
                     myScriptFileWorkingDirectory!!.text = chosen.path
                 }
             }
-
         }
 
         myScriptWorkingDirectory!!.addBrowseFolderListener(
@@ -128,6 +139,7 @@ class ConnectHIDSettingsEditor(val project: Project, val task: RunConfigurationT
         myInterpreterSelector!!.setText(configuration.getInterpreterPath());
         myInterpreterOptions!!.setText(configuration.getInterpreterOptions());
         myExecuteFileInTerminal!!.setSelected(configuration.isExecuteInTerminal());
+        servers.selectedItem = configuration.getServer()
         myEnvComponent!!.setEnvData(configuration.getEnvData());
 
     }

@@ -49,7 +49,6 @@ class ScriptsPanel(
         buildHeader()
         rebuildUi()
         updateScriptsList()
-        val tes : RunManagerImpl
     }
 
     private fun rebuildUi() {
