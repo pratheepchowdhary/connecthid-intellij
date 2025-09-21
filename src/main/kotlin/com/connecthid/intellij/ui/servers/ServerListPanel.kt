@@ -4,16 +4,12 @@ import com.connecthid.intellij.getSSHService
 import com.connecthid.intellij.models.AuthenticationMethod
 import com.connecthid.intellij.models.Server
 import com.connecthid.intellij.models.SystemInfo
-import com.connecthid.intellij.ui.servers.AddServerDialog
 import com.connecthid.intellij.utils.removeI
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.project.Project
 import com.connecthid.intellij.connection.terminal.openTerminal
 import com.connecthid.intellij.models.getPassword
 import com.connecthid.intellij.ui.filemanager.sftp.openSFTP
-import com.intellij.openapi.application.ReadAction
-import com.intellij.openapi.application.runReadAction
-import com.intellij.openapi.progress.runBackgroundableTask
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPanel
@@ -28,7 +24,7 @@ import javax.swing.JPanel
 
 class ServerListPanel internal constructor(val project: Project): JBPanel<ServerListPanel>(), ServerItem.Listener  {
     // Use lazy initialization to defer service access until actually needed
-    private val connectionService by lazy { project.getSSHService() }
+    private val connectionService by lazy { getSSHService() }
     var devices: MutableList<Server> = emptyList<Server>().toMutableList()
         set(value) {
             field = value

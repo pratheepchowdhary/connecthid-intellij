@@ -14,7 +14,7 @@ import javax.swing.JButton
 import javax.swing.JPanel
 
 class WorkSpacesPanel internal constructor(val project: Project) : JBPanel<ServerListPanel>() {
-    private val connection = project.getSSHService()
+    private val connection = getSSHService()
     private var workspaces: MutableList<Workspace> = connection.getWorkspaces().toMutableList()
     private var header: JPanel? = null
     private var headerLabel: JBLabel? = null

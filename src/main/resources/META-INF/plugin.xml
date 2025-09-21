@@ -50,6 +50,7 @@
 
 
     <searchEverywhereContributor implementation="com.connecthid.intellij.ui.filemanager.sftp.search.SftpFileContributorFactory"/>
+      <virtualFileSystem key="sftp" implementationClass="com.connecthid.intellij.connection.sftp.SftpFileSystem"/>
 
 
 

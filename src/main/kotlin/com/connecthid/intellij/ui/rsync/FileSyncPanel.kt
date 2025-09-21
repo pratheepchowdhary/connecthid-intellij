@@ -21,7 +21,7 @@ class FileSyncPanel(
     private val project: Project
 ) : JPanel() {
     // Use lazy initialization to defer service access until actually needed
-    private val connectionService by lazy { project.getSSHService() }
+    private val connectionService by lazy { getSSHService() }
     var devices: MutableList<Server> = emptyList<Server>().toMutableList()
         set(value) {
             field = value

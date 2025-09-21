@@ -17,4 +17,5 @@ internal class ConnectHIDRunConfigurationType : ConfigurationTypeBase(
         addFactory(ConnectHIDConfigurationFactory(this, RunConfigurationTask.Download))
     }
 
+
 }

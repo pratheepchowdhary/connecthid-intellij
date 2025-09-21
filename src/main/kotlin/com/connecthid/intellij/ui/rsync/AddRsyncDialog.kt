@@ -3,7 +3,6 @@ package com.connecthid.intellij.ui.rsync
 import com.connecthid.intellij.PluginBundle
 import com.connecthid.intellij.getSSHService
 import com.connecthid.intellij.models.Server
-import com.connecthid.intellij.ui.filemanager.sftp.SftpFolderPickerDialog
 import com.connecthid.intellij.ui.servers.AddServerDialog
 import com.intellij.openapi.fileChooser.FileChooserDescriptor
 import com.intellij.openapi.observable.properties.PropertyGraph
@@ -11,7 +10,6 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.ui.dsl.builder.bindText
 import com.intellij.ui.dsl.builder.panel
-import org.jetbrains.annotations.NotNull
 import java.awt.event.ActionEvent
 import javax.swing.AbstractAction
 import javax.swing.Action
@@ -20,7 +18,7 @@ import javax.swing.JComponent
 
 class AddRsyncDialog(val project: Project,): DialogWrapper(true) {
     // Use lazy initialization to defer service access until actually needed
-    private val connectionService by lazy { project.getSSHService() }
+    private val connectionService by lazy { getSSHService() }
     val propertyGraph = PropertyGraph()
     private val selectedHost = propertyGraph.property("" ?: "")
     private val localPath = propertyGraph.property("" ?: "")
@@ -71,8 +69,7 @@ class AddRsyncDialog(val project: Project,): DialogWrapper(true) {
                 }.bindText(remotePath).applyToComponent {
                     dispose()
                     addActionListener {
-                        val picker = SftpFolderPickerDialog(project = project,serverItem = Server())
-                        picker.show()
+
                     }
                 }
 
@@ -99,7 +96,7 @@ class AddRsyncDialog(val project: Project,): DialogWrapper(true) {
     }
 
     private fun getServersList(): List<String>{
-        return project.getSSHService().getSavedConnections().map {
+        return getSSHService().getSavedConnections().map {
             it.host
         }
     }

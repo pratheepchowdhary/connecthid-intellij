@@ -2,7 +2,6 @@ package com.connecthid.intellij.ui.filemanager.sftp.search.actions
 
 import com.connecthid.intellij.getSSHService
 import com.connecthid.intellij.models.Server
-import com.connecthid.intellij.services.ServerConnectionService
 import com.intellij.icons.AllIcons
 import com.intellij.ide.actions.SearchEverywhereAction
 import com.intellij.ide.actions.searcheverywhere.SearchEverywhereManager
@@ -13,7 +12,7 @@ import javax.swing.JComponent
 
 class SearchAction (val project: Project,val server: Server): SearchEverywhereAction() {
     // Use lazy initialization to defer service access until actually needed
-    private val sshService by lazy { project.getSSHService() }
+    private val sshService by lazy { getSSHService() }
 
     override fun actionPerformed(e: AnActionEvent) {
         sshService.searchServers.clear()

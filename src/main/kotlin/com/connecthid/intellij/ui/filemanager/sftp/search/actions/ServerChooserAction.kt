@@ -3,7 +3,6 @@ package com.connecthid.intellij.ui.filemanager.sftp.search.actions
 
 import com.connecthid.intellij.getSSHService
 import com.connecthid.intellij.models.Server
-import com.connecthid.intellij.services.ServerConnectionService
 import com.intellij.ide.DataManager
 import com.intellij.ide.actions.searcheverywhere.SearchEverywhereToggleAction
 import com.intellij.lang.LangBundle
@@ -34,7 +33,7 @@ import javax.swing.KeyStroke
 abstract class ServerChooserAction (project: Project): ActionGroup(), CustomComponentAction, DumbAware,
     SearchEverywhereToggleAction {
         // Use lazy initialization to defer service access until actually needed
-        val sshService by lazy { project.getSSHService() }
+        val sshService by lazy { getSSHService() }
 
     init {
         setPopup(true)

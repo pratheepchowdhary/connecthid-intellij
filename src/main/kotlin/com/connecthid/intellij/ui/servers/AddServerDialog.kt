@@ -2,9 +2,6 @@ package com.connecthid.intellij.ui.servers
 
 import com.connecthid.intellij.PluginBundle
 import com.connecthid.intellij.getSSHService
-import com.connecthid.intellij.models.AuthenticationMethod
-import com.connecthid.intellij.models.Server
-import com.connecthid.intellij.models.SystemInfo
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.fileChooser.FileChooserDescriptor
 import com.intellij.openapi.observable.properties.PropertyGraph
@@ -19,7 +16,6 @@ import com.intellij.ui.dsl.builder.panel
 import com.intellij.ui.layout.selected
 import com.intellij.util.ui.JBUI
 import org.jetbrains.annotations.ApiStatus
-import org.jetbrains.annotations.NotNull
 import java.awt.Dimension
 import java.awt.event.ActionEvent
 import javax.swing.AbstractAction
@@ -47,7 +43,7 @@ open class AddServerDialog(val project: Project, val host: String? = null, val u
         .withFileFilter { file -> file.extension in listOf("pem", "ppk", "rsa") }
 
     // Use lazy initialization to defer service access until actually needed
-    val sshConnection by lazy { project.getSSHService() }
+    val sshConnection by lazy { getSSHService() }
 
     init {
         title = "Add Server"

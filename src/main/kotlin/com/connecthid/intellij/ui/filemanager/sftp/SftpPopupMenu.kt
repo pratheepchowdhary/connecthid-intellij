@@ -41,9 +41,9 @@ fun showSftpPopupMenu(
     val selectedNodes = tree.getSelectedNodes(SftpTreeNode::class.java, null).toList()
     if (selectedNodes.size == 0) return
     val file = selectedNodes[0].userObject as? SftpFile ?: return
-    val server = (file.fileSystem as? SftpFileSystem)?.server ?: return
+    val server = file.server
     val multipleFiles = selectedNodes.size > 1
-    val service = project.getSSHService()
+    val service = getSSHService()
 
     val actionGroup = DefaultActionGroup()
     val isDirectory = file.isDirectory
@@ -90,7 +90,7 @@ fun showSftpPopupMenu(
         if (file.isWritable) {
             actionGroup.add(object : AnAction({ "Paste" }, AllIcons.Actions.MenuPaste) {
                 override fun actionPerformed(e: AnActionEvent) {
-                    tree.paste()
+                    tree.paste(project)
                 }
             })
         }
@@ -177,14 +177,14 @@ fun showSftpPopupMenu(
     if (isDirectory && !multipleFiles) {
         actionGroup.add(object : AnAction({ "Upload..." }, AllIcons.Actions.Upload) {
             override fun actionPerformed(e: AnActionEvent) {
-                tree.uploadFiles()
+                tree.uploadFiles(project)
             }
         })
     }
     actionGroup.add(object : AnAction({ "Download..." }, AllIcons.Actions.Download) {
         override fun actionPerformed(e: AnActionEvent) {
             // Download handler (implemented below)
-            tree.downloadFiles()
+            tree.downloadFiles(project)
         }
     })
     // --- End Upload and Download Actions ---
@@ -346,35 +346,33 @@ fun Tree.copy() {
     CopyPasteManager.getInstance().setContents(transferable)
 }
 
-fun Tree.paste() {
+fun Tree.paste(project: Project) {
     CopyPasteManager.getInstance().contents?.let {
         val selectedNodes = this.getSelectedNodes(SftpTreeNode::class.java, null).toList()
         if (selectedNodes.size != 1) return
         val file = selectedNodes[0].userObject as? SftpFile ?: return
         if (!file.isDirectory) return
-        val fileSystem = file.fileSystem as? SftpFileSystem ?: return
+        val fileSystem = file.fileSystem
         if (it.isDataFlavorSupported(SftpFileTransferable.SFTP_FLAVOR)) {
             val sftpTransferData = it.getTransferData(SftpFileTransferable.SFTP_FLAVOR) as SftpTransferData
             if(!sftpTransferData.cut){
-                fileSystem.copyFiles(sftpTransferData.files,file)
-                {
+                copyFiles(project,sftpTransferData.files, file) {
                     println("Upload completed, refreshing tree...")
                     invokeLater {
-                        if(!selectedNodes[0].isAttchedToTree()) return@invokeLater
+                        if (!selectedNodes[0].isAttchedToTree()) return@invokeLater
                         this.refreshSelectedNode(selectedNodes[0])
                     }
                 }
             }else{
                 val selectedFilesNodes = sftpTransferData.nodes
-                fileSystem.moveFiles(sftpTransferData.files,file)
-                {
+                moveFiles(project,sftpTransferData.files, file) {
                     println("Upload completed, refreshing tree...")
                     invokeLater {
-                       val data =  getSelectedNodeParent(selectedFilesNodes).filter {
+                        val data = getSelectedNodeParent(selectedFilesNodes).filter {
                             it.isAttchedToTree()
                         }.toMutableList()
-                        if(selectedNodes[0].isAttchedToTree()){
-                           data.add(selectedNodes[0])
+                        if (selectedNodes[0].isAttchedToTree()) {
+                            data.add(selectedNodes[0])
                         }
                         val nodes = getTopMostNodes(data)
                         nodes.forEach { refreshSelectedNode(it) }
@@ -385,11 +383,10 @@ fun Tree.paste() {
 
         } else if (it.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) {
             val files = (it.getTransferData(DataFlavor.javaFileListFlavor) as? List<File>) ?: return
-            fileSystem.uploadSftpFiles(file, files)
-            {
+            uploadSftpFiles(project,file, files) {
                 println("Upload completed, refreshing tree...")
                 invokeLater {
-                    if(!selectedNodes[0].isAttchedToTree()) return@invokeLater
+                    if (!selectedNodes[0].isAttchedToTree()) return@invokeLater
                     this.refreshSelectedNode(selectedNodes[0])
                 }
             }
@@ -427,25 +424,25 @@ fun getTopMostNodes(nodes: List<SftpTreeNode>): List<SftpTreeNode> {
 }
 
 
-fun Tree.downloadFiles() {
+fun Tree.downloadFiles(project: Project) {
     val selectedNodes = this.getSelectedNodes(SftpTreeNode::class.java, null).toList()
     if (selectedNodes.size == 0) return
     val files = selectedNodes.mapNotNull { it.userObject as? SftpFile }
     if (files.isEmpty()) return
-    val fileSystem = files[0].fileSystem as? SftpFileSystem ?: return
-    fileSystem.downloadSftpFiles(files)
+    val fileSystem = files[0].fileSystem
+    downloadSftpFiles(project,files)
 }
 
-fun Tree.uploadFiles() {
+fun Tree.uploadFiles(project: Project) {
     val selectedNodes = this.getSelectedNodes(SftpTreeNode::class.java, null).toList()
     if (selectedNodes.size != 1) return
     val file = selectedNodes[0].userObject as? SftpFile ?: return
     if (!file.isDirectory) return
-    val fileSystem = file.fileSystem as? SftpFileSystem ?: return
-    fileSystem.uploadSftpFiles(file){
+    val fileSystem = file.fileSystem
+    uploadSftpFiles(project ,file) {
         println("Upload completed, refreshing tree...")
         invokeLater {
-            if(!selectedNodes[0].isAttchedToTree()) return@invokeLater
+            if (!selectedNodes[0].isAttchedToTree()) return@invokeLater
             this.refreshSelectedNode(selectedNodes[0])
         }
     }
@@ -470,7 +467,28 @@ fun Tree.renameNode(project: Project) {
         try {
             val parent = file.parent
             val newPath = if (parent != null) "${parent.path}/$newName" else newName
-            file.rename(this, newName)
+            val callback:((renamedFile: SftpFile) -> Unit) =
+                { it
+                    val fileEditor = FileEditorManager.getInstance(project)
+                    // Handle open editors for the renamed file and all children if directory
+                    val openFiles = fileEditor.openFiles
+                    if (file.isDirectory) {
+                        val affectedFiles = openFiles.filter { it.path.startsWith(file.path + "/") }
+                        for (oldChild in affectedFiles) {
+                            val relative = oldChild.path.removePrefix(file.path )
+                            val newChildPath = newPath + relative
+                            fileEditor.closeFile(oldChild)
+                            val newChild = file.fileSystem.findFileByPath(newChildPath) ?: continue
+                            project.openFileInIDE(newChild)
+                        }
+                    }
+                    // Handle the renamed file itself
+                    if (fileEditor.isFileOpen(file)) {
+                        fileEditor.closeFile(file)
+                        project.openFileInIDE(it)
+                    }
+                }
+            file.rename(callback , newName)
             val renamedFile = file.fileSystem.findFileByPath(newPath)
             if (renamedFile != null) {
                 selectedNodes[0].userObject = renamedFile

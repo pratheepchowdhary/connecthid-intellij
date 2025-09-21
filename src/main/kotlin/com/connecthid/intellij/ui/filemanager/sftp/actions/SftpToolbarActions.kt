@@ -34,14 +34,14 @@ class SftpToolbarActions(private val panel: SftpExplorerPanel,val serverItem: Se
     private fun createUploadAction() = object : AnAction({ "Upload" }, AllIcons.Actions.Upload) {
         override fun actionPerformed(e: AnActionEvent) {
             println("Upload action triggered")
-            panel.tree.uploadFiles()
+            panel.tree.uploadFiles(panel.project)
         }
     }
 
     private fun createDownloadAction() = object : AnAction({ "Download" }, AllIcons.Actions.Download) {
         override fun actionPerformed(e: AnActionEvent) {
             println("Download action triggered")
-            panel.tree.downloadFiles()
+            panel.tree.downloadFiles(panel.project)
         }
     }
 
@@ -73,7 +73,7 @@ class SftpToolbarActions(private val panel: SftpExplorerPanel,val serverItem: Se
         override fun update(e: AnActionEvent) {
             // Enable the button only if there are active operations
             e.presentation.isEnabled = panel.loadingStates.isNotEmpty() ||
-                    panel.fileSystem.isConnected()
+                    panel.fileSystem.isConnected(serverItem)
         }
     }
 }

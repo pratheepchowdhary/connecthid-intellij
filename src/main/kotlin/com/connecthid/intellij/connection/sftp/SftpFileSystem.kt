@@ -6,6 +6,7 @@ import com.connecthid.intellij.models.SftpFileOccurrence
 import com.connecthid.intellij.models.SftpMatchInfo
 import com.connecthid.intellij.models.getPassword
 import com.connecthid.intellij.services.SSHConnection
+import com.connecthid.intellij.utils.Utils.parseSftpUrl
 import com.connecthid.intellij.utils.isWindows
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditorManager
@@ -26,14 +27,14 @@ import java.util.concurrent.locks.ReentrantLock
 import kotlin.collections.iterator
 
 
-class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSystem() {
+ class SftpFileSystem : VirtualFileSystem() {
     // Use lazy initialization to defer service access until actually needed
-    val connectionService by lazy { project.getSSHService() }
+    val connectionService by lazy { getSSHService() }
     internal val fileCache = mutableMapOf<String, SftpFile>()
     private val listeners = mutableListOf<VirtualFileListener>()
     var showHiddenFiles = true // This can be a setting in the future to toggle hidden files visibility
 
-    private val fileEditor by  lazy { FileEditorManager.getInstance(project) }
+
     private val connectionLock = ReentrantLock()
     companion object {
         const val PROTOCOL = "sftp"
@@ -42,20 +43,30 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
 
     override fun getProtocol(): String = PROTOCOL
 
-    override fun findFileByPath(path: String): VirtualFile {
-        return fileCache.getOrPut(path) {
-            getFile(path)
+    override fun findFileByPath( path: String): VirtualFile? {
+        try {
+            var remotepath = path
+            if (!path.startsWith("sftp://")) remotepath = "sftp://$path"
+            val url  = parseSftpUrl(remotepath)
+            val server = connectionService.getServer("${url.username}@${url.host}") ?: return null
+            return fileCache.getOrPut(path) {
+                getFile(url.path,server)
+            }
+        } catch (ex: Exception){
+            println(ex.message)
+            return null
         }
+
     }
 
-    private fun getFile(path: String): SftpFile {
-        val fileStat = getFileStat(path)
-        return SftpFile(path, this, fileStat)
+    private fun getFile(path: String,server: Server): SftpFile {
+        val fileStat = getFileStat(path,server)
+        return SftpFile(path, server, fileStat)
     }
 
-    fun getFileStat(path: String):SftpATTRS ?{
+    fun getFileStat(path: String,server: Server):SftpATTRS ?{
         var channel: ChannelSftp? = null
-        val connection = getConnection() ?: return null
+        val connection = getConnection(server) ?: return null
         try {
             channel = connection.getChannelFromPool()
             if (channel == null || !channel.isConnected) return null
@@ -92,10 +103,10 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
     }
     override fun deleteFile(requestor: Any?, vFile: VirtualFile) {
         var channel: ChannelSftp? = null
-
-        val connection = getConnection() ?: return
+        val sftpFile = vFile as? SftpFile ?: return
+        val connection = getConnection(sftpFile.server) ?: return
         try {
-            if(server.systemInfo.osName.isWindows() || !vFile.isDirectory){
+            if(sftpFile.server.systemInfo.osName.isWindows() || !vFile.isDirectory){
                 channel = connection.getChannelFromPool() ?: return
                 if (vFile.isDirectory) {
                     if (vFile.children.isNotEmpty()) {
@@ -122,14 +133,14 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
         val sftpFile = vFile as? SftpFile ?: throw IOException("Not an SFTP file")
         val newParentSftp = newParent as? SftpFile ?: throw IOException("Not an SFTP file")
         var channel: ChannelSftp? = null
-        val connection = getConnection() ?: return
+        val connection = getConnection(sftpFile.server) ?: return
         try {
             channel = connection.getChannelFromPool() ?: return
             val newPath = "${newParentSftp.path}/${sftpFile.getName()}"
             channel.rename(sftpFile.path, newPath)
             fileCache.remove(sftpFile.path)
             val attrs = channel.lstat(newPath)
-            fileCache[newPath] = SftpFile(newPath, this, attrs)
+            fileCache[newPath] = SftpFile(newPath, sftpFile.server, attrs)
         } catch (e: Exception) {
             throw IOException("Failed to move file: ${e.message}", e)
         } finally {
@@ -140,7 +151,7 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
     override fun renameFile(requestor: Any?, vFile: VirtualFile, newName: String) {
         val sftpFile = vFile as? SftpFile ?: throw IOException("Not an SFTP file")
         var channel: ChannelSftp? = null
-        val connection = getConnection() ?: return
+        val connection = getConnection(sftpFile.server) ?: return
         try {
             channel = connection.getChannelFromPool() ?: return
             val oldPath = sftpFile.path
@@ -148,26 +159,13 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
             channel.rename(oldPath, newPath)
             fileCache.remove(oldPath)
             val attrs = channel.lstat(newPath)
-            val renamedFile = SftpFile(newPath, this, attrs)
+            val renamedFile = SftpFile(newPath, sftpFile.server, attrs)
             fileCache[newPath] = renamedFile
+            requestor?.let {
+                val callback = it as? (renamedFile: SftpFile) -> Unit
+                callback?.invoke(renamedFile)
+            }
 
-            // Handle open editors for the renamed file and all children if directory
-            val openFiles = fileEditor.openFiles
-            if (sftpFile.isDirectory) {
-                val affectedFiles = openFiles.filter { it.path.startsWith(oldPath + "/") }
-                for (oldChild in affectedFiles) {
-                    val relative = oldChild.path.removePrefix(oldPath)
-                    val newChildPath = newPath + relative
-                    fileEditor.closeFile(oldChild)
-                    val newChild = findFileByPath(newChildPath)
-                    openFileInIDE(newChild)
-                }
-            }
-            // Handle the renamed file itself
-            if (fileEditor.isFileOpen(vFile)) {
-                fileEditor.closeFile(vFile)
-                openFileInIDE(renamedFile)
-            }
         } catch (e: Exception) {
             throw IOException("Failed to rename file: ${e.message}", e)
         } finally {
@@ -178,13 +176,13 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
     override fun createChildFile(requestor: Any?, vDir: VirtualFile, fileName: String): VirtualFile {
         val sftpDir = vDir as? SftpFile ?: throw IOException("Not an SFTP file")
         var channel: ChannelSftp? = null
-        val connection = getConnection() ?: throw IOException("Failed to create file")
+        val connection = getConnection(sftpDir.server) ?: throw IOException("Failed to create file")
         try {
             channel = connection.getChannelFromPool() ?: throw IOException("Failed to create file")
             val newPath = "${sftpDir.path}/$fileName"
             channel.put(InputStream.nullInputStream(), newPath)
             val attrs = channel.lstat(newPath)
-            val newFile = SftpFile(newPath, this, attrs)
+            val newFile = SftpFile(newPath, sftpDir.server, attrs)
             fileCache[newPath] = newFile
             return newFile
         } catch (e: Exception) {
@@ -197,13 +195,13 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
     override fun createChildDirectory(requestor: Any?, vDir: VirtualFile, dirName: String): VirtualFile {
         val sftpDir = vDir as? SftpFile ?: throw IOException("Not an SFTP file")
         var channel: ChannelSftp? = null
-        val connection = getConnection() ?: throw IOException("Failed to create file")
+        val connection = getConnection(sftpDir.server) ?: throw IOException("Failed to create file")
         try {
             channel = connection.getChannelFromPool() ?: throw IOException("Failed to create file")
             val newPath = "${sftpDir.path}/$dirName"
             channel.mkdir(newPath)
             val attrs = channel.lstat(newPath)
-            val newDir = SftpFile(newPath, this, attrs)
+            val newDir = SftpFile(newPath, sftpDir.server, attrs)
             fileCache[newPath] = newDir
             return newDir
         } catch (e: Exception) {
@@ -217,7 +215,7 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
         val sftpFile = virtualFile as? SftpFile ?: throw IOException("Not an SFTP file")
         val newParentSftp = newParent as? SftpFile ?: throw IOException("Not an SFTP file")
         var channel: ChannelSftp? = null
-        val connection = getConnection() ?: throw IOException("Failed to copy file")
+        val connection = getConnection(sftpFile.server) ?: throw IOException("Failed to copy file")
         try {
             channel = connection.getChannelFromPool() ?: throw IOException("Failed to copy file")
             val newPath = "${newParentSftp.path}/$copyName"
@@ -228,7 +226,7 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
                 channel.put(inputStream, newPath)
             }
             val attrs = channel.lstat(newPath)
-            val newFile = SftpFile(newPath, this, attrs)
+            val newFile = SftpFile(newPath, sftpFile.server, attrs)
             fileCache[newPath] = newFile
             return newFile
         } catch (_: Exception) {
@@ -240,9 +238,10 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
 
     fun copyFile(targetFile: VirtualFile, destinationFile: VirtualFile) {
         // Copy targetFile to destinationFile path using ssh if not windows
-        val connection = getConnection() ?: return
+        val sftpFile = destinationFile as? SftpFile ?: return
+        val connection = getConnection(sftpFile.server) ?: return
         try {
-            if (server.systemInfo.osName.isWindows()) {
+            if (sftpFile.server.systemInfo.osName.isWindows()) {
                 throw IOException("Copy not supported on Windows servers")
             } else {
                 connection.execute("cp -r '${targetFile.path}' '${destinationFile.path}'")
@@ -254,9 +253,10 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
 
     fun moveFile(targetFile: VirtualFile, destinationFile: VirtualFile) {
         // Copy targetFile to destinationFile path using ssh if not windows
-        val connection = getConnection() ?: return
+        val sftpFile = destinationFile as? SftpFile ?: return
+        val connection = getConnection(sftpFile.server) ?: return
         try {
-            if (server.systemInfo.osName.isWindows()) {
+            if (sftpFile.server.systemInfo.osName.isWindows()) {
                 throw IOException("Copy not supported on Windows servers")
             } else {
                 connection.execute("mv '${targetFile.path}' '${destinationFile.path}'")
@@ -276,13 +276,13 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
 
     override fun isReadOnly(): Boolean = false
 
-    fun isConnected(): Boolean {
+    fun isConnected(server: Server): Boolean {
         val connection = connectionService.getConnection(server.host,server.username)
         return connection?.isConnected() ?: false
     }
 
 
-    internal fun getConnection(): SSHConnection? {
+    internal fun getConnection(server: Server): SSHConnection? {
         connectionLock.lock()
         try{
             var connection = connectionService.getConnection(server.host,server.username)
@@ -311,57 +311,24 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
 
 
 
-    fun openFileInIDE(file: VirtualFile): Boolean {
-        try {
-            // Check if file is already opened in editor
-            val editors = fileEditor.getEditors(file)
-            if (editors.isNotEmpty()) {
-                // File is already opened, navigate to it
-                fileEditor.openFile(file, true)
-                return true
-            }
-            // If it's a text file, ensure it's opened in a text editor
-            val fileType = FileTypeManager.getInstance().getFileTypeByFileName(file.name)
-            if (fileType.isBinary) {
-                // For binary files, just open them directly
-                val extension = file.extension ?: return false
-
-                // Show the IntelliJ "Associate File Type" dialog
-                FileTypeChooser.associateFileType(extension)
-                fileEditor.openFile(file, true)
-            } else {
-                // For text files, ensure proper text editor
-                val document = FileDocumentManager.getInstance().getDocument(file)
-                if (document != null) {
-                    fileEditor.openTextEditor(
-                        OpenFileDescriptor(project, file, 0),
-                        true
-                    )
-                }
-            }
-            return true
-        } catch (e: Exception) {
-            e.printStackTrace()
-
-        }
-        return false
-    }
 
 
 
 
 
-    fun getChannelFromPool(): ChannelSftp? {
-        val connection = getConnection() ?: return null
+
+    fun getChannelFromPool(server: Server): ChannelSftp? {
+        val connection = getConnection(server) ?: return null
         return connection.getChannelFromPool()
     }
 
-    fun releaseChannelToPool(channel: ChannelSftp?) {
-        val connection = getConnection() ?: return
+    fun releaseChannelToPool(channel: ChannelSftp?,server: Server) {
+        val connection = getConnection(server) ?: return
         connection.releaseChannelToPool(channel)
     }
 
     fun searchTextInFiles(
+        server: Server,
         pattern: String,
         path: String = server.rootPath,
         word: Boolean = false,
@@ -369,7 +336,7 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
         regexp: Boolean = false
     ): List<SftpFileOccurrence> {
         val results = mutableListOf<SftpFileOccurrence>()
-        val connection = getConnection() ?: return results
+        val connection = getConnection(server) ?: return results
         var execChannel: ChannelExec? = null
         try {
             // Build grep options based on flags
@@ -415,7 +382,7 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
 
             // Create SftpFileOccurrence objects for each file with its matches
             for ((filePath, matches) in fileOccurrences) {
-                val file = SftpFile(filePath, this)
+                val file = SftpFile(filePath, server)
                 results.add(SftpFileOccurrence(file, matches))
             }
         } catch (e: Exception) {
@@ -443,6 +410,7 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
     }
 
     fun searchFiles(
+        server: Server,
         pattern: String,
         path: String = server.rootPath,
         word: Boolean = false,
@@ -453,7 +421,7 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
         if (pattern.length < 2) {
             return results
         }
-        val connection = getConnection() ?: return results
+        val connection = getConnection(server) ?: return results
         var execChannel: ChannelExec? = null
         try {
             // Build find command based on flags
@@ -485,7 +453,7 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
             val foundFiles = input?.bufferedReader()?.readLines() ?: emptyList()
             execChannel?.disconnect()
             for (filePath in foundFiles) {
-                results.add(SftpFile(filePath, this))
+                results.add(SftpFile(filePath, server))
                 println("Found file: $filePath")
             }
         } catch (e: Exception) {
@@ -497,9 +465,9 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
         return results
     }
 
-    fun listFolderPaths(path: String = server.rootPath): List<String> {
+    fun listFolderPaths(server: Server,path: String = server.rootPath): List<String> {
         val results = mutableListOf<String>()
-        val connection = getConnection() ?: return results
+        val connection = getConnection(server) ?: return results
         var execChannel: ChannelExec? = null
         try {
             val findCommand = "find '$path' -mindepth 1 -maxdepth 1 -type d 2>/dev/null"
@@ -519,10 +487,10 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
         return results
     }
 
-    fun archiveFile(virtualFile: VirtualFile): VirtualFile?{
+    fun archiveFile(server: Server,virtualFile: VirtualFile): VirtualFile?{
         val sftpFile = virtualFile as? SftpFile ?: return null
         var channel: ChannelExec? = null
-        val connection = getConnection() ?: return null
+        val connection = getConnection(server) ?: return null
         try {
             channel = connection.getExecChannelFromPool() ?: return null
             val parentPath = sftpFile.getParent()?.path ?: return null
@@ -559,4 +527,42 @@ class SftpFileSystem(val project: Project, val server: Server) : VirtualFileSyst
         }
     }
 
+
+}
+
+fun Project.openFileInIDE(file: VirtualFile): Boolean {
+    try {
+        // Check if file is already opened in editor
+        val fileEditor = FileEditorManager.getInstance(this)
+        val editors = fileEditor.getEditors(file)
+        if (editors.isNotEmpty()) {
+            // File is already opened, navigate to it
+            fileEditor.openFile(file, true)
+            return true
+        }
+        // If it's a text file, ensure it's opened in a text editor
+        val fileType = FileTypeManager.getInstance().getFileTypeByFileName(file.name)
+        if (fileType.isBinary) {
+            // For binary files, just open them directly
+            val extension = file.extension ?: return false
+
+            // Show the IntelliJ "Associate File Type" dialog
+            FileTypeChooser.associateFileType(extension)
+            fileEditor.openFile(file, true)
+        } else {
+            // For text files, ensure proper text editor
+            val document = FileDocumentManager.getInstance().getDocument(file)
+            if (document != null) {
+                fileEditor.openTextEditor(
+                    OpenFileDescriptor(this, file, 0),
+                    true
+                )
+            }
+        }
+        return true
+    } catch (e: Exception) {
+        e.printStackTrace()
+
+    }
+    return false
 }

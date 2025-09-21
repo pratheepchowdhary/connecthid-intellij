@@ -47,6 +47,11 @@ class ConnectHIDRunConfiguration(
     @NonNls
     private val EXECUTE_SCRIPT_FILE_TAG: String = "EXECUTE_SCRIPT_FILE"
 
+    @NonNls
+    private val SERVER_TAG: String = "SERVER"
+
+
+
     private  var myScriptText = ""
     private  var myExecuteScriptFile = true
     private  var myScriptPath = ""
@@ -55,6 +60,7 @@ class ConnectHIDRunConfiguration(
     private  var myInterpreterOptions = ""
     private  var myScriptWorkingDirectory = ""
     private  var myExecuteInTerminal = true
+    private  var server: String = ""
     private  var myEnvData: EnvironmentVariablesData = EnvironmentVariablesData.DEFAULT
 
     override fun getOptions(): ConnectHIDRunConfigurationOptions {
@@ -172,6 +178,13 @@ class ConnectHIDRunConfiguration(
 
     fun getScriptWorkingDirectory(): String? {
         return myScriptWorkingDirectory
+    }
+
+    fun getServer(): String{
+        return server
+    }
+    fun setServer(server: String){
+        this.server = server
     }
 
     fun setScriptWorkingDirectory(scriptWorkingDirectory: String) {

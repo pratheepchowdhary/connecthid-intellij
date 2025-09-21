@@ -67,10 +67,9 @@ class SftpDownloadTask private constructor(
     ) {
         val tempFile = File(local.parentFile, "${local.name}.part")
 
-        val fileSystem = remote.fileSystem as? SftpFileSystem
-            ?: throw IOException("Invalid remote file system")
+        val fileSystem = remote.fileSystem
 
-        val channel = fileSystem.getChannelFromPool()
+        val channel = fileSystem.getChannelFromPool(remote.server)
             ?: throw IOException("Failed to get SFTP channel")
 
         try {
@@ -121,7 +120,7 @@ class SftpDownloadTask private constructor(
             tempFile.delete()
             println(e.message)
         } finally {
-            fileSystem.releaseChannelToPool(channel)
+            fileSystem.releaseChannelToPool(channel,remote.server)
         }
     }
 
@@ -201,10 +200,10 @@ class SftpUploadTask private constructor(
 
     private fun uploadFile(local: File, remoteDir: SftpFile,cancelled: () -> Boolean, progress: (Double) -> Unit) {
         if (!local.exists() || !local.isFile) throw IllegalArgumentException("Local file does not exist: ${local.path}")
-        val fileSystem  = remoteDir.fileSystem as? SftpFileSystem ?: return
+        val fileSystem  = remoteDir.fileSystem
         var channel: ChannelSftp? = null
         try {
-            channel = fileSystem.getChannelFromPool() ?: throw IOException("Failed to get SFTP channel")
+            channel = fileSystem.getChannelFromPool(remoteDir.server) ?: throw IOException("Failed to get SFTP channel")
             val outputStream = channel.put("${remoteDir.pathLocation}/${local.name}") ?: throw IOException("Failed to get output stream")
             local.inputStream().use { input ->
                 outputStream.use { output ->
@@ -230,7 +229,7 @@ class SftpUploadTask private constructor(
         }catch (e: Exception) {
             println(e.message)
         } finally {
-            fileSystem.releaseChannelToPool(channel)
+            fileSystem.releaseChannelToPool(channel,remoteDir.server)
         }
     }
     override fun onCancel() {
@@ -306,9 +305,9 @@ class SftpCopyTask private constructor(
 
     }
 
-    private fun copyFile(targetFile: VirtualFile, destinationFile: VirtualFile,cancelled: () -> Boolean, progress: (Double) -> Unit) {
-        val fileSystem  = remoteDir.fileSystem as? SftpFileSystem ?: return
-        if(!fileSystem.server.systemInfo.osName.isWindows()){
+    private fun copyFile(targetFile: SftpFile, destinationFile: SftpFile,cancelled: () -> Boolean, progress: (Double) -> Unit) {
+        val fileSystem  = remoteDir.fileSystem
+        if(!targetFile.server.systemInfo.osName.isWindows()){
             fileSystem.copyFile(targetFile,destinationFile)
             progress(1.0)
         } else {
@@ -383,9 +382,9 @@ class SftpMoveTask private constructor(
 
     }
 
-    private fun moveFile(targetFile: VirtualFile, destinationFile: VirtualFile,cancelled: () -> Boolean, progress: (Double) -> Unit) {
-        val fileSystem  = remoteDir.fileSystem as? SftpFileSystem ?: return
-        if(!fileSystem.server.systemInfo.osName.isWindows()){
+    private fun moveFile(targetFile: SftpFile, destinationFile: SftpFile,cancelled: () -> Boolean, progress: (Double) -> Unit) {
+        val fileSystem  = remoteDir.fileSystem
+        if(!targetFile.server.systemInfo.osName.isWindows()){
             fileSystem.moveFile(targetFile,destinationFile)
             progress(1.0)
         } else {
@@ -424,7 +423,7 @@ class SftpMoveTask private constructor(
 }
 
 
-fun SftpFileSystem.copyFiles(files: List<SftpFile>, targetDir: SftpFile, callback: (Boolean) -> Unit={}) {
+fun copyFiles(project: Project,files: List<SftpFile>, targetDir: SftpFile, callback: (Boolean) -> Unit = {}) {
     if (files.isEmpty()) return
     val task = SftpCopyTask.Builder(project)
         .filesToCopy(files)
@@ -456,7 +455,7 @@ fun SftpFileSystem.copyFiles(files: List<SftpFile>, targetDir: SftpFile, callbac
 
 }
 
-fun SftpFileSystem.moveFiles(files: List<SftpFile>, targetDir: SftpFile, callback: (Boolean) -> Unit={}) {
+fun moveFiles(project: Project,files: List<SftpFile>, targetDir: SftpFile, callback: (Boolean) -> Unit = {}) {
     if (files.isEmpty()) return
     val task = SftpMoveTask.Builder(project)
         .filesToCopy(files)
@@ -489,7 +488,7 @@ fun SftpFileSystem.moveFiles(files: List<SftpFile>, targetDir: SftpFile, callbac
 }
 
 
-fun SftpFileSystem.uploadSftpFiles(remoteDir: SftpFile, needUpload: List<File> = emptyList(),callback: (Boolean) -> Unit={}) {
+fun uploadSftpFiles(project: Project,remoteDir: SftpFile, needUpload: List<File> = emptyList(), callback: (Boolean) -> Unit = {}) {
     var files = needUpload.filter { it.exists() && it.isFile }
     if (files.isEmpty()) {
         val descriptor = FileChooserDescriptorFactory.createMultipleFilesNoJarsDescriptor()
@@ -531,7 +530,7 @@ fun SftpFileSystem.uploadSftpFiles(remoteDir: SftpFile, needUpload: List<File> =
     task.queue()
 }
 
-fun SftpFileSystem.downloadSftpFiles(files: List<SftpFile>) {
+fun downloadSftpFiles(project: Project,files: List<SftpFile>) {
     if (files.isEmpty()) return
     val isSingle = files.size == 1
     val first = files.first()

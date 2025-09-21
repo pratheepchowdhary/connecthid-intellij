@@ -2,22 +2,21 @@ package com.connecthid.intellij.ui.filemanager.sftp
 
 import com.connecthid.intellij.connection.sftp.SftpFile
 import com.connecthid.intellij.connection.sftp.SftpFileSystem
+import com.connecthid.intellij.connection.sftp.openFileInIDE
 import com.connecthid.intellij.models.Server
 import com.connecthid.intellij.models.Workspace
 import com.connecthid.intellij.ui.filemanager.sftp.actions.SftpToolbarActions
+import com.connecthid.intellij.utils.Utils.parseSftpUrl
 import com.intellij.execution.impl.EditConfigurationsDialog
 import com.intellij.icons.AllIcons
-import com.intellij.ide.CopyProvider
-import com.intellij.ide.CutProvider
-import com.intellij.ide.DataManager
-import com.intellij.ide.DeleteProvider
-import com.intellij.ide.PasteProvider
+import com.intellij.ide.*
 import com.intellij.ide.dnd.DnDDragStartBean
 import com.intellij.ide.dnd.DnDEvent
 import com.intellij.ide.dnd.DnDSupport
 import com.intellij.openapi.actionSystem.*
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.openapi.wm.ToolWindowAnchor
 import com.intellij.openapi.wm.ToolWindowManager
 import com.intellij.ui.JBColor
@@ -40,7 +39,7 @@ import javax.swing.tree.DefaultMutableTreeNode
 import javax.swing.tree.DefaultTreeModel
 import javax.swing.tree.TreePath
 
-class SftpExplorerPanel(val project: Project, val serverItem: Server, showToolbar: Boolean = true,val panelId: String="ConnectHID:SFTP",val rootPath: String = serverItem.rootPath) : JPanel(BorderLayout()), TreeExpansionListener, TreeSelectionListener, com.intellij.openapi.Disposable ,CopyProvider,
+class SftpExplorerPanel(val project: Project, val serverItem: Server, showToolbar: Boolean = true,val panelId: String="ConnectHID:SFTP",val rootPath: String = serverItem.sftpRootPath) : JPanel(BorderLayout()), TreeExpansionListener, TreeSelectionListener, com.intellij.openapi.Disposable ,CopyProvider,
     DeleteProvider,
     PasteProvider, CutProvider{
     val tree: Tree
@@ -48,7 +47,7 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server, showToolba
     val rootNode: SftpTreeNode
     val fileSystem by lazy {
         println("Initializing SftpFileSystem for server: ${serverItem.host}")
-        SftpFileSystem(project, serverItem)
+        VirtualFileManager.getInstance().getFileSystem(SftpFileSystem.PROTOCOL) as SftpFileSystem
     }
 
 
@@ -86,7 +85,7 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server, showToolba
     init {
         println("Initializing SftpPanel for server: ${serverItem.host}")
         // Create the root node
-        rootNode = SftpTreeNode(SftpFile(rootPath,fileSystem))
+        rootNode = SftpTreeNode(SftpFile(parseSftpUrl(rootPath).path,serverItem))
 
         rootNode.add(DefaultMutableTreeNode("Loading..."))
         // Create the tree model
@@ -140,7 +139,7 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server, showToolba
                     lastSelectedNode?.let {
                         val file = it.userObject as? VirtualFile ?: return
                         if(!file.isDirectory){
-                            if(!fileSystem.openFileInIDE(file)){
+                            if(!project.openFileInIDE(file)){
                                 //todo show error
                             }
                         }
@@ -291,7 +290,7 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server, showToolba
         // Cleanup resources
         coroutineScope.cancel()
         DataManager.removeDataProvider(tree)
-        fileSystem.getConnection()?.disconnectAllChannels()
+        fileSystem.getConnection(serverItem)?.disconnectAllChannels()
     }
 
     override fun performCopy(p0: DataContext) {
@@ -313,7 +312,7 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server, showToolba
 
     override fun performPaste(p0: DataContext) {
         println("Paste action triggered")
-        tree.paste()
+        tree.paste(project)
     }
 
     override fun isPastePossible(p0: DataContext): Boolean {
@@ -371,8 +370,8 @@ fun Project.closeSFTP(panel: SftpExplorerPanel) {
     toolWindow?.let { window ->
         // Find and remove all contents
         val existingPanel = toolWindow.contentManager.contents.firstOrNull { content ->
-            (content.component as? SftpExplorerPanel)?.serverItem?.host == panel.fileSystem.server.host &&
-                    (content.component as? SftpExplorerPanel)?.serverItem?.username == panel.fileSystem.server.username
+            (content.component as? SftpExplorerPanel)?.serverItem?.host == panel.serverItem.host &&
+                    (content.component as? SftpExplorerPanel)?.serverItem?.username == panel.serverItem.username
         }
         if (existingPanel != null) {
             toolWindow.contentManager.removeContent(existingPanel, true)
@@ -388,6 +387,7 @@ fun Project.openProject(server: Server, workspace: Workspace )  {
     val manager = ToolWindowManager.getInstance(this)
     val panelId = server.stmpName+":"+workspace.folderName
     val toolWindow = manager.getToolWindow(panelId)
+    val fullPath = "${SftpFileSystem.PROTOCOL}://${server.username}@${server.host}:${server.port}${workspace.path}"
     if (toolWindow == null) {
         val window = manager.registerToolWindow(panelId) {
             icon = AllIcons.Nodes.WebFolder
@@ -395,7 +395,7 @@ fun Project.openProject(server: Server, workspace: Workspace )  {
             anchor = ToolWindowAnchor.LEFT
             stripeTitle = Supplier{workspace.folderName}
         }
-        val sftpPanel = SftpExplorerPanel(this, server,false,panelId,workspace.path)
+        val sftpPanel = SftpExplorerPanel(this, server,false,panelId,fullPath)
         val contentFactory = ContentFactory.getInstance()
         val content = contentFactory.createContent(sftpPanel, "", true).apply {
             isCloseable = false
@@ -418,7 +418,7 @@ fun Project.openProject(server: Server, workspace: Workspace )  {
         if (existingPanel != null) {
             toolWindow.activate { toolWindow.show() }
         } else {
-            val sftpPanel = SftpExplorerPanel(this, server,false,panelId,workspace.path)
+            val sftpPanel = SftpExplorerPanel(this, server,false,panelId,fullPath)
             val contentFactory = ContentFactory.getInstance()
             val content = contentFactory.createContent(sftpPanel, "", true).apply {
                 isCloseable = false

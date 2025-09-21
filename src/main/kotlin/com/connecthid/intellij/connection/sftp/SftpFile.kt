@@ -1,8 +1,9 @@
 package com.connecthid.intellij.connection.sftp
 
+import com.connecthid.intellij.models.Server
 import com.intellij.openapi.application.runReadAction
 import com.intellij.openapi.vfs.VirtualFile
-import com.intellij.openapi.vfs.VirtualFileSystem
+import com.intellij.openapi.vfs.VirtualFileManager
 import com.jcraft.jsch.ChannelSftp
 import com.jcraft.jsch.SftpATTRS
 import java.io.IOException
@@ -11,30 +12,33 @@ import java.io.OutputStream
 
 class SftpFile(
     var pathLocation: String,
-    private val fileSystem: SftpFileSystem,
+    val server: Server,
     var fileEntry:SftpATTRS? = null
 ) : VirtualFile() {
+    val sftpFileSystem by lazy {
+        VirtualFileManager.getInstance().getFileSystem(SftpFileSystem.PROTOCOL) as SftpFileSystem
+    }
     private var children: Array<VirtualFile>? = null
-    override fun getFileSystem(): VirtualFileSystem = fileSystem
+    override fun getFileSystem(): SftpFileSystem = sftpFileSystem
 
     override fun getName(): String = pathLocation.split("/").last()
 
     override fun isWritable(): Boolean {
         if(fileEntry == null){
-            fileEntry = runReadAction {fileSystem.getFileStat(pathLocation)}
+            fileEntry = runReadAction {fileSystem.getFileStat(pathLocation,server)}
             return fileEntry != null && fileEntry!!.isWritable()
         }
         return fileEntry!!.isWritable()
     }
 
     override fun getUrl(): String {
-        return "${fileSystem.protocol}://${fileSystem.server.username}@${fileSystem.server.host}:${fileSystem.server.port}${pathLocation}"
+        return "${fileSystem.protocol}://${server.username}@${server.host}:${server.port}${pathLocation}"
     }
 
 
     override fun isDirectory(): Boolean {
         if (fileEntry == null) {
-            fileEntry = runReadAction {fileSystem.getFileStat(pathLocation)}
+            fileEntry = runReadAction {fileSystem.getFileStat(pathLocation,server)}
             return fileEntry == null || fileEntry!!.isDir
         }
         return fileEntry!!.isDir
@@ -44,7 +48,7 @@ class SftpFile(
 
     override fun getParent(): VirtualFile? {
         val parentPath = pathLocation.substringBeforeLast("/", "")
-        return if (parentPath.isEmpty()) null else SftpFile(parentPath, fileSystem)
+        return if (parentPath.isEmpty()) null else SftpFile(parentPath, server)
     }
 
 
@@ -54,7 +58,7 @@ class SftpFile(
             // show hidden files and folder based on fileSystem.showHiddenFiles
             var channel: ChannelSftp? = null
             try {
-                channel = fileSystem.getChannelFromPool()
+                channel = fileSystem.getChannelFromPool(server)
                 if (channel == null || !channel.isConnected) {
                     println("Failed to establish SFTP channel")
                     return@runReadAction emptyArray()
@@ -71,7 +75,7 @@ class SftpFile(
                 children = sortedEntries
                     .map {
                         val childPath = if (pathLocation == "/") "/${it.filename}" else "$pathLocation/${it.filename}"
-                        SftpFile(childPath, fileSystem, it.attrs)
+                        SftpFile(childPath, server, it.attrs)
                     }
                     .toTypedArray()
             } catch (e: Exception) {
@@ -79,7 +83,7 @@ class SftpFile(
                 e.printStackTrace()
                 return@runReadAction emptyArray()
             } finally {
-                fileSystem.releaseChannelToPool(channel)
+                fileSystem.releaseChannelToPool(channel,server)
             }
         }
          children ?: emptyArray()
@@ -89,7 +93,7 @@ class SftpFile(
 
     override fun getTimeStamp(): Long {
         if (fileEntry == null) {
-            fileEntry = runReadAction {fileSystem.getFileStat(pathLocation)}
+            fileEntry = runReadAction {fileSystem.getFileStat(pathLocation,server)}
             return  fileEntry ?.mTime?.toLong() ?: 0L
         }
         return fileEntry!!.aTime.toLong()
@@ -98,7 +102,7 @@ class SftpFile(
 
     override fun getModificationStamp(): Long {
         if (fileEntry == null) {
-            fileEntry = runReadAction {fileSystem.getFileStat(pathLocation)}
+            fileEntry = runReadAction {fileSystem.getFileStat(pathLocation,server)}
             return  fileEntry ?.mTime?.toLong() ?: 0L
         }
         return fileEntry!!.mTime.toLong()
@@ -106,7 +110,7 @@ class SftpFile(
 
     override fun getLength(): Long {
         if (fileEntry == null) {
-            fileEntry = runReadAction {fileSystem.getFileStat(pathLocation)}
+            fileEntry = runReadAction {fileSystem.getFileStat(pathLocation,server)}
             return  fileEntry?.size?.toLong() ?: 0L
         }
         return fileEntry!!.size.toLong()
@@ -130,12 +134,12 @@ class SftpFile(
     override fun getOutputStream(requestor: Any?, modStamp: Long, timeStamp: Long): OutputStream {
         var channel: ChannelSftp? = null
         try {
-            channel = fileSystem.getChannelFromPool() ?: throw IOException("Failed to get SFTP channel")
+            channel = fileSystem.getChannelFromPool(server) ?: throw IOException("Failed to get SFTP channel")
             return channel.put(pathLocation) ?: throw IOException("Failed to get output stream")
         } catch (e: Exception) {
             throw IOException("Failed to get output stream: ${e.message}", e)
         } finally {
-            fileSystem.releaseChannelToPool(channel)
+            fileSystem.releaseChannelToPool(channel,server)
         }
     }
 
@@ -143,13 +147,13 @@ class SftpFile(
         return runReadAction {
             var channel: ChannelSftp? = null
             try {
-                channel = fileSystem.getChannelFromPool() ?: throw IOException("Failed to get SFTP channel")
+                channel = fileSystem.getChannelFromPool(server) ?: throw IOException("Failed to get SFTP channel")
                 val inputStream = channel.get(pathLocation) ?: throw IOException("Failed to get input stream")
                 return@runReadAction inputStream.readBytes()
             } catch (e: Exception) {
                 throw IOException("Failed to read file contents: ${e.message}", e)
             } finally {
-                fileSystem.releaseChannelToPool(channel)
+                fileSystem.releaseChannelToPool(channel,server)
             }
         }
     }
@@ -158,7 +162,7 @@ class SftpFile(
         return runReadAction {
             var channel: ChannelSftp? = null
             try {
-                channel = fileSystem.getChannelFromPool() ?: throw IOException("Failed to get SFTP channel")
+                channel = fileSystem.getChannelFromPool(server) ?: throw IOException("Failed to get SFTP channel")
                 val inputStream = channel.get(pathLocation) ?: throw IOException("Failed to get input stream")
                 return@runReadAction object : InputStream() {
                     private var isClosed = false
@@ -181,19 +185,18 @@ class SftpFile(
                         } catch (e: Exception) {
                             println("Error closing input stream: ${e.message}")
                         } finally {
-                            fileSystem.releaseChannelToPool(channel)
+                            fileSystem.releaseChannelToPool(channel,server)
                         }
                     }
                 }
             } catch (e: Exception) {
-                fileSystem.releaseChannelToPool(channel)
+                fileSystem.releaseChannelToPool(channel,server)
                 throw IOException("Failed to get input stream: ${e.message}", e)
             }
         }
     }
 
     override fun getPath(): String = pathLocation
-
 
 }
 

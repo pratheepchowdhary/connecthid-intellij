@@ -140,6 +140,7 @@ class ServerConnectionService() : PersistentStateComponent<ServerConnectionState
         state = state.copy(connections = state.connections.toMutableList(), workspaces = state.workspaces.toMutableList())
     }
 
+
     fun getSavedConnections(): List<Server> {
         return state.connections.toList()
     }

@@ -1,5 +1,6 @@
 package com.connecthid.intellij.models
 
+import com.connecthid.intellij.connection.sftp.SftpFileSystem
 import com.connecthid.intellij.utils.PasswordUtil
 import com.connecthid.intellij.utils.toImageIcon
 import com.intellij.util.xmlb.annotations.Attribute
@@ -35,6 +36,9 @@ data class Server(
 
     val rootPath by lazy {
         if (username == "root") "/root" else "/home/${username}"
+    }
+    val sftpRootPath by lazy {
+        "${SftpFileSystem.PROTOCOL}://${username}@${host}:${port}${rootPath}"
     }
 
 

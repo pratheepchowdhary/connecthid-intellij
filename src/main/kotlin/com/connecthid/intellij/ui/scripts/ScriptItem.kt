@@ -1,12 +1,10 @@
-package com.connecthid.intellij.ui.workspaces
+package com.connecthid.intellij.ui.scripts
 
 import com.connecthid.intellij.PluginBundle
-import com.connecthid.intellij.models.Workspace
+import com.connecthid.intellij.ui.runconfigurations.ConnectHIDRunConfiguration
+import com.intellij.execution.configurations.RunConfiguration
 import com.intellij.icons.AllIcons
-import com.intellij.openapi.actionSystem.ActionManager
-import com.intellij.openapi.actionSystem.AnAction
-import com.intellij.openapi.actionSystem.AnActionEvent
-import com.intellij.openapi.actionSystem.DefaultActionGroup
+import com.intellij.openapi.actionSystem.*
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPanel
@@ -19,10 +17,11 @@ import java.awt.GridBagLayout
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import javax.swing.JButton
-import javax.swing.JPopupMenu
 
-class WorkspaceItem(val workspace: Workspace) : JBPanel<WorkspaceItem>(GridBagLayout()) {
+
+class ScriptItem(val script: RunConfiguration) : JBPanel<ScriptItem>(GridBagLayout()) {
     var listener: Listener? = null
+    var configuation = script as ConnectHIDRunConfiguration
 
     private val hoverListener = object : MouseAdapter() {
         override fun mouseEntered(e: MouseEvent) {
@@ -41,7 +40,7 @@ class WorkspaceItem(val workspace: Workspace) : JBPanel<WorkspaceItem>(GridBagLa
         maximumSize = Dimension(Int.MAX_VALUE, LIST_ITEM_HEIGHT)
         preferredSize = Dimension(0, LIST_ITEM_HEIGHT)
 
-        val iconLabel = JBLabel(AllIcons.Nodes.Workspace).apply {
+        val iconLabel = JBLabel(configuation.icon).apply {
             preferredSize = Dimension(80, 80)
         }
         add(iconLabel, GridBagConstraints().apply {
@@ -54,7 +53,7 @@ class WorkspaceItem(val workspace: Workspace) : JBPanel<WorkspaceItem>(GridBagLa
             insets = JBUI.insets(0, 20)
         })
 
-        val titleLabel = JBLabel(workspace.folderName)
+        val titleLabel = JBLabel(script.name)
         titleLabel.componentStyle = UIUtil.ComponentStyle.LARGE
         titleLabel.font = titleLabel.font.deriveFont(Font.BOLD)
         add(titleLabel, GridBagConstraints().apply {
@@ -68,7 +67,7 @@ class WorkspaceItem(val workspace: Workspace) : JBPanel<WorkspaceItem>(GridBagLa
             insets = JBUI.insetsTop(8)
         })
 
-        val pathLabel = JBLabel("sftp://${workspace.server}${workspace.path}")
+        val pathLabel = JBLabel("${configuation.task.name} ${configuation.getServer()}")
         pathLabel.componentStyle = UIUtil.ComponentStyle.SMALL
         add(pathLabel, GridBagConstraints().apply {
             gridx = 1
@@ -107,23 +106,27 @@ class WorkspaceItem(val workspace: Workspace) : JBPanel<WorkspaceItem>(GridBagLa
         addMouseListener(hoverListener)
     }
 
+
+
+
+
     private fun showPopupMenu(button: JButton) {
         val actionGroup = DefaultActionGroup()
-        actionGroup.add(object : AnAction({ PluginBundle.message("open_workspace") }, AllIcons.Nodes.WebFolder) {
+        actionGroup.add(object : AnAction({ PluginBundle.message("run_task") }, AllIcons.Actions.RunAll) {
             override fun actionPerformed(e: AnActionEvent) {
-                listener?.onOpenWorkspaceClicked(workspace)
+            listener?.runTask(script)
             }
         })
         actionGroup.addSeparator()
         actionGroup.add(object : AnAction({ PluginBundle.message("edit") }, AllIcons.Actions.Edit) {
             override fun actionPerformed(e: AnActionEvent) {
-                // Optionally implement edit logic here
+                listener?.editTask(script,e.dataContext)
             }
         })
         actionGroup.addSeparator()
         actionGroup.add(object : AnAction({ PluginBundle.message("delete") }, AllIcons.Actions.DeleteTag) {
             override fun actionPerformed(e: AnActionEvent) {
-                listener?.onDeleteWorkspaceClicked(workspace)
+                listener?.onDeleteTask(script)
             }
         })
         val popupMenu = ActionManager.getInstance().createActionPopupMenu("WorkspacePopup", actionGroup)
@@ -131,8 +134,9 @@ class WorkspaceItem(val workspace: Workspace) : JBPanel<WorkspaceItem>(GridBagLa
     }
 
     interface Listener {
-        fun onOpenWorkspaceClicked(workspace: Workspace)
-        fun onDeleteWorkspaceClicked(workspace: Workspace)
+        fun runTask(configuration:RunConfiguration)
+        fun editTask(configuration:RunConfiguration,dataContext: DataContext)
+        fun onDeleteTask(configuration:RunConfiguration)
     }
 
     private companion object {
