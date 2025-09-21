@@ -63,44 +63,6 @@ class ConnectHIDSettingsEditor(val project: Project, val task: RunConfigurationT
             project, FileChooserDescriptorFactory.createSingleFileDescriptor()
                 .withTitle(PluginBundle.message("sh.label.choose.shell.script"))
         )
-        val remoteFileChooserDescriptor =  FileChooserDescriptor(
-            false,  // chooseFiles
-            true,  // chooseFolders
-            false, // chooseJars
-            false,
-            false,
-            false
-        ).apply {
-            isForcedToUseIdeaFileChooser = true
-        }
-
-        if(task == RunConfigurationTask.Download){
-
-        } else if (task == RunConfigurationTask.Upload){
-
-        }
-
-
-        myScriptFileWorkingDirectory!!.addActionListener {
-            val selectedServer = hostBox!!.selectedItem as String
-            val server  = service.getServer(selectedServer) ?: return@addActionListener
-            val file = virtualFileSystem.findFileByPath(server.sftpRootPath)
-            remoteFileChooserDescriptor.setRoots(file)
-            FileChooser.chooseFile(remoteFileChooserDescriptor, project,null) { chosen ->
-                if (chosen != null) {
-                    myScriptFileWorkingDirectory!!.text = chosen.path
-                }
-            }
-        }
-
-        myScriptWorkingDirectory!!.addBrowseFolderListener(
-            project, FileChooserDescriptorFactory.createSingleFolderDescriptor()
-                .withTitle(PluginBundle.message("sh.label.choose.script.working.directory"))
-        )
-        myInterpreterSelector!!.addBrowseFolderListener(
-            project, FileChooserDescriptorFactory.createSingleFileDescriptor()
-                .withTitle(PluginBundle.message("sh.label.choose.interpreter"))
-        )
 
         myScriptGroup = ButtonGroup()
         myScriptGroup.add(myScriptTextRadioButton)
@@ -109,14 +71,121 @@ class ConnectHIDSettingsEditor(val project: Project, val task: RunConfigurationT
         myScriptTextRadioButton!!.addActionListener(ActionListener { action: ActionEvent? -> selectMode() })
         hostBox!!.model=servers
 
+        // Remote upload path picker
+        remoteUploadPath?.addActionListener {
+            val selectedServer = hostBox?.selectedItem as? String ?: return@addActionListener
+            val server = service.getServer(selectedServer) ?: return@addActionListener
+            val file = virtualFileSystem.findFileByPath(server.sftpRootPath)
+            val remoteUploadChooserDescriptor = FileChooserDescriptor(
+                false,  // chooseFiles
+                true,   // chooseFolders
+                false,  // chooseJars
+                false,
+                false,
+                false
+            ).apply {
+                isForcedToUseIdeaFileChooser = true
+                setRoots(file)
+            }
+            FileChooser.chooseFile(remoteUploadChooserDescriptor, project, null) { chosen ->
+                if (chosen != null) {
+                    remoteUploadPath!!.text = chosen.path
+                }
+            }
+        }
+        // Remote target path picker
+        remoteTargetPath?.addActionListener {
+            val selectedServer = hostBox?.selectedItem as? String ?: return@addActionListener
+            val server = service.getServer(selectedServer) ?: return@addActionListener
+            val file = virtualFileSystem.findFileByPath(server.sftpRootPath)
+            val remoteTargetChooserDescriptor = FileChooserDescriptor(
+                true,  // chooseFiles
+                false,   // chooseFolders
+                false,  // chooseJars
+                false,
+                false,
+                false
+            ).apply {
+                isForcedToUseIdeaFileChooser = true
+                setRoots(file)
+            }
+            FileChooser.chooseFile(remoteTargetChooserDescriptor, project, null) { chosen ->
+                if (chosen != null) {
+                    remoteTargetPath!!.text = chosen.path
+                }
+            }
+        }
+        // Local target path picker
+        localTargetPath?.addBrowseFolderListener(
+            project, FileChooserDescriptorFactory.createSingleFileDescriptor()
+                .withTitle("Choose File")
+        )
+        // Local download path picker
+        localDownloadPath?.addBrowseFolderListener(
+            project, FileChooserDescriptorFactory.createSingleFolderDescriptor()
+                .withTitle("Choose folder")
+        )
+        // Working directory pickers
+        myScriptFileWorkingDirectory?.let { field ->
+            if (task == RunConfigurationTask.RemoteScript) {
+                field.addActionListener {
+                    val selectedServer = hostBox?.selectedItem as? String ?: return@addActionListener
+                    val server = service.getServer(selectedServer) ?: return@addActionListener
+                    val file = virtualFileSystem.findFileByPath(server.sftpRootPath)
+                    val remoteChooserDescriptor = FileChooserDescriptor(
+                        false, true, false, false, false, false
+                    ).apply {
+                        isForcedToUseIdeaFileChooser = true
+                        setRoots(file)
+                    }
+                    FileChooser.chooseFile(remoteChooserDescriptor, project, null) { chosen ->
+                        if (chosen != null) {
+                            field.text = chosen.path
+                        }
+                    }
+                }
+            } else if(task == RunConfigurationTask.LocalScript) {
+                field.addBrowseFolderListener(
+                    project, FileChooserDescriptorFactory.createSingleFolderDescriptor()
+                        .withTitle("Choose local working directory")
+                )
+            }
+        }
+        myScriptWorkingDirectory?.addBrowseFolderListener(
+            project, FileChooserDescriptorFactory.createSingleFolderDescriptor()
+                .withTitle("Choose local script working directory")
+        )
+
+        // Interpreter selector picker
+        myInterpreterSelector?.let { field ->
+            if (task == RunConfigurationTask.RemoteScript) {
+                field.addActionListener {
+                    val selectedServer = hostBox?.selectedItem as? String ?: return@addActionListener
+                    val server = service.getServer(selectedServer) ?: return@addActionListener
+                    val file = virtualFileSystem.findFileByPath(server.sftpRootPath)
+                    val remoteInterpreterChooserDescriptor = FileChooserDescriptor(
+                        true, false, false, false, false, false
+                    ).apply {
+                        isForcedToUseIdeaFileChooser = true
+                        setRoots(file)
+                        withTitle(PluginBundle.message("sh.label.choose.interpreter"))
+                    }
+                    FileChooser.chooseFile(remoteInterpreterChooserDescriptor, project, null) { chosen ->
+                        if (chosen != null) {
+                            field.text = chosen.path
+                        }
+                    }
+                }
+            } else if (task == RunConfigurationTask.LocalScript) {
+                field.addBrowseFolderListener(
+                    project, FileChooserDescriptorFactory.createSingleFileDescriptor()
+                        .withTitle(PluginBundle.message("sh.label.choose.interpreter"))
+                )
+            }
+        }
     }
 
-    private fun choseFolder(){
 
-    }
-    private fun choseFile(){
-
-    }
 
     override fun resetEditorFrom(configuration: ConnectHIDRunConfiguration) {
 
@@ -141,7 +210,10 @@ class ConnectHIDSettingsEditor(val project: Project, val task: RunConfigurationT
         myExecuteFileInTerminal!!.setSelected(configuration.isExecuteInTerminal());
         servers.selectedItem = configuration.getServer()
         myEnvComponent!!.setEnvData(configuration.getEnvData());
-
+        remoteTargetPath!!.text = configuration.getRemoteTarget()
+        remoteUploadPath!!.text = configuration.getRemoteFolder()
+        localTargetPath!!.text = configuration.getLocalTarget()
+        localDownloadPath!!.text = configuration.getLocalFolder()
     }
 
     override fun applyEditorTo(configuration: ConnectHIDRunConfiguration) {
@@ -162,6 +234,10 @@ class ConnectHIDSettingsEditor(val project: Project, val task: RunConfigurationT
         configuration.setScriptOptions(myScriptOptions!!.getText());
         configuration.setInterpreterPath(myInterpreterSelector!!.getText());
         configuration.setInterpreterOptions(myInterpreterOptions!!.getText());
+        configuration.setRemoteTarget(remoteTargetPath!!.text)
+        configuration.setRemoteFolder(remoteUploadPath!!.text)
+        configuration.setLocalTarget(localTargetPath!!.text)
+        configuration.setLocalFolder(localDownloadPath!!.text)
         if(task != RunConfigurationTask.LocalScript){
             val selectedServer = hostBox!!.selectedItem as String
             configuration.setServer(selectedServer)

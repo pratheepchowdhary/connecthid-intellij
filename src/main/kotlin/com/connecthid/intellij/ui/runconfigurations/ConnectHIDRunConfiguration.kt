@@ -50,6 +50,11 @@ class ConnectHIDRunConfiguration(
     @NonNls
     private val SERVER_TAG: String = "SERVER"
 
+    private val LOCALTARGET: String = "LOCALTARGET"
+    private val REMOTETARGET:String = "REMOTETARGET"
+    private val REMOTEFOLDER: String = "REMOTEFOLDER"
+    private val LOCALFOLDER: String = "LOCALFOLDER"
+
 
 
     private  var myScriptText = ""
@@ -62,6 +67,11 @@ class ConnectHIDRunConfiguration(
     private  var myExecuteInTerminal = true
     private  var server: String = ""
     private  var myEnvData: EnvironmentVariablesData = EnvironmentVariablesData.DEFAULT
+    private  var localTarget: String=""
+    private  var remoteTarget: String=""
+    private  var remoteFolder: String=""
+    private  var localFolder: String=""
+
 
     override fun getOptions(): ConnectHIDRunConfigurationOptions {
         return super.getOptions() as ConnectHIDRunConfigurationOptions
@@ -107,6 +117,10 @@ class ConnectHIDRunConfiguration(
         JDOMExternalizerUtil.writeField(element, EXECUTE_IN_TERMINAL_TAG, myExecuteInTerminal.toString())
         JDOMExternalizerUtil.writeField(element, EXECUTE_SCRIPT_FILE_TAG, myExecuteScriptFile.toString())
         JDOMExternalizerUtil.writeField(element, SERVER_TAG, server)
+        JDOMExternalizerUtil.writeField(element, LOCALTARGET, localTarget)
+        JDOMExternalizerUtil.writeField(element, REMOTETARGET, remoteTarget)
+        JDOMExternalizerUtil.writeField(element, REMOTEFOLDER, remoteFolder)
+        JDOMExternalizerUtil.writeField(element, LOCALFOLDER, localFolder)
         myEnvData.writeExternal(element)
     }
 
@@ -124,6 +138,10 @@ class ConnectHIDRunConfiguration(
         myExecuteScriptFile =
             JDOMExternalizerUtil.readField(element, EXECUTE_SCRIPT_FILE_TAG, Boolean.TRUE.toString()).toBoolean()
         server = readStringTagValue(element, SERVER_TAG)
+        localTarget = readStringTagValue(element, LOCALTARGET)
+        remoteTarget = readStringTagValue(element, REMOTETARGET)
+        remoteFolder = readStringTagValue(element, REMOTEFOLDER)
+        localFolder = readStringTagValue(element, LOCALFOLDER)
         myEnvData = EnvironmentVariablesData.readExternal(element)
     }
 
@@ -232,6 +250,41 @@ class ConnectHIDRunConfiguration(
     fun setInterpreterOptions(interpreterOptions: String) {
         myInterpreterOptions = interpreterOptions.trim { it <= ' ' }
     }
+
+    fun setLocalTarget(localTarget: String){
+        this.localTarget = localTarget
+    }
+
+    fun getLocalTarget(): String{
+        return localTarget
+    }
+
+    fun setRemoteTarget(remoteTarget: String){
+        this.remoteTarget = remoteTarget
+    }
+
+    fun getRemoteTarget(): String{
+        return remoteTarget
+    }
+
+    fun setRemoteFolder(remoteFolder: String){
+        this.remoteFolder = remoteFolder
+    }
+
+    fun getRemoteFolder(): String{
+        return remoteFolder
+    }
+
+    fun setLocalFolder(localFolder: String){
+        this.localFolder = localFolder
+    }
+
+    fun getLocalFolder(): String{
+        return localFolder
+    }
+
+
+
 
     override fun getState(
         executor: Executor,
