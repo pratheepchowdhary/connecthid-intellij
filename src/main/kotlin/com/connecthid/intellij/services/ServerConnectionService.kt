@@ -4,6 +4,7 @@ import com.connecthid.intellij.models.AuthenticationMethod
 import com.connecthid.intellij.models.Server
 import com.connecthid.intellij.models.SystemInfo
 import com.connecthid.intellij.models.Workspace
+import com.connecthid.intellij.models.getPassword
 import com.connecthid.intellij.models.setPassword
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.PersistentStateComponent
@@ -13,6 +14,7 @@ import com.jcraft.jsch.Session
 import java.io.IOException
 import java.net.Socket
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.locks.ReentrantLock
 
 
 data class ServerConnectionState(
@@ -25,6 +27,7 @@ class ServerConnectionService() : PersistentStateComponent<ServerConnectionState
     private val connections = ConcurrentHashMap<String, SSHConnection>()
     private var state = ServerConnectionState()
     var searchServers = arrayListOf<Server>()
+    private val connectionLock = ReentrantLock()
 
     init {
         ApplicationManager.getApplication().invokeLater {
@@ -272,5 +275,28 @@ class ServerConnectionService() : PersistentStateComponent<ServerConnectionState
 
     fun getConnectedServers(): List<String> {
         return connections.keys.toList()
+    }
+
+    fun getConnection(server: Server): SSHConnection? {
+        connectionLock.lock()
+        try{
+            var connection = getConnection(server.host,server.username)
+            if (connection == null || !connection.isConnected()) {
+                connect(server.host, server.username, server.getPassword(), port = server.port)
+                connection = getConnection(server.host,server.username)
+            }
+            return connection
+
+        } finally {
+            connectionLock.unlock()
+        }
+    }
+    fun isSessionAlive(session: Session): Boolean {
+        return try {
+            session.sendKeepAliveMsg()
+            true
+        } catch (e: Exception) {
+            false
+        }
     }
 }

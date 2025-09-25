@@ -1,6 +1,11 @@
 package com.connecthid.intellij.services
 
+import com.connecthid.intellij.connection.sftp.SftpFile
 import com.connecthid.intellij.connection.sftp.SftpFileSystem
+import com.connecthid.intellij.models.Server
+import com.connecthid.intellij.models.SftpFileOccurrence
+import com.connecthid.intellij.models.SftpMatchInfo
+import com.intellij.openapi.vfs.VirtualFile
 import com.jcraft.jsch.*
 import com.jetbrains.rd.util.printlnError
 import java.io.ByteArrayOutputStream
@@ -33,7 +38,7 @@ class SSHConnection(
     private val channelAvailable: Condition = channelPoolLock.newCondition()
     var maxChannels = 5
     private var totalChannels = 0 // Tracks all open channels (in pool + checked out)
-    var fileSystem : SftpFileSystem? = null
+
 
     // Exec Channel Pooling
     private val execChannelPool = mutableListOf<ChannelExec>()
@@ -67,13 +72,11 @@ class SSHConnection(
 
 
     fun disconnect() {
-        fileSystem = null
         session?.disconnect()
     }
 
     fun isConnected(): Boolean {
         if (session == null || !session!!.isConnected) {
-            fileSystem = null
             return false
         }
         return session?.isConnected == true
@@ -371,7 +374,7 @@ class SSHConnection(
     }
 
     fun getMaxSessionsValue(session: Session): Int {
-        return try {
+        try {
             val channel = session.openChannel("exec") as ChannelExec
 
             // Use sshd -T if available, else fallback to reading sshd_config
@@ -419,6 +422,162 @@ class SSHConnection(
         } finally {
             channelPoolLock.unlock()
         }
+    }
+    fun searchFiles(
+        server: Server,
+        pattern: String,
+        path: String = server.rootPath,
+        word: Boolean = false,
+        case: Boolean = false,
+        regexp: Boolean = false
+    ): List<SftpFile> {
+        val results = mutableListOf<SftpFile>()
+        if (pattern.length < 2) {
+            return results
+        }
+        var execChannel: ChannelExec? = null
+        try {
+            // Build find command based on flags
+            val findOptions = mutableListOf<String>()
+            var findPattern = pattern
+            var findFlag = "-name"
+            if (regexp) {
+                findFlag = "-regex"
+                // For regex, pattern should be a full path regex, so prepend '.*' if not present
+                if (!findPattern.startsWith(".*")) findPattern = ".*" + findPattern
+            } else if (word) {
+                // For word, match exact file name
+                findFlag = "-name"
+                findPattern = pattern
+            } else {
+                // Default: substring match
+                findFlag = if (case) "-name" else "-iname"
+                findPattern = if (pattern.contains("*")) pattern else "*$pattern*"
+            }
+            // Exclude hidden files and folders
+            val excludeHidden = "! -path '*/.*'"
+            val findCommand = "find '$path' -type f $excludeHidden $findFlag '$findPattern' 2>/dev/null"
+
+            println("Searching with command: $findCommand")
+            execChannel = getExecChannelFromPool()
+            execChannel?.setCommand(findCommand)
+            execChannel?.connect()
+            val input = execChannel?.inputStream
+            val foundFiles = input?.bufferedReader()?.readLines() ?: emptyList()
+            execChannel?.disconnect()
+            for (filePath in foundFiles) {
+                results.add(SftpFile(filePath, server))
+                println("Found file: $filePath")
+            }
+        } catch (e: Exception) {
+            println(e.message)
+            e.printStackTrace()
+        } finally {
+            releaseExecChannelToPool(execChannel)
+        }
+        return results
+    }
+
+    fun listFolderPaths(server: Server,path: String = server.rootPath): List<String> {
+        val results = mutableListOf<String>()
+        var execChannel: ChannelExec? = null
+        try {
+            val findCommand = "find '$path' -mindepth 1 -maxdepth 1 -type d 2>/dev/null"
+            execChannel = getExecChannelFromPool()
+            execChannel?.setCommand(findCommand)
+            execChannel?.connect()
+            val input = execChannel?.inputStream
+            val foundDirs = input?.bufferedReader()?.readLines() ?: emptyList()
+            execChannel?.disconnect()
+            results.addAll(foundDirs)
+        } catch (e: Exception) {
+            println(e.message)
+            e.printStackTrace()
+        } finally {
+            releaseExecChannelToPool(execChannel)
+        }
+        return results
+    }
+
+    fun searchTextInFiles(
+        server: Server,
+        pattern: String,
+        path: String = server.rootPath,
+        word: Boolean = false,
+        case: Boolean = false,
+        regexp: Boolean = false
+    ): List<SftpFileOccurrence> {
+        val results = mutableListOf<SftpFileOccurrence>()
+        var execChannel: ChannelExec? = null
+        try {
+            // Build grep options based on flags
+            val options = mutableListOf("-n", "-b", "-r", "-o")
+            if (word) options.add("-w")
+            if (!case) options.add("-i")
+            if (!regexp) options.add("-F")
+            // Exclude hidden files and folders
+            val escapedPattern = pattern.replace("'", "'\\''")
+            val grepCommand = "grep ${options.joinToString(" ")} --exclude-dir='.*' --exclude='.*' '$escapedPattern' '$path' 2>/dev/null"
+
+            println("Searching with command: $grepCommand")
+
+            execChannel = getExecChannelFromPool()
+            execChannel?.setCommand(grepCommand)
+            execChannel?.connect()
+            val input = execChannel?.inputStream
+            val foundOccurrences = input?.bufferedReader()?.readLines() ?: emptyList()
+            execChannel?.disconnect()
+
+            // Group occurrences by file path
+            val fileOccurrences = mutableMapOf<String, MutableList<SftpMatchInfo>>()
+
+            for (occurrence in foundOccurrences) {
+                // Parse output format: filepath:line_number:byte_offset:matching line text
+                val colonIndices = findFirstNColonIndices(occurrence, 3)
+                if (colonIndices.size >= 3) {
+                    val filePath = occurrence.substring(0, colonIndices[0])
+                    val lineNumber = occurrence.substring(colonIndices[0] + 1, colonIndices[1]).toIntOrNull() ?: 1
+                    val byteOffset = occurrence.substring(colonIndices[1]+1  , colonIndices[2]).toIntOrNull() ?: 0
+                    val lineContent = occurrence.substring(colonIndices[2] + 1)
+
+                    // Since grep -b returns the byte offset from the start of the line,
+                    // we can use it directly as the match offset in the line
+                    val matchOffset = byteOffset
+                    val matchEndOffset = matchOffset + lineContent.count()
+
+                    // Add this occurrence to our file matches
+                    val fileMatches = fileOccurrences.getOrPut(filePath) { mutableListOf() }
+                    fileMatches.add(SftpMatchInfo(lineNumber, matchOffset, matchEndOffset, lineContent))
+                }
+            }
+
+            // Create SftpFileOccurrence objects for each file with its matches
+            for ((filePath, matches) in fileOccurrences) {
+                val file = SftpFile(filePath, server)
+                results.add(SftpFileOccurrence(file, matches))
+            }
+        } catch (e: Exception) {
+            println("Error searching text in files: ${e.message}")
+            e.printStackTrace()
+        } finally {
+            releaseExecChannelToPool(execChannel)
+        }
+        return results
+    }
+
+    // Helper method to find the first N colon positions in a string
+    private fun findFirstNColonIndices(str: String, n: Int): List<Int> {
+        val indices = mutableListOf<Int>()
+        var pos = -1
+        repeat(n) {
+            pos = str.indexOf(':', pos + 1)
+            if (pos != -1) {
+                indices.add(pos)
+            } else {
+                return indices // Not enough colons found
+            }
+        }
+        return indices
     }
 
     fun close() {

@@ -11,8 +11,8 @@ import com.intellij.openapi.util.InvalidDataException
 import com.intellij.openapi.util.JDOMExternalizerUtil
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.util.io.FileUtil.toSystemDependentName
-import com.intellij.openapi.util.text.StringUtilRt.notNullize
 import com.intellij.openapi.util.text.StringUtil
+import com.intellij.openapi.util.text.StringUtilRt.notNullize
 import com.intellij.psi.PsiElement
 import com.intellij.psi.util.PsiUtilCore
 import org.jdom.Element
@@ -21,6 +21,8 @@ import java.lang.Boolean
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.String
+import kotlin.Throws
+
 
 class ConnectHIDRunConfiguration(
     project: Project,
@@ -83,6 +85,7 @@ class ConnectHIDRunConfiguration(
 
     @Throws(RuntimeConfigurationException::class)
     override fun checkConfiguration() {
+        return
         val scriptPath = Path.of(myScriptPath)
         if (myExecuteScriptFile) {
             if (!Files.exists(scriptPath)) {
@@ -289,8 +292,8 @@ class ConnectHIDRunConfiguration(
     override fun getState(
         executor: Executor,
         environment: ExecutionEnvironment
-    ): RunProfileState? {
-        TODO("Not yet implemented")
+    ): RunProfileState {
+        return ConnectHIDRunProfileState(environment)
     }
 
 }

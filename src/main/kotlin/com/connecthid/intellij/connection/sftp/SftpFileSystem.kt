@@ -34,8 +34,6 @@ import kotlin.collections.iterator
     private val listeners = mutableListOf<VirtualFileListener>()
     var showHiddenFiles = true // This can be a setting in the future to toggle hidden files visibility
 
-
-    private val connectionLock = ReentrantLock()
     companion object {
         const val PROTOCOL = "sftp"
     }
@@ -283,38 +281,8 @@ import kotlin.collections.iterator
 
 
     internal fun getConnection(server: Server): SSHConnection? {
-        connectionLock.lock()
-        try{
-            var connection = connectionService.getConnection(server.host,server.username)
-            if (connection == null || !connection.isConnected()) {
-                connectionService.connect(server.host, server.username, server.getPassword(), port = server.port)
-                connection = connectionService.getConnection(server.host,server.username)
-            }
-            connection?.let {
-                it.fileSystem = this
-            }
-            return connection
-
-        } finally {
-            connectionLock.unlock()
-        }
+        return connectionService.getConnection(server)
     }
-
-    fun isSessionAlive(session: Session): Boolean {
-        return try {
-            session.sendKeepAliveMsg()
-            true
-        } catch (e: Exception) {
-            false
-        }
-    }
-
-
-
-
-
-
-
 
 
     fun getChannelFromPool(server: Server): ChannelSftp? {
@@ -326,207 +294,6 @@ import kotlin.collections.iterator
         val connection = getConnection(server) ?: return
         connection.releaseChannelToPool(channel)
     }
-
-    fun searchTextInFiles(
-        server: Server,
-        pattern: String,
-        path: String = server.rootPath,
-        word: Boolean = false,
-        case: Boolean = false,
-        regexp: Boolean = false
-    ): List<SftpFileOccurrence> {
-        val results = mutableListOf<SftpFileOccurrence>()
-        val connection = getConnection(server) ?: return results
-        var execChannel: ChannelExec? = null
-        try {
-            // Build grep options based on flags
-            val options = mutableListOf("-n", "-b", "-r", "-o")
-            if (word) options.add("-w")
-            if (!case) options.add("-i")
-            if (!regexp) options.add("-F")
-            // Exclude hidden files and folders
-            val escapedPattern = pattern.replace("'", "'\\''")
-            val grepCommand = "grep ${options.joinToString(" ")} --exclude-dir='.*' --exclude='.*' '$escapedPattern' '$path' 2>/dev/null"
-
-            println("Searching with command: $grepCommand")
-
-            execChannel = connection.getExecChannelFromPool()
-            execChannel?.setCommand(grepCommand)
-            execChannel?.connect()
-            val input = execChannel?.inputStream
-            val foundOccurrences = input?.bufferedReader()?.readLines() ?: emptyList()
-            execChannel?.disconnect()
-
-            // Group occurrences by file path
-            val fileOccurrences = mutableMapOf<String, MutableList<SftpMatchInfo>>()
-
-            for (occurrence in foundOccurrences) {
-                // Parse output format: filepath:line_number:byte_offset:matching line text
-                val colonIndices = findFirstNColonIndices(occurrence, 3)
-                if (colonIndices.size >= 3) {
-                    val filePath = occurrence.substring(0, colonIndices[0])
-                    val lineNumber = occurrence.substring(colonIndices[0] + 1, colonIndices[1]).toIntOrNull() ?: 1
-                    val byteOffset = occurrence.substring(colonIndices[1]+1  , colonIndices[2]).toIntOrNull() ?: 0
-                    val lineContent = occurrence.substring(colonIndices[2] + 1)
-
-                    // Since grep -b returns the byte offset from the start of the line,
-                    // we can use it directly as the match offset in the line
-                    val matchOffset = byteOffset
-                    val matchEndOffset = matchOffset + lineContent.count()
-
-                    // Add this occurrence to our file matches
-                    val fileMatches = fileOccurrences.getOrPut(filePath) { mutableListOf() }
-                    fileMatches.add(SftpMatchInfo(lineNumber, matchOffset, matchEndOffset, lineContent))
-                }
-            }
-
-            // Create SftpFileOccurrence objects for each file with its matches
-            for ((filePath, matches) in fileOccurrences) {
-                val file = SftpFile(filePath, server)
-                results.add(SftpFileOccurrence(file, matches))
-            }
-        } catch (e: Exception) {
-            println("Error searching text in files: ${e.message}")
-            e.printStackTrace()
-        } finally {
-            connection.releaseExecChannelToPool(execChannel)
-        }
-        return results
-    }
-
-    // Helper method to find the first N colon positions in a string
-    private fun findFirstNColonIndices(str: String, n: Int): List<Int> {
-        val indices = mutableListOf<Int>()
-        var pos = -1
-        repeat(n) {
-            pos = str.indexOf(':', pos + 1)
-            if (pos != -1) {
-                indices.add(pos)
-            } else {
-                return indices // Not enough colons found
-            }
-        }
-        return indices
-    }
-
-    fun searchFiles(
-        server: Server,
-        pattern: String,
-        path: String = server.rootPath,
-        word: Boolean = false,
-        case: Boolean = false,
-        regexp: Boolean = false
-    ): List<SftpFile> {
-        val results = mutableListOf<SftpFile>()
-        if (pattern.length < 2) {
-            return results
-        }
-        val connection = getConnection(server) ?: return results
-        var execChannel: ChannelExec? = null
-        try {
-            // Build find command based on flags
-            val findOptions = mutableListOf<String>()
-            var findPattern = pattern
-            var findFlag = "-name"
-            if (regexp) {
-                findFlag = "-regex"
-                // For regex, pattern should be a full path regex, so prepend '.*' if not present
-                if (!findPattern.startsWith(".*")) findPattern = ".*" + findPattern
-            } else if (word) {
-                // For word, match exact file name
-                findFlag = "-name"
-                findPattern = pattern
-            } else {
-                // Default: substring match
-                findFlag = if (case) "-name" else "-iname"
-                findPattern = if (pattern.contains("*")) pattern else "*$pattern*"
-            }
-            // Exclude hidden files and folders
-            val excludeHidden = "! -path '*/.*'"
-            val findCommand = "find '$path' -type f $excludeHidden $findFlag '$findPattern' 2>/dev/null"
-
-            println("Searching with command: $findCommand")
-            execChannel = connection.getExecChannelFromPool()
-            execChannel?.setCommand(findCommand)
-            execChannel?.connect()
-            val input = execChannel?.inputStream
-            val foundFiles = input?.bufferedReader()?.readLines() ?: emptyList()
-            execChannel?.disconnect()
-            for (filePath in foundFiles) {
-                results.add(SftpFile(filePath, server))
-                println("Found file: $filePath")
-            }
-        } catch (e: Exception) {
-            println(e.message)
-            e.printStackTrace()
-        } finally {
-            connection.releaseExecChannelToPool(execChannel)
-        }
-        return results
-    }
-
-    fun listFolderPaths(server: Server,path: String = server.rootPath): List<String> {
-        val results = mutableListOf<String>()
-        val connection = getConnection(server) ?: return results
-        var execChannel: ChannelExec? = null
-        try {
-            val findCommand = "find '$path' -mindepth 1 -maxdepth 1 -type d 2>/dev/null"
-            execChannel = connection.getExecChannelFromPool()
-            execChannel?.setCommand(findCommand)
-            execChannel?.connect()
-            val input = execChannel?.inputStream
-            val foundDirs = input?.bufferedReader()?.readLines() ?: emptyList()
-            execChannel?.disconnect()
-            results.addAll(foundDirs)
-        } catch (e: Exception) {
-            println(e.message)
-            e.printStackTrace()
-        } finally {
-            connection.releaseExecChannelToPool(execChannel)
-        }
-        return results
-    }
-
-    fun archiveFile(server: Server,virtualFile: VirtualFile): VirtualFile?{
-        val sftpFile = virtualFile as? SftpFile ?: return null
-        var channel: ChannelExec? = null
-        val connection = getConnection(server) ?: return null
-        try {
-            channel = connection.getExecChannelFromPool() ?: return null
-            val parentPath = sftpFile.getParent()?.path ?: return null
-            val fileName = sftpFile.name
-            val zipFileName = if(sftpFile.isDirectory) "$fileName.zip" else "$fileName.zip"
-            val zipFilePath = "$parentPath/$zipFileName"
-            val zipCommand = if(sftpFile.isDirectory){
-                "cd '$parentPath' && zip -r '$zipFileName' '$fileName'"
-            }else{
-                "cd '$parentPath' && zip '$zipFileName' '$fileName'"
-            }
-            println("Zipping with command: $zipCommand")
-            channel.setCommand(zipCommand)
-            channel.connect()
-            while (!channel.isClosed) {
-                Thread.sleep(100)
-            }
-            val exitStatus = channel.exitStatus
-            if (exitStatus == 0) {
-                println("Zip created at: $zipFilePath")
-                // Invalidate cache for parent directory to reflect new zip file
-                fileCache.remove(parentPath)
-                return findFileByPath(zipFilePath)
-            } else {
-                println("Failed to create zip. Exit status: $exitStatus")
-                return null
-            }
-        } catch (e: Exception) {
-            println("Error zipping file: ${e.message}")
-            e.printStackTrace()
-            return  null
-        } finally {
-            connection.releaseExecChannelToPool(channel)
-        }
-    }
-
 
 }
 
@@ -547,7 +314,7 @@ fun Project.openFileInIDE(file: VirtualFile): Boolean {
             val extension = file.extension ?: return false
 
             // Show the IntelliJ "Associate File Type" dialog
-            FileTypeChooser.associateFileType(extension)
+           // FileTypeChooser.associateFileType(extension)
             fileEditor.openFile(file, true)
         } else {
             // For text files, ensure proper text editor
