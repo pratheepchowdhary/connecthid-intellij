@@ -5,7 +5,7 @@ import com.connecthid.intellij.models.Server
 import com.connecthid.intellij.models.SftpFileOccurrence
 import com.connecthid.intellij.models.SftpMatchInfo
 import com.connecthid.intellij.models.getPassword
-import com.connecthid.intellij.services.SSHConnection
+import com.connecthid.intellij.connection.ssh.SSHConnection
 import com.connecthid.intellij.utils.Utils.parseSftpUrl
 import com.connecthid.intellij.utils.isWindows
 import com.intellij.openapi.fileEditor.FileDocumentManager
@@ -273,11 +273,6 @@ import kotlin.collections.iterator
     }
 
     override fun isReadOnly(): Boolean = false
-
-    fun isConnected(server: Server): Boolean {
-        val connection = connectionService.getConnection(server.host,server.username)
-        return connection?.isConnected() ?: false
-    }
 
 
     internal fun getConnection(server: Server): SSHConnection? {

@@ -1,5 +1,6 @@
 package com.connecthid.intellij.ui.runconfigurations
 
+import com.intellij.execution.configurations.ConfigurationFactory
 import com.intellij.execution.configurations.ConfigurationTypeBase
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.util.NotNullFactory
@@ -15,6 +16,10 @@ internal class ConnectHIDRunConfigurationType : ConfigurationTypeBase(
         addFactory(ConnectHIDConfigurationFactory(this, RunConfigurationTask.RemoteScript))
         addFactory(ConnectHIDConfigurationFactory(this, RunConfigurationTask.Upload))
         addFactory(ConnectHIDConfigurationFactory(this, RunConfigurationTask.Download))
+    }
+
+    override fun getConfigurationFactories(): Array<ConfigurationFactory> {
+        return super.getConfigurationFactories()
     }
 
 

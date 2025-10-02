@@ -39,5 +39,10 @@ class ConnectHIDConfigurationFactory(type: ConfigurationType,val task: RunConfig
     override fun getOptionsClass(): Class<out BaseState> {
         return ConnectHIDRunConfigurationOptions::class.java
     }
+
+    // Hide from dropdown
+    override fun isConfigurationSingletonByDefault(): Boolean = true
+    override fun canConfigurationBeSingleton(): Boolean = true
+    override fun isApplicable(project: Project): Boolean = false
 }
 

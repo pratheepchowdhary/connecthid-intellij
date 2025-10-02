@@ -72,8 +72,7 @@ class SftpToolbarActions(private val panel: SftpExplorerPanel,val serverItem: Se
 
         override fun update(e: AnActionEvent) {
             // Enable the button only if there are active operations
-            e.presentation.isEnabled = panel.loadingStates.isNotEmpty() ||
-                    panel.fileSystem.isConnected(serverItem)
+            e.presentation.isEnabled = true
         }
     }
 }

@@ -1,6 +1,7 @@
 package com.connecthid.intellij.ui.runconfigurations
 
 import com.connecthid.intellij.PluginBundle.message
+import com.connecthid.intellij.getSSHService
 import com.intellij.execution.Executor
 import com.intellij.execution.configuration.EnvironmentVariablesData
 import com.intellij.execution.configurations.*
@@ -175,7 +176,7 @@ class ConnectHIDRunConfiguration(
         return notNullize(JDOMExternalizerUtil.readField(element, tagName), "")
     }
 
-    fun getScriptText(): String? {
+    fun getScriptText(): String {
         return myScriptText
     }
 
@@ -183,7 +184,7 @@ class ConnectHIDRunConfiguration(
         myScriptText = scriptText!!
     }
 
-    fun getScriptPath(): String? {
+    fun getScriptPath(): String {
         return myScriptPath
     }
 
@@ -191,7 +192,7 @@ class ConnectHIDRunConfiguration(
         myScriptPath = scriptPath.trim { it <= ' ' }
     }
 
-    fun getScriptOptions(): String? {
+    fun getScriptOptions(): String {
         return myScriptOptions
     }
 
@@ -199,7 +200,7 @@ class ConnectHIDRunConfiguration(
         myScriptOptions = scriptOptions.trim { it <= ' ' }
     }
 
-    fun getScriptWorkingDirectory(): String? {
+    fun getScriptWorkingDirectory(): String {
         return myScriptWorkingDirectory
     }
 
@@ -238,7 +239,7 @@ class ConnectHIDRunConfiguration(
         myEnvData = envData
     }
 
-    fun getInterpreterPath(): String? {
+    fun getInterpreterPath(): String {
         return myInterpreterPath
     }
 
@@ -246,7 +247,7 @@ class ConnectHIDRunConfiguration(
         myInterpreterPath = interpreterPath.trim { it <= ' ' }
     }
 
-    fun getInterpreterOptions(): String? {
+    fun getInterpreterOptions(): String {
         return myInterpreterOptions
     }
 
@@ -293,7 +294,8 @@ class ConnectHIDRunConfiguration(
         executor: Executor,
         environment: ExecutionEnvironment
     ): RunProfileState {
-        return ConnectHIDRunProfileState(environment)
+        val connections = getSSHService()
+        return ConnectHIDRunProfileState(environment,connections.getServer(server))
     }
 
 }

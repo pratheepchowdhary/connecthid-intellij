@@ -5,15 +5,18 @@ import com.connecthid.intellij.ui.runconfigurations.ConnectHIDConfigurationFacto
 import com.connecthid.intellij.ui.runconfigurations.ConnectHIDRunConfigurationType
 import com.connecthid.intellij.ui.runconfigurations.RunConfigurationTask
 import com.connecthid.intellij.utils.removeI
+import com.intellij.execution.ExecutionException
 import com.intellij.execution.RunManager
 import com.intellij.execution.RunnerAndConfigurationSettings
 import com.intellij.execution.configurations.ConfigurationTypeUtil
 import com.intellij.execution.configurations.RunConfiguration
-import com.intellij.execution.impl.EditConfigurationsDialog
-import com.intellij.execution.impl.ProjectRunConfigurationConfigurable
-import com.intellij.execution.impl.RunManagerImpl
+import com.intellij.execution.executors.DefaultRunExecutor
+import com.intellij.execution.impl.RunDialog
+import com.intellij.execution.impl.SingleConfigurationConfigurable
+import com.intellij.execution.runners.ExecutionEnvironmentBuilder
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.actionSystem.*
+import com.intellij.openapi.options.ex.SingleConfigurableEditor
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
 import com.intellij.ui.JBColor
@@ -107,13 +110,13 @@ class ScriptsPanel(
         val factory = type.configurationFactories.firstOrNull { (it as ConnectHIDConfigurationFactory).task == task } ?: return
         val settings: RunnerAndConfigurationSettings = runManager.createConfiguration(generateUniqueConfigurationName(task.name), factory)
         runManager.addConfiguration(settings)
-        val configurable = object : ProjectRunConfigurationConfigurable(project) {
-            override fun getInitialSelectedConfiguration(): RunnerAndConfigurationSettings {
-                return settings
+        val configurable = SingleConfigurationConfigurable.editSettings<RunConfiguration?>(settings, null)
+        val dialog: SingleConfigurableEditor =
+            object : SingleConfigurableEditor(project, configurable, null, IdeModalityType.IDE) {
+                override fun getInitialSize(): Dimension {
+                    return Dimension(650, 500)
+                }
             }
-        }
-        val dialog = EditConfigurationsDialog(project, configurable, dataContext)
-
         dialog.window.addWindowListener(object : java.awt.event.WindowAdapter() {
             override fun windowClosed(e: java.awt.event.WindowEvent?) {
                 updateScriptsList()
@@ -141,25 +144,32 @@ class ScriptsPanel(
         return name
     }
 
-    fun editTask(project: Project, runConfiguration: RunConfiguration, dataContext: DataContext) {
+    fun editTask(project: Project, runConfiguration: RunConfiguration) {
         val runManager = RunManager.getInstance(project)
         val settings: RunnerAndConfigurationSettings =
             runManager.allSettings.firstOrNull { it.configuration == runConfiguration } ?: return
-        val dialog = EditConfigurationsDialog(project,object : ProjectRunConfigurationConfigurable(project) {
-            override fun getInitialSelectedConfiguration(): RunnerAndConfigurationSettings {
-                return settings
+        RunDialog.editConfiguration(project, settings, "Edit Script")
+        val configurable = SingleConfigurationConfigurable.editSettings<RunConfiguration?>(settings, null)
+        val dialog: SingleConfigurableEditor =
+            object : SingleConfigurableEditor(project, configurable, null, IdeModalityType.IDE) {
+                override fun getInitialSize(): Dimension {
+                    return Dimension(650, 500)
+                }
             }
-        },dataContext)
+
+        dialog.setTitle(title)
         dialog.window.addWindowListener(object : java.awt.event.WindowAdapter() {
             override fun windowClosed(e: java.awt.event.WindowEvent?) {
                 updateScriptsList()
             }
+
             override fun windowClosing(e: java.awt.event.WindowEvent?) {
 
             }
         })
-        dialog.show()
+        dialog.showAndGet()
     }
+
 
     private fun createTasks(button: JButton) {
         val actionGroup = DefaultActionGroup()
@@ -202,14 +212,18 @@ class ScriptsPanel(
     }
 
     override fun runTask(configuration: RunConfiguration) {
-
+        val executor = DefaultRunExecutor.getRunExecutorInstance()
+        val builder = ExecutionEnvironmentBuilder.createOrNull(project, executor, configuration)
+            ?: throw ExecutionException("Cannot find runner for ${configuration.name}")
+        val environment = builder.build()
+        environment.runner.execute(environment)
     }
 
     override fun editTask(
         configuration: RunConfiguration,
         dataContext: DataContext
     ) {
-        editTask(project,configuration,dataContext)
+        editTask(project,configuration)
     }
 
     override fun onDeleteTask(configuration: RunConfiguration) {

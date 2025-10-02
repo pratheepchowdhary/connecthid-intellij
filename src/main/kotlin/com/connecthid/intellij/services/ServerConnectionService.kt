@@ -1,5 +1,6 @@
 package com.connecthid.intellij.services
 
+import com.connecthid.intellij.connection.ssh.SSHConnection
 import com.connecthid.intellij.models.AuthenticationMethod
 import com.connecthid.intellij.models.Server
 import com.connecthid.intellij.models.SystemInfo
@@ -228,7 +229,7 @@ class ServerConnectionService() : PersistentStateComponent<ServerConnectionState
         }
     }
 
-    fun getConnection(host: String,username: String): SSHConnection? {
+    private fun getConnection(host: String,username: String): SSHConnection? {
         return connections["$username@${host}"]
     }
 
@@ -298,5 +299,9 @@ class ServerConnectionService() : PersistentStateComponent<ServerConnectionState
         } catch (e: Exception) {
             false
         }
+    }
+    fun isConnected(server: Server): Boolean {
+        val connection = getConnection(server.host,server.username)
+        return connection?.isConnected() ?: false
     }
 }

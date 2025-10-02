@@ -1,12 +1,15 @@
-package com.connecthid.intellij.services
+package com.connecthid.intellij.connection.ssh
 
 import com.connecthid.intellij.connection.sftp.SftpFile
-import com.connecthid.intellij.connection.sftp.SftpFileSystem
 import com.connecthid.intellij.models.Server
 import com.connecthid.intellij.models.SftpFileOccurrence
 import com.connecthid.intellij.models.SftpMatchInfo
-import com.intellij.openapi.vfs.VirtualFile
-import com.jcraft.jsch.*
+import com.jcraft.jsch.ChannelExec
+import com.jcraft.jsch.ChannelSftp
+import com.jcraft.jsch.JSch
+import com.jcraft.jsch.JSchException
+import com.jcraft.jsch.Session
+import com.jcraft.jsch.SftpException
 import com.jetbrains.rd.util.printlnError
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -18,9 +21,9 @@ import java.security.KeyPairGenerator
 import java.security.interfaces.RSAPrivateKey
 import java.security.interfaces.RSAPublicKey
 import java.util.Base64
-import java.util.concurrent.locks.ReentrantLock
 import java.util.concurrent.locks.Condition
-
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.collections.iterator
 
 class SSHConnection(
     private val host: String,
@@ -52,7 +55,7 @@ class SSHConnection(
     fun connect() {
         try {
             session = jsch.getSession(username, host, port)
-            
+
             if (privateKeyPath != null) {
                 // Use private key authentication
                 jsch.addIdentity(privateKeyPath)
@@ -62,7 +65,7 @@ class SSHConnection(
             } else {
                 throw IOException("No authentication method provided")
             }
-            
+
             session!!.connect()
             maxChannels = getMaxSessionsValue(session!!)
         } catch (e: JSchException) {
@@ -478,7 +481,7 @@ class SSHConnection(
         return results
     }
 
-    fun listFolderPaths(server: Server,path: String = server.rootPath): List<String> {
+    fun listFolderPaths(server: Server, path: String = server.rootPath): List<String> {
         val results = mutableListOf<String>()
         var execChannel: ChannelExec? = null
         try {
@@ -579,6 +582,9 @@ class SSHConnection(
         }
         return indices
     }
+
+
+
 
     fun close() {
         disconnectAllChannels()

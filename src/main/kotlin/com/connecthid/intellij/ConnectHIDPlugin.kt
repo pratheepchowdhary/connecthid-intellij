@@ -6,6 +6,7 @@ import com.connecthid.intellij.ui.rsync.FileSyncPanel
 import com.connecthid.intellij.ui.scripts.ScriptsPanel
 import com.connecthid.intellij.ui.servers.ServerListPanel
 import com.connecthid.intellij.ui.workspaces.WorkSpacesPanel
+import com.intellij.execution.impl.RunManagerImpl
 import com.intellij.ide.impl.ProjectUtil
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
@@ -40,6 +41,8 @@ class ConnectHIDPlugin : ToolWindowFactory {
 
 fun getSSHService(): ServerConnectionService =
     ApplicationManager.getApplication().getService(ServerConnectionService::class.java)
+
+
 
 
 
