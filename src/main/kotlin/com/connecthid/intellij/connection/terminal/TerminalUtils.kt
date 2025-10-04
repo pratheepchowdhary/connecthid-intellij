@@ -24,12 +24,12 @@ object SshTerminalUtils {
         executeInTerminal(project, command, null, null)
     }
 
-    
+
     fun executeInTerminal(project: Project, command: String, workingDir: Path) {
         executeInTerminal(project, command, workingDir, null)
     }
 
-    
+
     fun executeInTerminal(project: Project, command: String, terminalTabTitle: String) {
         executeInTerminal(project, command, null, terminalTabTitle)
     }
@@ -53,6 +53,7 @@ object SshTerminalUtils {
         val manager = TerminalToolWindowManager.getInstance(project)
         val runner = SshTerminalRunner(project,host, port, username, password, privateKey,workingDir)
         manager.createNewSession(runner)
+
     }
 
     fun openSshSession1(

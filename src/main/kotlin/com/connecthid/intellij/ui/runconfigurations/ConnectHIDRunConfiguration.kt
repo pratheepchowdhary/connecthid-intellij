@@ -21,6 +21,7 @@ import org.jetbrains.annotations.NonNls
 import java.lang.Boolean
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.*
 import kotlin.String
 import kotlin.Throws
 
@@ -51,16 +52,21 @@ class ConnectHIDRunConfiguration(
     private val EXECUTE_SCRIPT_FILE_TAG: String = "EXECUTE_SCRIPT_FILE"
 
     @NonNls
+    private val SHOW_IN_RUN_TAG: String = "SHOW_IN_RUN_TAG"
+
+    @NonNls
     private val SERVER_TAG: String = "SERVER"
 
     private val LOCALTARGET: String = "LOCALTARGET"
     private val REMOTETARGET:String = "REMOTETARGET"
     private val REMOTEFOLDER: String = "REMOTEFOLDER"
     private val LOCALFOLDER: String = "LOCALFOLDER"
+    private val PRIMARY_KEY: String ="PRIMARY_KEY"
 
 
 
     private  var myScriptText = ""
+    private  var myScriptId = UUID.randomUUID().toString()
     private  var myExecuteScriptFile = true
     private  var myScriptPath = ""
     private  var myScriptOptions = ""
@@ -74,6 +80,9 @@ class ConnectHIDRunConfiguration(
     private  var remoteTarget: String=""
     private  var remoteFolder: String=""
     private  var localFolder: String=""
+    private  var showInRunConfiguration = false
+
+
 
 
     override fun getOptions(): ConnectHIDRunConfigurationOptions {
@@ -86,6 +95,7 @@ class ConnectHIDRunConfiguration(
 
     @Throws(RuntimeConfigurationException::class)
     override fun checkConfiguration() {
+        //todo
         return
         val scriptPath = Path.of(myScriptPath)
         if (myExecuteScriptFile) {
@@ -110,7 +120,7 @@ class ConnectHIDRunConfiguration(
 
 
 
-    public override fun writeExternal(  element: Element) {
+    override fun writeExternal(  element: Element) {
         super.writeExternal(element)
         JDOMExternalizerUtil.writeField(element, SCRIPT_TEXT_TAG, myScriptText)
         writePathWithMetadata(element, myScriptPath, SCRIPT_PATH_TAG)
@@ -125,7 +135,9 @@ class ConnectHIDRunConfiguration(
         JDOMExternalizerUtil.writeField(element, REMOTETARGET, remoteTarget)
         JDOMExternalizerUtil.writeField(element, REMOTEFOLDER, remoteFolder)
         JDOMExternalizerUtil.writeField(element, LOCALFOLDER, localFolder)
-        myEnvData.writeExternal(element)
+         myEnvData.writeExternal(element)
+        JDOMExternalizerUtil.writeField(element, PRIMARY_KEY, myScriptId)
+        JDOMExternalizerUtil.writeField(element, SHOW_IN_RUN_TAG, showInRunConfiguration.toString())
     }
 
     @Throws(InvalidDataException::class)
@@ -147,6 +159,12 @@ class ConnectHIDRunConfiguration(
         remoteFolder = readStringTagValue(element, REMOTEFOLDER)
         localFolder = readStringTagValue(element, LOCALFOLDER)
         myEnvData = EnvironmentVariablesData.readExternal(element)
+        myScriptId = JDOMExternalizerUtil.readField(element, PRIMARY_KEY) ?: UUID.randomUUID().toString()
+        if(myScriptId.isEmpty()){
+            myScriptId = UUID.randomUUID().toString()
+        }
+        showInRunConfiguration = JDOMExternalizerUtil.readField(element, SHOW_IN_RUN_TAG).toBoolean()
+
     }
 
 
@@ -180,6 +198,14 @@ class ConnectHIDRunConfiguration(
         return myScriptText
     }
 
+    fun getScriptId() :String{
+        return myScriptId
+    }
+
+    fun setScriptId(uiid: String){
+        this.myScriptId = uiid
+    }
+
     fun setScriptText(scriptText: String?) {
         myScriptText = scriptText!!
     }
@@ -190,6 +216,12 @@ class ConnectHIDRunConfiguration(
 
     fun setScriptPath(scriptPath: String) {
         myScriptPath = scriptPath.trim { it <= ' ' }
+    }
+    fun setShowInRunConfiguration(showInRunConfiguration: kotlin.Boolean){
+        this.showInRunConfiguration = showInRunConfiguration
+    }
+    fun getShowInRunConfiguration(): kotlin.Boolean{
+        return showInRunConfiguration
     }
 
     fun getScriptOptions(): String {
@@ -289,7 +321,6 @@ class ConnectHIDRunConfiguration(
 
 
 
-
     override fun getState(
         executor: Executor,
         environment: ExecutionEnvironment
@@ -299,3 +330,4 @@ class ConnectHIDRunConfiguration(
     }
 
 }
+

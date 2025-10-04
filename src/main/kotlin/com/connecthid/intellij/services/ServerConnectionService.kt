@@ -1,17 +1,10 @@
 package com.connecthid.intellij.services
 
 import com.connecthid.intellij.connection.ssh.SSHConnection
-import com.connecthid.intellij.models.AuthenticationMethod
-import com.connecthid.intellij.models.Server
-import com.connecthid.intellij.models.SystemInfo
-import com.connecthid.intellij.models.Workspace
-import com.connecthid.intellij.models.getPassword
-import com.connecthid.intellij.models.setPassword
-import com.intellij.openapi.application.ApplicationManager
+import com.connecthid.intellij.models.*
 import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.State
 import com.intellij.openapi.components.Storage
-import com.jcraft.jsch.Session
 import java.io.IOException
 import java.net.Socket
 import java.util.concurrent.ConcurrentHashMap
@@ -20,7 +13,8 @@ import java.util.concurrent.locks.ReentrantLock
 
 data class ServerConnectionState(
     var connections: MutableList<Server> = mutableListOf(),
-    var workspaces: MutableList<Workspace> = mutableListOf()
+    var workspaces: MutableList<Workspace> = mutableListOf(),
+    var scripts: MutableList<Script> = mutableListOf()
 )
 
 @State(name = "ServerConnectionService", storages = [Storage("server-connections.xml")])
@@ -29,18 +23,6 @@ class ServerConnectionService() : PersistentStateComponent<ServerConnectionState
     private var state = ServerConnectionState()
     var searchServers = arrayListOf<Server>()
     private val connectionLock = ReentrantLock()
-
-    init {
-        ApplicationManager.getApplication().invokeLater {
-            installUrlHandler()
-        }
-    }
-
-    private fun installUrlHandler() {
-        val scheme = "connecthid"
-
-
-    }
 
     override fun getState(): ServerConnectionState = state
 
@@ -57,7 +39,13 @@ class ServerConnectionService() : PersistentStateComponent<ServerConnectionState
         privateKeyPath: String? = null
     ) {
         if (!state.connections.any { it.host == host && it.username == username }) {
-            val connection = Server(host=host, username=username, port=port, authMethod=authMethod, privateKeyPath=privateKeyPath)
+            val connection = Server(
+                host = host,
+                username = username,
+                port = port,
+                authMethod = authMethod,
+                privateKeyPath = privateKeyPath
+            )
             state.connections.add(connection)
             updateSystemInfo(connection)
             connection.setPassword(password)
@@ -81,23 +69,49 @@ class ServerConnectionService() : PersistentStateComponent<ServerConnectionState
         return state.workspaces.toList()
     }
 
+    fun addScript(script: Script){
+        if (!state.scripts.any { it.scriptId.equals(script.scriptId) }) {
+            state.scripts.add(script)
+            saveState()
+        } else {
+            state.scripts.removeIf { it.scriptId.equals(script.scriptId)}
+            state.scripts.add(script)
+            saveState()
+        }
+    }
+
+    fun getScripts(): List<Script>{
+        return state.scripts.toList()
+    }
+
+    fun removeScript(script: Script){
+        state.scripts.remove(script)
+        saveState()
+    }
+
+    fun removeScript(scriptId: String){
+        state.scripts.removeIf { it.scriptId.equals(scriptId) }
+        saveState()
+    }
+
+
     private fun updateSystemInfo(server: Server) {
         val sshConnection = connections["${server.username}@${server.host}"] ?: return
         try {
             // Get OS information
             val osInfo = sshConnection.execute("cat /etc/os-release").split("\n")
-                .associate { line -> 
+                .associate { line ->
                     val parts = line.split("=")
                     if (parts.size == 2) parts[0] to parts[1].trim('"') else "" to ""
                 }
-             
-             val hostName = sshConnection.execute("hostname")
-            
-            
+
+            val hostName = sshConnection.execute("hostname")
+
+
             // Get CPU information
             val cpuInfo = sshConnection.execute("cat /proc/cpuinfo | grep 'model name' | head -n1")
                 .substringAfter(":").trim()
-           val architecture = sshConnection.execute("uname -m")
+            val architecture = sshConnection.execute("uname -m")
 
             // Get RAM information
             val memInfo = sshConnection.execute("free -h").split("\n")[1]
@@ -134,20 +148,23 @@ class ServerConnectionService() : PersistentStateComponent<ServerConnectionState
         }
     }
 
-    fun removeServerConnection(host: String,username: String) {
+    fun removeServerConnection(host: String, username: String) {
         state.connections.removeIf { it.host == host }
         // Trigger state change to ensure persistence
         saveState()
     }
+
     fun saveState() {
         // Trigger state change to ensure persistence
-        state = state.copy(connections = state.connections.toMutableList(), workspaces = state.workspaces.toMutableList())
+        state =
+            state.copy(connections = state.connections.toMutableList(), workspaces = state.workspaces.toMutableList())
     }
 
 
     fun getSavedConnections(): List<Server> {
         return state.connections.toList()
     }
+
     fun isValidSshConnection(
         host: String,
         username: String,
@@ -176,7 +193,7 @@ class ServerConnectionService() : PersistentStateComponent<ServerConnectionState
             val connection = SSHConnection(host, username, password, port, privateKeyPath)
             connection.connect()
             connections["$username@${host}"] = connection
-            
+
             // Add or update server connection
             val existingConnection = state.connections.find { it.host.equals(host) && it.username.equals(username) }
             if (existingConnection != null) {
@@ -190,29 +207,30 @@ class ServerConnectionService() : PersistentStateComponent<ServerConnectionState
                 existingConnection.setPassword(password)
                 updateSystemInfo(state.connections[index])
             } else {
-                addServerConnection(host, username, port, 
+                addServerConnection(
+                    host, username, port,
                     if (privateKeyPath != null) AuthenticationMethod.PRIVATE_KEY else AuthenticationMethod.PASSWORD,
                     password,
                     privateKeyPath
                 )
             }
-            
+
             return true
         } catch (e: IOException) {
             return false
         }
     }
 
-    fun disconnect(host: String,username: String) {
+    fun disconnect(host: String, username: String) {
         connections["$username@${host}"]?.close()
         connections.remove("$username@${host}")
     }
 
-    fun isConnected(host: String,username: String): Boolean {
+    fun isConnected(host: String, username: String): Boolean {
         return connections["$username@${host}"]?.isConnected() ?: false
     }
 
-    fun checkConnection(host: String,username: String): Boolean {
+    fun checkConnection(host: String, username: String): Boolean {
         // First try SSH connection if it exists
         val sshConnection = connections["$username@${host}"]
         if (sshConnection != null && sshConnection.isConnected()) {
@@ -229,11 +247,11 @@ class ServerConnectionService() : PersistentStateComponent<ServerConnectionState
         }
     }
 
-    private fun getConnection(host: String,username: String): SSHConnection? {
+    private fun getConnection(host: String, username: String): SSHConnection? {
         return connections["$username@${host}"]
     }
 
-    fun getServer(server: String): Server?{
+    fun getServer(server: String): Server? {
         return state.connections.firstOrNull() { it.stmpName.equals(server) }
     }
 
@@ -241,67 +259,19 @@ class ServerConnectionService() : PersistentStateComponent<ServerConnectionState
         return connections[userAtHost]
     }
 
-    fun getSession(host: String,username: String): Session? {
-        return connections["$username@${host}"]?.getSession()
-    }
-
-    fun executeCommand(host: String,username: String, command: String): String? {
-        return try {
-            val connection = connections["$username@${host}"] ?: return null
-            connection.execute(command)
-        } catch (e: IOException) {
-            null
-        }
-    }
-
-    fun uploadFile(host: String,username: String, localPath: String, remotePath: String): Boolean {
-        return try {
-            val connection = connections["$username@${host}"] ?: return false
-            connection.uploadFile(localPath, remotePath)
-            true
-        } catch (e: IOException) {
-            false
-        }
-    }
-
-    fun downloadFile(host: String,username: String, remotePath: String, localPath: String): Boolean {
-        return try {
-            val connection = connections["$username@${host}"] ?: return false
-            connection.downloadFile(remotePath, localPath)
-            true
-        } catch (e: IOException) {
-            false
-        }
-    }
-
-    fun getConnectedServers(): List<String> {
-        return connections.keys.toList()
-    }
 
     fun getConnection(server: Server): SSHConnection? {
         connectionLock.lock()
-        try{
-            var connection = getConnection(server.host,server.username)
+        try {
+            var connection = getConnection(server.host, server.username)
             if (connection == null || !connection.isConnected()) {
                 connect(server.host, server.username, server.getPassword(), port = server.port)
-                connection = getConnection(server.host,server.username)
+                connection = getConnection(server.host, server.username)
             }
             return connection
 
         } finally {
             connectionLock.unlock()
         }
-    }
-    fun isSessionAlive(session: Session): Boolean {
-        return try {
-            session.sendKeepAliveMsg()
-            true
-        } catch (e: Exception) {
-            false
-        }
-    }
-    fun isConnected(server: Server): Boolean {
-        val connection = getConnection(server.host,server.username)
-        return connection?.isConnected() ?: false
     }
 }

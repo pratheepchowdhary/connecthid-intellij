@@ -22,5 +22,4 @@ internal class ConnectHIDRunConfigurationType : ConfigurationTypeBase(
         return super.getConfigurationFactories()
     }
 
-
 }

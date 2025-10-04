@@ -19,15 +19,7 @@ class ConnectHIDConfigurationFactory(type: ConfigurationType,val task: RunConfig
     }
 
     override fun getIcon(): Icon {
-        if (task == RunConfigurationTask.RemoteScript) {
-            return AllIcons.Actions.RunAnything
-        } else if (task == RunConfigurationTask.LocalScript) {
-            return AllIcons.Actions.RunAnything
-        } else if (task == RunConfigurationTask.Upload) {
-            return AllIcons.Actions.Upload
-        } else {
-            return AllIcons.Actions.Download
-        }
+       return task.icon
     }
 
     override fun createTemplateConfiguration(

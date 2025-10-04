@@ -1,6 +1,7 @@
 package com.connecthid.intellij.ui.runconfigurations
 
 import com.connecthid.intellij.models.Server
+import com.connecthid.intellij.utils.log
 import com.intellij.execution.DefaultExecutionResult
 import com.intellij.execution.ExecutionResult
 import com.intellij.execution.configurations.CommandLineState
@@ -11,9 +12,7 @@ import com.intellij.execution.runners.ProgramRunner
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
-import com.intellij.openapi.diagnostic.logger
 
-private val LOG = logger<ConnectHIDRunProfileState>()
 
 class ConnectHIDRunProfileState(
     environment: ExecutionEnvironment,
@@ -21,7 +20,7 @@ class ConnectHIDRunProfileState(
 ) : CommandLineState(environment) {
 
     override fun startProcess(): ProcessHandler {
-        LOG.info("startProcess")
+        log.info("startProcess")
         return DummyProcessHandler()
     }
 

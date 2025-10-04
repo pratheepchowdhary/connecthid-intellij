@@ -1,27 +1,19 @@
 package com.connecthid.intellij
 
-import com.connecthid.intellij.services.ConnectHidServiceImpl
+import com.connecthid.intellij.services.ConnectHIDConfigService
 import com.connecthid.intellij.services.ServerConnectionService
-import com.connecthid.intellij.ui.rsync.FileSyncPanel
 import com.connecthid.intellij.ui.scripts.ScriptsPanel
 import com.connecthid.intellij.ui.servers.ServerListPanel
 import com.connecthid.intellij.ui.workspaces.WorkSpacesPanel
-import com.intellij.execution.impl.RunManagerImpl
-import com.intellij.ide.impl.ProjectUtil
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
-import com.intellij.openapi.wm.WindowManager
 import com.intellij.openapi.wm.ex.ToolWindowEx
 import com.intellij.ui.components.JBTabbedPane
 import com.intellij.ui.content.ContentFactory
 
 class ConnectHIDPlugin : ToolWindowFactory {
-    // Defer service retrieval to when they're actually needed
-    private fun getConnectHidService() = ApplicationManager.getApplication().getService(ConnectHidServiceImpl::class.java)
-
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
         // Create main tabbed pane
         val tabbedPane = JBTabbedPane()
@@ -42,9 +34,7 @@ class ConnectHIDPlugin : ToolWindowFactory {
 fun getSSHService(): ServerConnectionService =
     ApplicationManager.getApplication().getService(ServerConnectionService::class.java)
 
+fun Project.getProjectService(): ConnectHIDConfigService {
+    return this.getService(ConnectHIDConfigService::class.java)
+}
 
-
-
-
-fun Project.getConnectHidService(): ConnectHidServiceImpl =
-    ApplicationManager.getApplication().getService(ConnectHidServiceImpl::class.java)

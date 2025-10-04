@@ -1,8 +1,8 @@
 package com.connecthid.intellij.ui.scripts
 
 import com.connecthid.intellij.PluginBundle
-import com.connecthid.intellij.ui.runconfigurations.ConnectHIDRunConfiguration
-import com.intellij.execution.configurations.RunConfiguration
+import com.connecthid.intellij.models.Script
+import com.connecthid.intellij.ui.runconfigurations.RunConfigurationTask
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.actionSystem.*
 import com.intellij.ui.JBColor
@@ -19,9 +19,9 @@ import java.awt.event.MouseEvent
 import javax.swing.JButton
 
 
-class ScriptItem(val script: RunConfiguration) : JBPanel<ScriptItem>(GridBagLayout()) {
+class ScriptItem(val script: Script) : JBPanel<ScriptItem>(GridBagLayout()) {
     var listener: Listener? = null
-    var configuation = script as ConnectHIDRunConfiguration
+    val configuration by lazy { RunConfigurationTask.fromType(script.scriptType) }
 
     private val hoverListener = object : MouseAdapter() {
         override fun mouseEntered(e: MouseEvent) {
@@ -40,7 +40,7 @@ class ScriptItem(val script: RunConfiguration) : JBPanel<ScriptItem>(GridBagLayo
         maximumSize = Dimension(Int.MAX_VALUE, LIST_ITEM_HEIGHT)
         preferredSize = Dimension(0, LIST_ITEM_HEIGHT)
 
-        val iconLabel = JBLabel(configuation.icon).apply {
+        val iconLabel = JBLabel(configuration.icon).apply {
             preferredSize = Dimension(80, 80)
         }
         add(iconLabel, GridBagConstraints().apply {
@@ -53,7 +53,7 @@ class ScriptItem(val script: RunConfiguration) : JBPanel<ScriptItem>(GridBagLayo
             insets = JBUI.insets(0, 20)
         })
 
-        val titleLabel = JBLabel(script.name)
+        val titleLabel = JBLabel(script.scriptName)
         titleLabel.componentStyle = UIUtil.ComponentStyle.LARGE
         titleLabel.font = titleLabel.font.deriveFont(Font.BOLD)
         add(titleLabel, GridBagConstraints().apply {
@@ -67,7 +67,7 @@ class ScriptItem(val script: RunConfiguration) : JBPanel<ScriptItem>(GridBagLayo
             insets = JBUI.insetsTop(8)
         })
 
-        val pathLabel = JBLabel("${configuation.task.name} ${configuation.getServer()}")
+        val pathLabel = JBLabel("${configuration.configName} ${script.server}")
         pathLabel.componentStyle = UIUtil.ComponentStyle.SMALL
         add(pathLabel, GridBagConstraints().apply {
             gridx = 1
@@ -99,7 +99,7 @@ class ScriptItem(val script: RunConfiguration) : JBPanel<ScriptItem>(GridBagLayo
             insets = JBUI.insetsRight(10)
             anchor = GridBagConstraints.CENTER
         })
-        moreButton.addActionListener { e ->
+        moreButton.addActionListener { _ ->
             showPopupMenu(moreButton)
         }
 
@@ -114,7 +114,7 @@ class ScriptItem(val script: RunConfiguration) : JBPanel<ScriptItem>(GridBagLayo
         val actionGroup = DefaultActionGroup()
         actionGroup.add(object : AnAction({ PluginBundle.message("run_task") }, AllIcons.Actions.RunAll) {
             override fun actionPerformed(e: AnActionEvent) {
-            listener?.runTask(script)
+                 listener?.runTask(script)
             }
         })
         actionGroup.addSeparator()
@@ -134,9 +134,9 @@ class ScriptItem(val script: RunConfiguration) : JBPanel<ScriptItem>(GridBagLayo
     }
 
     interface Listener {
-        fun runTask(configuration:RunConfiguration)
-        fun editTask(configuration:RunConfiguration,dataContext: DataContext)
-        fun onDeleteTask(configuration:RunConfiguration)
+        fun runTask(configuration:Script)
+        fun editTask(configuration:Script,dataContext: DataContext)
+        fun onDeleteTask(configuration: Script)
     }
 
     private companion object {
