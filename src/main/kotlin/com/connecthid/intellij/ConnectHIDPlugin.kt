@@ -4,6 +4,7 @@ import com.connecthid.intellij.services.ConnectHIDConfigService
 import com.connecthid.intellij.services.ServerConnectionService
 import com.connecthid.intellij.ui.scripts.ScriptsPanel
 import com.connecthid.intellij.ui.servers.ServerListPanel
+import com.connecthid.intellij.ui.servers.ServerStatusDashboardPanel
 import com.connecthid.intellij.ui.workspaces.WorkSpacesPanel
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
@@ -21,7 +22,7 @@ class ConnectHIDPlugin : ToolWindowFactory {
         tabbedPane.addTab("Servers", ServerListPanel(project))
         tabbedPane.addTab("Workspaces", WorkSpacesPanel(project))
         tabbedPane.addTab("Scripts", ScriptsPanel(project))
-        //tabbedPane.addTab("Rsync", FileSyncPanel(project))
+        tabbedPane.addTab("Server Status", ServerStatusDashboardPanel().createComponent())
         // Add content to tool window
         val contentFactory = ContentFactory.getInstance()
         val content = contentFactory.createContent(tabbedPane, "", false)

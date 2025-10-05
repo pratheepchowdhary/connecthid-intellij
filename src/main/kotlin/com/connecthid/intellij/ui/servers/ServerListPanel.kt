@@ -1,23 +1,29 @@
 package com.connecthid.intellij.ui.servers
 
+import com.connecthid.intellij.connection.terminal.openTerminal
 import com.connecthid.intellij.getSSHService
 import com.connecthid.intellij.models.AuthenticationMethod
 import com.connecthid.intellij.models.Server
 import com.connecthid.intellij.models.SystemInfo
-import com.connecthid.intellij.utils.removeI
-import com.intellij.icons.AllIcons
-import com.intellij.openapi.project.Project
-import com.connecthid.intellij.connection.terminal.openTerminal
 import com.connecthid.intellij.models.getPassword
 import com.connecthid.intellij.ui.filemanager.sftp.openSFTP
+import com.connecthid.intellij.utils.removeI
+import com.intellij.icons.AllIcons
+import com.intellij.openapi.actionSystem.AnAction
+import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.project.Project
+import com.intellij.openapi.wm.ToolWindowAnchor
+import com.intellij.openapi.wm.ToolWindowManager
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPanel
 import com.intellij.ui.components.panels.OpaquePanel
+import com.intellij.ui.content.ContentFactory
 import com.intellij.util.ui.JBUI
 import java.awt.Dimension
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
+import java.util.function.Supplier
 import javax.swing.BoxLayout
 import javax.swing.JButton
 import javax.swing.JPanel
@@ -118,28 +124,32 @@ class ServerListPanel internal constructor(val project: Project): JBPanel<Server
         connectionService.connect(server.host,server.username,server.getPassword(),server.port,server.privateKeyPath)
     }
 
-    override fun onDisconnectButtonClicked(device: Server) {
-        connectionService.disconnect(device.host,device.username)
+    override fun onDisconnectButtonClicked(server: Server) {
+        connectionService.disconnect(server.host,server.username)
     }
 
-    override fun onOpenConsoleButtonClicked(device: Server) {
+    override fun onOpenConsoleButtonClicked(server: Server) {
         // open terminal in side intellij ide  with ssh connection using TerminalWidget
-        project.openTerminal(server = device)
+        project.openTerminal(server = server)
         
     }
 
-    override fun onRemoveDeviceClicked(device: Server) {
-        connectionService.removeServerConnection(device.host,device.username)
-        devices.remove(device)
+    override fun onRemoveDeviceClicked(server: Server) {
+        connectionService.removeServerConnection(server.host,server.username)
+        devices.remove(server)
         rebuildUi()
     }
 
-    override fun onEditDeviceClicked(device: Server) {
-        addServer(device)
+    override fun onEditDeviceClicked(server: Server) {
+        addServer(server)
     }
 
     override fun onOpenSFTPClicked(device: Server) {
         project.openSFTP(device)
+    }
+
+    override fun onServerClicked(server: Server) {
+        project.openServerInfo(server)
     }
 
     private fun updateServerList() {
@@ -246,3 +256,74 @@ class ServerListPanel internal constructor(val project: Project): JBPanel<Server
     }
 
 }
+
+
+fun Project.closeServerInfo(panel: ServerInfoPanel) {
+    val manager = ToolWindowManager.getInstance(this)
+    val toolWindow = manager.getToolWindow(panel.panelId)
+    toolWindow?.let { window ->
+        // Find and remove all contents
+        val existingPanel = toolWindow.contentManager.contents.firstOrNull { content ->
+            (content.component as? ServerInfoPanel)?.server?.host == panel.server.host &&
+                    (content.component as? ServerInfoPanel)?.server?.username == panel.server.username
+        }
+        if (existingPanel != null) {
+            toolWindow.contentManager.removeContent(existingPanel, true)
+        }
+        if (window.contentManager.contentCount == 0) {
+            window.hide()
+        }
+    }
+}
+
+fun Project.openServerInfo(server: Server)  {
+
+    val manager = ToolWindowManager.getInstance(this)
+    val panelId = "ServerInfo"+server.stmpName
+    val toolWindow = manager.getToolWindow(panelId)
+    if (toolWindow == null) {
+        val window = manager.registerToolWindow(panelId) {
+            icon = AllIcons.Webreferences.Server
+            canCloseContent = false
+            anchor = ToolWindowAnchor.RIGHT
+            stripeTitle = Supplier{server.stmpName}
+        }
+        val severPanel = ServerInfoPanel(this, server,panelId)
+        val contentFactory = ContentFactory.getInstance()
+        val content = contentFactory.createContent(severPanel, "", true).apply {
+            isCloseable = false
+            setDisposer(severPanel)  // Ensure proper cleanup
+        }
+        window.setTitleActions(listOf(object : AnAction({ "Stop" }, AllIcons.Actions.Suspend) {
+            override fun actionPerformed(e: AnActionEvent) {
+                severPanel.project.closeServerInfo(severPanel)
+            }
+        }))
+        window.contentManager.addContent(content)
+        window.activate { window.show() }
+    } else {
+        // Check if panel for this server already exists
+        val existingPanel = toolWindow.contentManager.contents.firstOrNull { content ->
+            (content.component as? ServerInfoPanel)?.server?.host == server.host &&
+                    (content.component as? ServerInfoPanel)?.server?.username == server.username
+        }
+
+        if (existingPanel != null) {
+            toolWindow.activate { toolWindow.show() }
+        } else {
+            val severPanel = ServerInfoPanel(this, server, panelId)
+            val contentFactory = ContentFactory.getInstance()
+            val content = contentFactory.createContent(severPanel, "", true).apply {
+                isCloseable = false
+                setDisposer(severPanel)  // Ensure proper cleanup
+            }
+            toolWindow.setTitleActions(listOf(object : AnAction({ "Stop" }, AllIcons.Actions.Suspend) {
+                override fun actionPerformed(e: AnActionEvent) {
+                    severPanel.project.closeServerInfo(severPanel)
+                }
+            }))
+            toolWindow.contentManager.addContent(content)
+            toolWindow.activate { toolWindow.show() }
+        }
+    }
+    }

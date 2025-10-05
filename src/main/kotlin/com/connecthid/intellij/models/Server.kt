@@ -3,6 +3,7 @@ package com.connecthid.intellij.models
 import com.connecthid.intellij.connection.sftp.SftpFileSystem
 import com.connecthid.intellij.utils.PasswordUtil
 import com.connecthid.intellij.utils.toImageIcon
+import com.intellij.openapi.application.runReadAction
 import com.intellij.util.xmlb.annotations.Attribute
 import com.intellij.util.xmlb.annotations.Tag
 

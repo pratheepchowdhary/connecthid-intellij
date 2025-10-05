@@ -5,6 +5,7 @@ import com.connecthid.intellij.connection.sftp.SftpFileSystem
 import com.connecthid.intellij.connection.sftp.openFileInIDE
 import com.connecthid.intellij.models.Server
 import com.connecthid.intellij.models.Workspace
+import com.connecthid.intellij.ui.MyIcons
 import com.connecthid.intellij.ui.filemanager.sftp.actions.SftpToolbarActions
 import com.connecthid.intellij.utils.Utils.parseSftpUrl
 import com.intellij.execution.impl.EditConfigurationsDialog
@@ -390,7 +391,7 @@ fun Project.openProject(server: Server, workspace: Workspace )  {
     val fullPath = "${SftpFileSystem.PROTOCOL}://${server.username}@${server.host}:${server.port}${workspace.path}"
     if (toolWindow == null) {
         val window = manager.registerToolWindow(panelId) {
-            icon = AllIcons.Nodes.WebFolder
+            icon = MyIcons.RemoteServerFolder
             canCloseContent = false
             anchor = ToolWindowAnchor.LEFT
             stripeTitle = Supplier{workspace.folderName}

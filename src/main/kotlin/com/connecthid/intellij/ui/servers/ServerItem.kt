@@ -35,6 +35,11 @@ class ServerItem(val device: Server, val connectionService: ServerConnectionServ
         override fun mouseExited(e: MouseEvent) {
             background = JBColor.background()
         }
+        override fun mouseClicked(e: MouseEvent) {
+            if (e.clickCount == 2) {
+                 listener?.onServerClicked(device)
+            }
+        }
     }
 
     init {
@@ -65,13 +70,6 @@ class ServerItem(val device: Server, val connectionService: ServerConnectionServ
         val titleLabel = JBLabel(device.systemInfo.hostName)
         titleLabel.componentStyle = UIUtil.ComponentStyle.LARGE
         titleLabel.makeBol()
-        titleLabel.addMouseListener(object : MouseAdapter() {
-            override fun mouseClicked(e: MouseEvent) {
-                if (e.clickCount == 2) {
-                    listener?.onEditDeviceClicked(device)
-                }
-            }
-        })
         add(
             titleLabel,
             GridBagConstraints().apply {
@@ -88,7 +86,6 @@ class ServerItem(val device: Server, val connectionService: ServerConnectionServ
         )
         val descriptionLabel = JBLabel(hostDescription())
         descriptionLabel.componentStyle = UIUtil.ComponentStyle.SMALL
-        descriptionLabel.addMouseListener(hoverListener)
         add(
             descriptionLabel,
             GridBagConstraints().apply {
@@ -108,7 +105,6 @@ class ServerItem(val device: Server, val connectionService: ServerConnectionServ
 
          val hostLabel = JBLabel(device.host)
          hostLabel.componentStyle = UIUtil.ComponentStyle.SMALL
-         hostLabel.addMouseListener(hoverListener)
          add(
             hostLabel,
             GridBagConstraints().apply {
@@ -130,7 +126,6 @@ class ServerItem(val device: Server, val connectionService: ServerConnectionServ
             val progressBar = JProgressBar()
             progressBar.isIndeterminate = true
             progressBar.preferredSize = Dimension(100, progressBar.preferredSize.height)
-            progressBar.addMouseListener(hoverListener)
             val vInset = (BUTTON_CELL_HEIGHT - progressBar.preferredSize.height) / 2
             add(
                 progressBar,
@@ -271,12 +266,13 @@ class ServerItem(val device: Server, val connectionService: ServerConnectionServ
 
 
     interface Listener {
-        fun onConnectButtonClicked(device: Server)
-        fun onDisconnectButtonClicked(device: Server)
-        fun onOpenConsoleButtonClicked(device: Server)
-        fun onRemoveDeviceClicked(device: Server)
-        fun onEditDeviceClicked(device: Server)
-        fun onOpenSFTPClicked(device: Server)
+        fun onConnectButtonClicked(server: Server)
+        fun onDisconnectButtonClicked(server: Server)
+        fun onOpenConsoleButtonClicked(server: Server)
+        fun onRemoveDeviceClicked(server: Server)
+        fun onEditDeviceClicked(server: Server)
+        fun onOpenSFTPClicked(server: Server)
+        fun onServerClicked(server: Server)
 
     }
 
