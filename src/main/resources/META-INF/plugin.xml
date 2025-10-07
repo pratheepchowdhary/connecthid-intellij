@@ -36,7 +36,7 @@
       <postStartupActivity implementation="com.connecthid.intellij.ConnectHIDStartupActivity"/>
     <toolWindow
             id="Connect HID"
-            icon="AllIcons.RunConfigurations.Remote"
+            icon="icons/connecthid.svg"
             anchor="right"
             factoryClass="com.connecthid.intellij.ConnectHIDPlugin"/>
     <notificationGroup

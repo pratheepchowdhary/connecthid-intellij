@@ -6,5 +6,8 @@ import javax.swing.Icon
 object MyIcons {
     @JvmField
     val RemoteServerFolder: Icon = IconLoader.getIcon("/icons/serverObjectsGroup.svg", javaClass)
+    @JvmField
+    val ConnectHID: Icon = IconLoader.getIcon("/icons/connecthid.svg", javaClass)
+
 
 }

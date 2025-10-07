@@ -34,6 +34,7 @@ import java.awt.GridBagLayout
 import javax.swing.BoxLayout
 import javax.swing.JButton
 import javax.swing.JPanel
+import javax.swing.JScrollPane
 
 class ScriptsPanel(
     private val project: Project
@@ -47,6 +48,16 @@ class ScriptsPanel(
     private var header: JPanel? = null
     private var headerLabel: JBLabel? = null
     private var newFolderButton: JButton? = null
+    private var scriptListPanel: JPanel = JPanel().apply {
+        layout = BoxLayout(this, BoxLayout.PAGE_AXIS)
+        background = JBColor.background()
+    }
+    private var scrollPane: JScrollPane = JScrollPane(scriptListPanel).apply {
+        border = null
+        verticalScrollBarPolicy = JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED
+        horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
+        preferredSize = Dimension(0, 300) // Adjust height as needed
+    }
     val runManager by lazy {
          RunManager.getInstance(project)
     }
@@ -56,6 +67,7 @@ class ScriptsPanel(
         layout = BoxLayout(this, BoxLayout.PAGE_AXIS)
         background = JBColor.background()
         buildHeader()
+        add(scrollPane)
         rebuildUi()
         updateScriptsList()
         project.getProjectService().setRunManagerListener(this)
@@ -63,14 +75,14 @@ class ScriptsPanel(
 
     private fun rebuildUi() {
         headerLabel?.text = "$title (${scripts.size})"
-        removeI { child -> child is ScriptItem }
+        scriptListPanel.removeAll()
         for (script in scripts) {
             val devicePanel = ScriptItem(script)
             devicePanel.listener=this
-            add(devicePanel)
+            scriptListPanel.add(devicePanel)
         }
-        revalidate()
-        repaint()
+        scriptListPanel.revalidate()
+        scriptListPanel.repaint()
     }
     private fun buildHeader() {
         val header = OpaquePanel(GridBagLayout())

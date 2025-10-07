@@ -12,17 +12,29 @@ import java.awt.Dimension
 import javax.swing.BoxLayout
 import javax.swing.JButton
 import javax.swing.JPanel
+import javax.swing.JScrollPane
 
 class WorkSpacesPanel internal constructor(val project: Project) : JBPanel<ServerListPanel>() {
     private val connection = getSSHService()
     private var workspaces: MutableList<Workspace> = connection.getWorkspaces().toMutableList()
     private var header: JPanel? = null
     private var headerLabel: JBLabel? = null
+    private var workspaceListPanel: JPanel = JBPanel<JBPanel<*>>().apply {
+        layout = BoxLayout(this, BoxLayout.PAGE_AXIS)
+        background = JBColor.background()
+    }
+    private var scrollPane: JScrollPane = JScrollPane(workspaceListPanel).apply {
+        border = null
+        verticalScrollBarPolicy = JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED
+        horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
+        preferredSize = Dimension(0, 300) // Adjust height as needed
+    }
 
     init {
         layout = BoxLayout(this, BoxLayout.PAGE_AXIS)
         background = JBColor.background()
         buildHeader()
+        add(scrollPane)
         rebuildUi()
     }
 
@@ -44,8 +56,7 @@ class WorkSpacesPanel internal constructor(val project: Project) : JBPanel<Serve
     }
 
     private fun rebuildUi() {
-        // Remove all WorkspaceItem components
-        components.filterIsInstance<WorkspaceItem>().forEach { remove(it) }
+        workspaceListPanel.removeAll()
         headerLabel?.text = "Workspaces (${workspaces.size})"
         for (workspace in workspaces) {
             val item = WorkspaceItem(workspace)
@@ -62,10 +73,10 @@ class WorkSpacesPanel internal constructor(val project: Project) : JBPanel<Serve
                     rebuildUi()
                 }
             }
-            add(item)
+            workspaceListPanel.add(item)
         }
-        revalidate()
-        repaint()
+        workspaceListPanel.revalidate()
+        workspaceListPanel.repaint()
     }
 
     private fun refreshWorkspaces() {
@@ -73,4 +84,3 @@ class WorkSpacesPanel internal constructor(val project: Project) : JBPanel<Serve
         rebuildUi()
     }
 }
-

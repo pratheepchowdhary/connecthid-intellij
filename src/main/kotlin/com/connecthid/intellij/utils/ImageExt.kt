@@ -28,11 +28,11 @@ object ImageExt{
                     val g2 = circleImage.createGraphics()
 
                     // Enable antialiasing
-                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+                   // g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
 
                     // Draw white circle background
                     g2.color = HOVER_COLOR
-                    g2.fillOval(0, 0, iconSize, iconSize)
+                    //g2.fillOval(0, 0, iconSize, iconSize)
 
                     // Scale and draw the icon
                     val scaled = originalIcon.getScaledInstance(iconSize - 16, iconSize - 16, Image.SCALE_SMOOTH)

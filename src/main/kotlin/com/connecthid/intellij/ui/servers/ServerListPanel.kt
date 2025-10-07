@@ -27,6 +27,7 @@ import java.util.function.Supplier
 import javax.swing.BoxLayout
 import javax.swing.JButton
 import javax.swing.JPanel
+import javax.swing.JScrollPane
 
 class ServerListPanel internal constructor(val project: Project): JBPanel<ServerListPanel>(), ServerItem.Listener  {
     // Use lazy initialization to defer service access until actually needed
@@ -39,27 +40,36 @@ class ServerListPanel internal constructor(val project: Project): JBPanel<Server
     private var header: JPanel? = null
     private var headerLabel: JBLabel? = null
     private var newConnectionButton: JButton? = null
+    private var deviceListPanel: JPanel = JBPanel<JBPanel<*>>().apply {
+        layout = BoxLayout(this, BoxLayout.PAGE_AXIS)
+        background = JBColor.background()
+    }
+    private var scrollPane: JScrollPane = JScrollPane(deviceListPanel).apply {
+        border = null
+        verticalScrollBarPolicy = JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED
+        horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
+        preferredSize = Dimension(0, 300) // Adjust height as needed
+    }
 
     init {
         layout = BoxLayout(this, BoxLayout.PAGE_AXIS)
         background = JBColor.background()
         buildHeader()
+        add(scrollPane)
         rebuildUi()
         updateServerList()
     }
 
     private fun rebuildUi() {
         headerLabel?.text = "$title (${devices.size})"
-
-
-        removeI { child -> child is ServerItem }
+        deviceListPanel.removeAll()
         for (device in devices) {
-            val devicePanel = ServerItem(device,connectionService)
+            val devicePanel = ServerItem(device, connectionService)
             devicePanel.listener = this
-            add(devicePanel)
+            deviceListPanel.add(devicePanel)
         }
-        revalidate()
-        repaint()
+        deviceListPanel.revalidate()
+        deviceListPanel.repaint()
     }
     private fun buildHeader() {
         val header = OpaquePanel(GridBagLayout())
@@ -242,8 +252,8 @@ class ServerListPanel internal constructor(val project: Project): JBPanel<Server
         )
 
         // Add mock servers if no real connections exist
-        if (devices.isEmpty()) {
-            //devices.addAll(mockServers)
+        if (!devices.isEmpty()) {
+            devices.addAll(mockServers)
         }
         this.devices = devices
     }
