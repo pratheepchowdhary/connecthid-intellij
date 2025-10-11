@@ -1,6 +1,7 @@
 package com.connecthid.intellij.utils
 
 import com.connecthid.intellij.models.SftpUrl
+import org.jdom.Element
 
 object Utils {
     fun parseSftpUrl(url: String): SftpUrl {
@@ -19,4 +20,24 @@ object Utils {
 
         return SftpUrl(username, host, port, path)
     }
+
+
+    fun mapStringToElement(data: String,passParentEnv: Boolean=true): Element {
+        val parentElement = Element("parent")
+        val envsElement = Element("envs")
+        envsElement.setAttribute("pass-parent-envs", passParentEnv.toString())
+        parentElement.addContent(envsElement)
+
+        data.split(";").forEach { pair ->
+            val parts = pair.split("=")
+            if (parts.size == 2) {
+                val envElement = Element("env")
+                envElement.setAttribute("name", parts[0])
+                envElement.setAttribute("value", parts[1])
+                envsElement.addContent(envElement)
+            }
+        }
+        return parentElement
+    }
+
 }

@@ -12,10 +12,8 @@ internal class ConnectHIDRunConfigurationType : ConfigurationTypeBase(
     NotNullLazyValue.createValue<Icon?>(NotNullFactory { AllIcons.Nodes.Console })
 ) {
     init {
-        addFactory(ConnectHIDConfigurationFactory(this, RunConfigurationTask.LocalScript))
-        addFactory(ConnectHIDConfigurationFactory(this, RunConfigurationTask.RemoteScript))
-        addFactory(ConnectHIDConfigurationFactory(this, RunConfigurationTask.Upload))
-        addFactory(ConnectHIDConfigurationFactory(this, RunConfigurationTask.Download))
+        addFactory(ConnectHIDConfigurationFactory(this, RunConfigurationTask.Script))
+        addFactory(ConnectHIDConfigurationFactory(this, RunConfigurationTask.SftpFileTransfer))
     }
 
     override fun getConfigurationFactories(): Array<ConfigurationFactory> {

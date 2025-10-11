@@ -2,7 +2,7 @@ package com.connecthid.intellij
 
 import com.connecthid.intellij.services.ConnectHIDConfigService
 import com.connecthid.intellij.services.ServerConnectionService
-import com.connecthid.intellij.ui.scripts.ScriptsPanel
+import com.connecthid.intellij.ui.tasks.TasksPanel
 import com.connecthid.intellij.ui.servers.ServerListPanel
 import com.connecthid.intellij.ui.servers.ServerStatusDashboardPanel
 import com.connecthid.intellij.ui.workspaces.WorkSpacesPanel
@@ -21,7 +21,7 @@ class ConnectHIDPlugin : ToolWindowFactory {
         // Add panels to tabs with required services
         tabbedPane.addTab("Servers", ServerListPanel(project))
         tabbedPane.addTab("Workspaces", WorkSpacesPanel(project))
-        tabbedPane.addTab("Scripts", ScriptsPanel(project))
+        tabbedPane.addTab("Tasks", TasksPanel(project))
         tabbedPane.addTab("Server Status", ServerStatusDashboardPanel().createComponent())
         // Add content to tool window
         val contentFactory = ContentFactory.getInstance()

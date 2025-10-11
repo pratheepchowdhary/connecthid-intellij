@@ -14,7 +14,7 @@ import java.util.concurrent.locks.ReentrantLock
 data class ServerConnectionState(
     var connections: MutableList<Server> = mutableListOf(),
     var workspaces: MutableList<Workspace> = mutableListOf(),
-    var scripts: MutableList<Script> = mutableListOf()
+    var taskModels: MutableList<TaskModel> = mutableListOf()
 )
 
 @State(name = "ServerConnectionService", storages = [Storage("server-connections.xml")])
@@ -69,28 +69,28 @@ class ServerConnectionService() : PersistentStateComponent<ServerConnectionState
         return state.workspaces.toList()
     }
 
-    fun addScript(script: Script){
-        if (!state.scripts.any { it.scriptId.equals(script.scriptId) }) {
-            state.scripts.add(script)
+    fun addScript(taskModel: TaskModel){
+        if (!state.taskModels.any { it.scriptId.equals(taskModel.scriptId) }) {
+            state.taskModels.add(taskModel)
             saveState()
         } else {
-            state.scripts.removeIf { it.scriptId.equals(script.scriptId)}
-            state.scripts.add(script)
+            state.taskModels.removeIf { it.scriptId.equals(taskModel.scriptId)}
+            state.taskModels.add(taskModel)
             saveState()
         }
     }
 
-    fun getScripts(): List<Script>{
-        return state.scripts.toList()
+    fun getScripts(): List<TaskModel>{
+        return state.taskModels.toList()
     }
 
-    fun removeScript(script: Script){
-        state.scripts.remove(script)
+    fun removeScript(taskModel: TaskModel){
+        state.taskModels.remove(taskModel)
         saveState()
     }
 
     fun removeScript(scriptId: String){
-        state.scripts.removeIf { it.scriptId.equals(scriptId) }
+        state.taskModels.removeIf { it.scriptId.equals(scriptId) }
         saveState()
     }
 

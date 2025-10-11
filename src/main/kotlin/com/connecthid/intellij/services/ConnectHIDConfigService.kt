@@ -1,7 +1,7 @@
 package com.connecthid.intellij.services
 
 import com.connecthid.intellij.getSSHService
-import com.connecthid.intellij.models.Script
+import com.connecthid.intellij.models.TaskModel
 import com.connecthid.intellij.ui.runconfigurations.ConnectHIDRunConfiguration
 import com.intellij.execution.RunManagerListener
 import com.intellij.execution.RunnerAndConfigurationSettings
@@ -22,8 +22,8 @@ class ConnectHIDConfigService(project: Project):  RunManagerListener{
         if(settings.configuration is ConnectHIDRunConfiguration){
             println(settings.configuration.name)
             with(settings.configuration as ConnectHIDRunConfiguration){
-                val script = Script(this.getScriptId(),name,task.type,getServer(),getScriptWorkingDirectory(),getScriptPath(),getScriptText(),isExecuteScriptFile(),getScriptOptions(),getInterpreterPath(),getInterpreterOptions(),isExecuteInTerminal())
-                service.addScript(script)
+                val taskModel = TaskModel(this.getScriptId(),name,task.type,getServer(),getScriptWorkingDirectory(),getScriptPath(),getScriptText(),isExecuteScriptFile(),getScriptOptions(),getInterpreterPath(),getInterpreterOptions(),isExecuteInTerminal())
+                service.addScript(taskModel)
             }
             runManagerListener?.runConfigurationChanged(settings)
         }
@@ -45,8 +45,8 @@ class ConnectHIDConfigService(project: Project):  RunManagerListener{
         if(settings.configuration is ConnectHIDRunConfiguration){
             println(settings.configuration.name)
             with(settings.configuration as ConnectHIDRunConfiguration){
-                val script = Script(this.getScriptId(),name,task.type,getServer(),getScriptWorkingDirectory(),getScriptPath(),getScriptText(),isExecuteScriptFile(),getScriptOptions(),getInterpreterPath(),getInterpreterOptions(),isExecuteInTerminal())
-                service.addScript(script)
+                val taskModel = TaskModel(this.getScriptId(),name,task.type,getServer(),getScriptWorkingDirectory(),getScriptPath(),getScriptText(),isExecuteScriptFile(),getScriptOptions(),getInterpreterPath(),getInterpreterOptions(),isExecuteInTerminal())
+                service.addScript(taskModel)
             }
             runManagerListener?.runConfigurationChanged(settings)
         }

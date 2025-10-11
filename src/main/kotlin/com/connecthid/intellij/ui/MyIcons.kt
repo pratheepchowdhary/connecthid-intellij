@@ -9,5 +9,10 @@ object MyIcons {
     @JvmField
     val ConnectHID: Icon = IconLoader.getIcon("/icons/connecthid.svg", javaClass)
 
+    @JvmField
+    val FileTransfer: Icon = IconLoader.getIcon("/icons/fileTransfer.svg", javaClass)
+
+
+
 
 }

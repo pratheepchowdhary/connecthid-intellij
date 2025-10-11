@@ -1,7 +1,7 @@
-package com.connecthid.intellij.ui.scripts
+package com.connecthid.intellij.ui.tasks
 
 import com.connecthid.intellij.PluginBundle
-import com.connecthid.intellij.models.Script
+import com.connecthid.intellij.models.TaskModel
 import com.connecthid.intellij.ui.runconfigurations.RunConfigurationTask
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.actionSystem.*
@@ -19,9 +19,9 @@ import java.awt.event.MouseEvent
 import javax.swing.JButton
 
 
-class ScriptItem(val script: Script) : JBPanel<ScriptItem>(GridBagLayout()) {
+class TaskItem(val taskModel: TaskModel) : JBPanel<TaskItem>(GridBagLayout()) {
     var listener: Listener? = null
-    val configuration by lazy { RunConfigurationTask.fromType(script.scriptType) }
+    val configuration by lazy { RunConfigurationTask.fromType(taskModel.scriptType) }
 
     private val hoverListener = object : MouseAdapter() {
         override fun mouseEntered(e: MouseEvent) {
@@ -53,7 +53,7 @@ class ScriptItem(val script: Script) : JBPanel<ScriptItem>(GridBagLayout()) {
             insets = JBUI.insets(0, 20)
         })
 
-        val titleLabel = JBLabel(script.scriptName)
+        val titleLabel = JBLabel(taskModel.scriptName)
         titleLabel.componentStyle = UIUtil.ComponentStyle.LARGE
         titleLabel.font = titleLabel.font.deriveFont(Font.BOLD)
         add(titleLabel, GridBagConstraints().apply {
@@ -67,7 +67,7 @@ class ScriptItem(val script: Script) : JBPanel<ScriptItem>(GridBagLayout()) {
             insets = JBUI.insetsTop(8)
         })
 
-        val pathLabel = JBLabel("${configuration.configName} ${script.server}")
+        val pathLabel = JBLabel("${configuration.configName} ${taskModel.server}")
         pathLabel.componentStyle = UIUtil.ComponentStyle.SMALL
         add(pathLabel, GridBagConstraints().apply {
             gridx = 1
@@ -114,19 +114,19 @@ class ScriptItem(val script: Script) : JBPanel<ScriptItem>(GridBagLayout()) {
         val actionGroup = DefaultActionGroup()
         actionGroup.add(object : AnAction({ PluginBundle.message("run_task") }, AllIcons.Actions.RunAll) {
             override fun actionPerformed(e: AnActionEvent) {
-                 listener?.runTask(script)
+                 listener?.runTask(taskModel)
             }
         })
         actionGroup.addSeparator()
         actionGroup.add(object : AnAction({ PluginBundle.message("edit") }, AllIcons.Actions.Edit) {
             override fun actionPerformed(e: AnActionEvent) {
-                listener?.editTask(script,e.dataContext)
+                listener?.editTask(taskModel,e.dataContext)
             }
         })
         actionGroup.addSeparator()
         actionGroup.add(object : AnAction({ PluginBundle.message("delete") }, AllIcons.Actions.DeleteTag) {
             override fun actionPerformed(e: AnActionEvent) {
-                listener?.onDeleteTask(script)
+                listener?.onDeleteTask(taskModel)
             }
         })
         val popupMenu = ActionManager.getInstance().createActionPopupMenu("WorkspacePopup", actionGroup)
@@ -134,9 +134,9 @@ class ScriptItem(val script: Script) : JBPanel<ScriptItem>(GridBagLayout()) {
     }
 
     interface Listener {
-        fun runTask(configuration:Script)
-        fun editTask(configuration:Script,dataContext: DataContext)
-        fun onDeleteTask(configuration: Script)
+        fun runTask(configuration:TaskModel)
+        fun editTask(configuration:TaskModel, dataContext: DataContext)
+        fun onDeleteTask(configuration: TaskModel)
     }
 
     private companion object {
