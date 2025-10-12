@@ -266,7 +266,7 @@ class TaskDialog(
                                 }
                             }
                         }
-                    }.visible(taskType == RunConfigurationTask.Script).align(Align.CENTER)
+                    }.align(Align.CENTER)
                 }
                 row("Script Text:") {
                     cell(myScript!!).resizableColumn().align(Align.FILL)
