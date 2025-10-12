@@ -49,7 +49,6 @@ class ConnectHIDSettingsEditor(
     private var myScriptTextRadioButton: JBRadioButton? = null
     private var titleTitledSeparator: TitledSeparator? = null
     private var collapsibleTitledSeparator: CollapsibleTitledSeparator? = null
-    private var filesPickerPanel: FilesPickerPanel? = null
     private val service = getSSHService()
     private val virtualFileSystem =
         VirtualFileManager.getInstance().getFileSystem(SftpFileSystem.PROTOCOL) as SftpFileSystem
@@ -180,9 +179,7 @@ class ConnectHIDSettingsEditor(
 
     private fun createUIComponents() {
         collapsibleTitledSeparator = CollapsibleTitledSeparator("Hello")
-        filesPickerPanel = FilesPickerPanel(object : FilesPickerPanel.FilesAddListener {
-            override fun onFileAdded(fileTask: FileTask) {}
-        })
+
     }
 
     override fun resetEditorFrom(configuration: ConnectHIDRunConfiguration) {

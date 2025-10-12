@@ -20,7 +20,9 @@ data class TaskModel(
     @Attribute var executeInRunConfigurations: Boolean = false,
     @Attribute var envData: String = "",
     @Attribute var runAfter: String = "",
-    @Attribute var passParentEnv: Boolean = false
-
-
+    @Attribute var passParentEnv: Boolean = false,
+    @Attribute var localFolder: String = "",
+    @Attribute var remoteFolder: String = "",
+    @Attribute var downloadFiles: String = "",
+    @Attribute var uploadFiles: String = ""
 )

@@ -12,6 +12,7 @@ import com.intellij.openapi.fileChooser.FileChooser
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
 import com.intellij.openapi.observable.properties.PropertyGraph
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.DialogPanel
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.TextFieldWithBrowseButton
@@ -25,9 +26,8 @@ import com.intellij.ui.dsl.builder.bindText
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.ui.layout.selected
 import java.awt.Dimension
-import java.util.UUID
+import java.util.*
 import javax.swing.DefaultComboBoxModel
-import javax.swing.JComboBox
 import javax.swing.JComponent
 import javax.swing.JPanel
 
@@ -46,17 +46,15 @@ class TaskDialog(
     private var myScriptOptions: RawCommandLineEditor? = null
     private var myScriptFileWorkingDirectory: TextFieldWithBrowseButton? = null
     private var myInterpreterSelector: TextFieldWithBrowseButton? = null
-    private var localTargetPath: TextFieldWithBrowseButton? = null
     private var remoteUploadPath: TextFieldWithBrowseButton? = null
     private var localDownloadPath: TextFieldWithBrowseButton? = null
-    private var remoteTargetPath: TextFieldWithBrowseButton? = null
     private var myInterpreterOptions: RawCommandLineEditor? = null
     private var myExecuteFileInTerminal: JBCheckBox? = null
     private var myEnvComponent: EnvironmentVariablesComponent? = null
     private var myScriptFileRadioButton: JBRadioButton? = null
     private var myScriptTextRadioButton: JBRadioButton? = null
     private var hostJPanel: JPanel? = null
-    private var hostBox: JComboBox<String>? = null
+    private var hostBox: ComboBox<String>? = null
     private val localhost = "localhost"
     private val servers by lazy { DefaultComboBoxModel(getServersList().toTypedArray()) }
     private val service = getSSHService()
@@ -64,6 +62,8 @@ class TaskDialog(
         VirtualFileManager.getInstance().getFileSystem(SftpFileSystem.PROTOCOL) as SftpFileSystem
 
     private var runAfter: RunAfterTasksPanel?=null
+    private var downloadFiles: FilesPickerPanel?=null
+    private var uploadFiles: FilesPickerPanel?=null
 
     private val task = taskModel ?: TaskModel(scriptId = UUID.randomUUID().toString())
     var taskName = propertyGraph.property("")
@@ -71,11 +71,6 @@ class TaskDialog(
     init {
         init()
         title = "Script Dialog"
-        hostBox = JComboBox<String>().apply {
-            model = servers
-            selectedItem = localhost
-        }
-        setupPickers()
     }
 
     private fun setupPickers() {
@@ -90,15 +85,7 @@ class TaskDialog(
                 remoteUploadPath!!.text = it
             }
         }
-        remoteTargetPath?.addActionListener {
-            val selectedServer = getSelectedServer() ?: return@addActionListener
-            chooseFile(selectedServer, "Choose remote target file") {
-                remoteTargetPath!!.text = it
-            }
-        }
-        localTargetPath?.addBrowseFolderListener(
-            project, FileChooserDescriptorFactory.createSingleFileDescriptor().withTitle("Choose local target file")
-        )
+
         localDownloadPath?.addBrowseFolderListener(
             project,
             FileChooserDescriptorFactory.createSingleFolderDescriptor().withTitle("Choose local download folder")
@@ -164,22 +151,23 @@ class TaskDialog(
         myEnvComponent = EnvironmentVariablesComponent().apply{
             text=""
         }
-        localTargetPath = TextFieldWithBrowseButton()
         remoteUploadPath = TextFieldWithBrowseButton()
         localDownloadPath = TextFieldWithBrowseButton()
-        remoteTargetPath = TextFieldWithBrowseButton()
         runAfter = RunAfterTasksPanel(task)
-        hostBox = JComboBox<String>().apply {
-            model = servers
-            selectedItem = localhost
+        downloadFiles = FilesPickerPanel(project,true)
+        uploadFiles = FilesPickerPanel(project)
+        hostBox = ComboBox(servers)
+        servers.selectedItem = if(taskType == RunConfigurationTask.Script) localhost else (if(servers.size == 0) "" else servers.getElementAt(0))
+        hostBox!!.addActionListener {
+           downloadFiles!!.host=servers.selectedItem as String
         }
         setupPickers()
 
     }
 
     fun resetEditorFrom(configuration: TaskModel = task) {
-        myScriptFileRadioButton!!.isSelected = configuration.isScriptFile
-        myScriptTextRadioButton!!.isSelected = !configuration.isScriptFile
+        myScriptFileRadioButton?.isSelected = configuration.isScriptFile
+        myScriptTextRadioButton?.isSelected = !configuration.isScriptFile
         selectMode()
         myScript!!.text = configuration.scriptText
         myScriptSelector!!.text = configuration.scriptFile
@@ -188,14 +176,16 @@ class TaskDialog(
         myInterpreterSelector!!.text = configuration.interpreterPath
         myInterpreterOptions!!.text = configuration.interpreterOptions
         myExecuteFileInTerminal!!.isSelected = configuration.executeInTerminal
-        hostBox!!.selectedItem = configuration.server
+        servers.selectedItem = if(!configuration.server.isEmpty()) configuration.server else servers.selectedItem
         taskName.set(configuration.scriptName)
         runAfter!!.setRunAfter(configuration.runAfter)
         myEnvComponent!!.envData = EnvironmentVariablesData.readExternal(mapStringToElement(configuration.envData, passParentEnv = configuration.passParentEnv))
-//        remoteTargetPath!!.text = configuration.getRemoteFile()
-//        remoteUploadPath!!.text = configuration.getRemoteFolder()
-//        localTargetPath!!.text = configuration.getLocalTarget()
-//        localDownloadPath!!.text = configuration.getLocalFolder()
+        downloadFiles!!.host = (configuration.server)
+        remoteUploadPath!!.text = configuration.remoteFolder
+        localDownloadPath!!.text = configuration.localFolder
+        downloadFiles!!.setFiles(configuration.downloadFiles)
+        downloadFiles!!.host = servers.selectedItem as String
+        uploadFiles!!.setFiles(configuration.uploadFiles)
     }
 
     override fun getInitialSize(): Dimension {
@@ -204,7 +194,7 @@ class TaskDialog(
 
 
     private fun selectMode() {
-        val scriptExecutionSelected = myScriptFileRadioButton!!.isSelected
+        val scriptExecutionSelected = myScriptFileRadioButton?.isSelected ?:false
         myScriptPathPanel?.isVisible = taskType == RunConfigurationTask.Script && scriptExecutionSelected
         myScriptTextPanel?.isVisible = taskType == RunConfigurationTask.Script && !scriptExecutionSelected
         myScriptTypeJPanel?.isVisible = taskType == RunConfigurationTask.Script
@@ -217,7 +207,7 @@ class TaskDialog(
         return getSSHService().getSavedConnections().map {
             "${it.username}@${it.host}"
         }.toMutableList().also {
-            it.add(0, localhost)
+           if(taskType == RunConfigurationTask.Script) it.add(0, localhost)
         }
     }
 
@@ -232,10 +222,14 @@ class TaskDialog(
         task.interpreterPath = myInterpreterSelector!!.text
         task.interpreterOptions = myInterpreterOptions!!.text
         task.scriptType = taskType.ordinal
-        task.isScriptFile = myScriptFileRadioButton!!.isSelected
+        task.isScriptFile = myScriptFileRadioButton?.isSelected?:false
         task.envData = myEnvComponent!!.envData.envs.entries.joinToString(";") { "${it.key}=${it.value}" }
         task.runAfter = runAfter!!.getTaskIds()
         task.passParentEnv = myEnvComponent!!.envData.isPassParentEnvs
+        task.downloadFiles = downloadFiles!!.getFiles()
+        task.uploadFiles = uploadFiles!!.getFiles()
+        task.localFolder = localDownloadPath!!.text
+        task.remoteFolder = remoteUploadPath!!.text
         service.addScript(task)
     }
 
@@ -255,163 +249,93 @@ class TaskDialog(
             row("Server:") {
                 cell(hostBox!!).resizableColumn().align(Align.FILL)
             }
-            row {
-                panel {
-                    buttonsGroup {
-                        row {
-                            radioButton("Execute Script File").applyToComponent {
-                                myScriptFileRadioButton = this
-                                isSelected = true
-                                addActionListener { selectMode() }
-                            }
-                            radioButton("Execute Script Text").applyToComponent {
-                                myScriptTextRadioButton = this
-                                isSelected = false
-                                addActionListener { selectMode() }
+            if(taskType == RunConfigurationTask.Script){
+                row {
+                    panel {
+                        buttonsGroup {
+                            row {
+                                radioButton("Execute Script File").applyToComponent {
+                                    myScriptFileRadioButton = this
+                                    isSelected = true
+                                    addActionListener { selectMode() }
+                                }
+                                radioButton("Execute Script Text").applyToComponent {
+                                    myScriptTextRadioButton = this
+                                    isSelected = false
+                                    addActionListener { selectMode() }
+                                }
                             }
                         }
+                    }.visible(taskType == RunConfigurationTask.Script).align(Align.CENTER)
+                }
+                row("Script Text:") {
+                    cell(myScript!!).resizableColumn().align(Align.FILL)
+                }.visibleIf(myScriptTextRadioButton!!.selected)
+                row("Script Path:") {
+                    cell(myScriptSelector!!).resizableColumn().align(Align.FILL)
+                }.visibleIf(myScriptFileRadioButton!!.selected)
+                row("Script Options:") {
+                    cell(myScriptOptions!!).resizableColumn().align(Align.FILL)
+                }.visibleIf(myScriptFileRadioButton!!.selected)
+                row("Working Directory:") {
+                    cell(myScriptFileWorkingDirectory!!).resizableColumn().align(Align.FILL)
+                }
+                row("Environment Variables:") {
+                    cell(myEnvComponent!!).resizableColumn().align(Align.FILL)
+                }
+                row {
+                    cell(TitledSeparator("Interpreter"))
+                }.visibleIf(myScriptFileRadioButton!!.selected)
+                row("Interpreter Path:") {
+                    cell(myInterpreterSelector!!).resizableColumn().align(Align.FILL)
+                }.visibleIf(myScriptFileRadioButton!!.selected)
+                row("Interpreter Options:") {
+                    cell(myInterpreterOptions!!).resizableColumn().align(Align.FILL)
+                }.visibleIf(myScriptFileRadioButton!!.selected)
+                row {
+                    cell(myExecuteFileInTerminal!!).resizableColumn().align(Align.FILL).align(Align.CENTER)
+                }
+            }
+            if(taskType == RunConfigurationTask.SftpFileTransfer){
+                with(collapsibleGroup("Download Files") {
+                    row {
+                        cell(downloadFiles!!).resizableColumn().align(Align.FILL)
                     }
-                }.visible(taskType == RunConfigurationTask.Script).align(Align.CENTER)
+                }) {
+                    expanded =true
+                }
+                with(collapsibleGroup("Upload Files") {
+                    row {
+                        cell(uploadFiles!!).resizableColumn().align(Align.FILL)
+                    }
+                }) {
+                    expanded =true
+                }
+                row("Remote Upload Path:") {
+                    cell(remoteUploadPath!!).resizableColumn().align(Align.FILL)
+                }
+                row("Local Download Path:") {
+                    cell(localDownloadPath!!).resizableColumn().align(Align.FILL)
+                }
             }
-            row("Script Text:") {
-                cell(myScript!!).resizableColumn().align(Align.FILL)
-            }.visibleIf(myScriptTextRadioButton!!.selected)
-            row("Script Path:") {
-                cell(myScriptSelector!!).resizableColumn().align(Align.FILL)
-            }.visibleIf(myScriptFileRadioButton!!.selected)
-            row("Script Options:") {
-                cell(myScriptOptions!!).resizableColumn().align(Align.FILL)
-            }.visibleIf(myScriptFileRadioButton!!.selected)
-            row("Working Directory:") {
-                cell(myScriptFileWorkingDirectory!!).resizableColumn().align(Align.FILL)
-            }
-            row("Environment Variables:") {
-                cell(myEnvComponent!!).resizableColumn().align(Align.FILL)
-            }
-            row {
-                cell(TitledSeparator("Interpreter"))
-            }.visibleIf(myScriptFileRadioButton!!.selected)
-            row("Interpreter Path:") {
-                cell(myInterpreterSelector!!).resizableColumn().align(Align.FILL)
-            }.visibleIf(myScriptFileRadioButton!!.selected)
-            row("Interpreter Options:") {
-                cell(myInterpreterOptions!!).resizableColumn().align(Align.FILL)
-            }.visibleIf(myScriptFileRadioButton!!.selected)
-            row {
-                cell(myExecuteFileInTerminal!!).resizableColumn().align(Align.FILL).align(Align.CENTER)
-            }
-            collapsibleGroup("Run After Tasks"){
+            with(collapsibleGroup("Run After Tasks") {
                 row {
                     cell(runAfter!!).resizableColumn().align(Align.FILL)
                 }
+            }) {
+                expanded = task.runAfter.isNotEmpty()
             }
         }
         resetEditorFrom()
         return panel
     }
 
+
+
     fun createDialogPanel(): DialogPanel {
         createUIComponents()
         // Now build the panel
-        return createUI() ?: panel {
-
-            // Server Selection
-            row("Server:") {
-                cell(hostBox!!).resizableColumn().align(Align.FILL)
-            }
-            row {
-                panel {
-
-                    // Script Type Selection
-                    row {
-                        panel {
-                            buttonsGroup {
-                                row {
-                                    radioButton("Execute Script File").applyToComponent {
-                                        myScriptFileRadioButton = this
-                                        isSelected = true
-                                        addActionListener { selectMode() }
-                                    }
-                                    radioButton("Execute Script Text").applyToComponent {
-                                        myScriptTextRadioButton = this
-                                        isSelected = false
-                                        addActionListener { selectMode() }
-                                    }
-                                }
-                            }
-                        }.visible(taskType == RunConfigurationTask.Script).align(Align.CENTER)
-                    }
-                    row("Script Path:") {
-                        cell(myScriptSelector!!).resizableColumn().align(Align.FILL)
-                    }
-                    row("Script Options:") {
-                        cell(myScriptOptions!!).resizableColumn().align(Align.FILL)
-                    }
-                    row("Working Directory:") {
-                        cell(myScriptFileWorkingDirectory!!).resizableColumn().align(Align.FILL)
-                    }
-                    row("Environment Variables:") {
-                        cell(myEnvComponent!!).resizableColumn().align(Align.FILL)
-                    }
-                    row("Interpreter Path:") {
-                        cell(myInterpreterSelector!!).resizableColumn().align(Align.FILL)
-                    }
-                    row("Interpreter Options:") {
-                        cell(myInterpreterOptions!!).resizableColumn().align(Align.FILL)
-                    }
-                    row {
-                        panel {
-                            row {
-                                cell(myExecuteFileInTerminal!!)
-                            }
-                        }.align(Align.CENTER)
-                    }
-                }.align(Align.CENTER)
-            }
-
-            row{
-                panel {
-                    row("Script Text:") {
-                        cell(myScript!!).resizableColumn().align(Align.FILL)
-                    }
-                    row("Working Directory:") {
-                       // cell(myScriptWorkingDirectory!!).resizableColumn().align(Align.FILL)
-                    }
-                    row {
-                        //cell(myExecuteScriptInTerminal!!)
-                    }
-                    row {
-                       // cell(myScriptEnvComponent!!).resizableColumn().align(Align.FILL)
-                    }
-                }.visible(taskType == RunConfigurationTask.Script && myScriptTextRadioButton!!.isSelected)
-            }
-            // File Transfer Settings
-            collapsibleGroup("File Transfer Settings") {
-                panel {
-                    group("Uploads") {
-                        row("Remote Upload Path:") {
-                            cell(remoteUploadPath!!).resizableColumn().align(Align.FILL)
-                        }
-                        row {
-                            cell(runAfter!!).resizableColumn().align(Align.FILL)
-                        }
-                    }
-                }.visible(taskType == RunConfigurationTask.SftpFileTransfer)
-                panel {
-                    group("Downloads") {
-                        row("Remote Target Path:") {
-                            cell(remoteTargetPath!!).resizableColumn().align(Align.FILL)
-                        }
-                        row("Local Download Path:") {
-                            cell(localDownloadPath!!).resizableColumn().align(Align.FILL)
-                        }
-                        row("Local Target Path:") {
-                            cell(localTargetPath!!).resizableColumn().align(Align.FILL)
-                        }
-                    }
-                }.visible(taskType == RunConfigurationTask.SftpFileTransfer)
-            }
-        }
+        return createUI()
     }
 
     override fun doOKAction() {

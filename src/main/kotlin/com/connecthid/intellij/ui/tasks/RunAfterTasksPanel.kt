@@ -103,9 +103,11 @@ class RunAfterTasksPanel(val taskModel: TaskModel): JPanel() {
         val tasks = tasksIds.split(";")
         val alltasks = service.getScripts()
         tasks.forEach { scriptId ->
-            val task = alltasks.firstOrNull(){it.scriptId == scriptId}
-            if(task != null){
-                myModel.add(task)
+            if(!scriptId.isEmpty()){
+                val task = alltasks.firstOrNull(){it.scriptId == scriptId}
+                if(task != null){
+                    myModel.add(task)
+                }
             }
         }
     }
@@ -148,7 +150,6 @@ class RunAfterTasksPanel(val taskModel: TaskModel): JPanel() {
         ): Component {
             super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
             val item = value as TaskModel
-
             setIcon(RunConfigurationTask.fromType(item.scriptType).icon)
             setText(item.scriptName)
             return this

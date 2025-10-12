@@ -67,7 +67,7 @@ class TaskItem(val taskModel: TaskModel) : JBPanel<TaskItem>(GridBagLayout()) {
             insets = JBUI.insetsTop(8)
         })
 
-        val pathLabel = JBLabel("${configuration.configName} ${taskModel.server}")
+        val pathLabel = JBLabel(taskModel.server)
         pathLabel.componentStyle = UIUtil.ComponentStyle.SMALL
         add(pathLabel, GridBagConstraints().apply {
             gridx = 1
