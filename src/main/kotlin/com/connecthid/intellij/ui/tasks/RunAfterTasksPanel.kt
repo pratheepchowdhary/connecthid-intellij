@@ -53,7 +53,7 @@ class RunAfterTasksPanel(val taskModel: TaskModel): JPanel() {
             }
         })
 
-        val myDecorator = ToolbarDecorator.createDecorator<TaskModel>(myList)
+        val myDecorator = ToolbarDecorator.createDecorator(myList)
 
         myDecorator.setEditAction(object : AnActionButtonRunnable {
             override fun run(button: AnActionButton) {
@@ -79,7 +79,7 @@ class RunAfterTasksPanel(val taskModel: TaskModel): JPanel() {
 
         myDecorator.setRemoveAction(object : AnActionButtonRunnable {
             override fun run(button: AnActionButton?) {
-                ListUtil.removeSelectedItems<TaskModel>(myList)
+                ListUtil.removeSelectedItems(myList)
             }
         })
 
@@ -101,7 +101,7 @@ class RunAfterTasksPanel(val taskModel: TaskModel): JPanel() {
 
     fun setRunAfter(tasksIds: String){
         val tasks = tasksIds.split(";")
-        val alltasks = service.getScripts()
+        val alltasks = service.getTasks()
         tasks.forEach { scriptId ->
             if(!scriptId.isEmpty()){
                 val task = alltasks.firstOrNull(){it.scriptId == scriptId}
@@ -119,7 +119,7 @@ class RunAfterTasksPanel(val taskModel: TaskModel): JPanel() {
 
         val actionGroup = DefaultActionGroup()
 
-        service.getScripts().forEach {
+        service.getTasks().forEach {
             if(it.scriptId != taskModel.scriptId && !myModel.contains(it)){
               actionGroup.add(object : AnAction({ it.scriptName }, RunConfigurationTask.fromType(it.scriptType).icon){
                   override fun actionPerformed(p0: AnActionEvent) {

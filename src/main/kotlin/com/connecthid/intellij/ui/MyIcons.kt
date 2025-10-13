@@ -12,7 +12,10 @@ object MyIcons {
     @JvmField
     val FileTransfer: Icon = IconLoader.getIcon("/icons/fileTransfer.svg", javaClass)
 
+    @JvmField
+    val AddRun: Icon = IconLoader.getIcon("/icons/runAndAdd.svg", javaClass)
 
-
+    @JvmField
+    val Script: Icon = IconLoader.getIcon("/icons/ConcurrencyDiagram.svg", javaClass)
 
 }

@@ -2,9 +2,15 @@ package com.connecthid.intellij.ui.tasks
 
 import com.connecthid.intellij.PluginBundle
 import com.connecthid.intellij.models.TaskModel
+import com.connecthid.intellij.ui.MyIcons
+import com.connecthid.intellij.ui.runconfigurations.ConnectHIDRunConfiguration
+import com.connecthid.intellij.ui.runconfigurations.ConnectHIDRunConfigurationType
 import com.connecthid.intellij.ui.runconfigurations.RunConfigurationTask
+import com.intellij.execution.RunManager
+import com.intellij.execution.configurations.ConfigurationTypeUtil
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.actionSystem.*
+import com.intellij.openapi.project.Project
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPanel
@@ -19,9 +25,12 @@ import java.awt.event.MouseEvent
 import javax.swing.JButton
 
 
-class TaskItem(val taskModel: TaskModel) : JBPanel<TaskItem>(GridBagLayout()) {
+class TaskItem(val taskModel: TaskModel,val project: Project) : JBPanel<TaskItem>(GridBagLayout()) {
     var listener: Listener? = null
     val configuration by lazy { RunConfigurationTask.fromType(taskModel.scriptType) }
+    val runManager by lazy {
+        RunManager.getInstance(project)
+    }
 
     private val hoverListener = object : MouseAdapter() {
         override fun mouseEntered(e: MouseEvent) {
@@ -124,19 +133,40 @@ class TaskItem(val taskModel: TaskModel) : JBPanel<TaskItem>(GridBagLayout()) {
             }
         })
         actionGroup.addSeparator()
+        val scripts =
+            runManager.getConfigurationsList(ConfigurationTypeUtil.findConfigurationType(ConnectHIDRunConfigurationType::class.java))
+        val configuration =
+            scripts.firstOrNull { (it as ConnectHIDRunConfiguration).getTask().scriptId == taskModel.scriptId }
+        if(configuration == null){
+            actionGroup.add(object : AnAction({ PluginBundle.message("add.to.run.configuration") }, MyIcons.AddRun) {
+                override fun actionPerformed(e: AnActionEvent) {
+                    listener?.addToRunConfiguration(taskModel)
+                }
+            })
+        } else {
+            actionGroup.add(object : AnAction({ PluginBundle.message("remove.from.run.configuration") }, AllIcons.General.Remove) {
+                override fun actionPerformed(e: AnActionEvent) {
+                    listener?.removeRunConfiguration(taskModel)
+                }
+            })
+        }
+        actionGroup.addSeparator()
         actionGroup.add(object : AnAction({ PluginBundle.message("delete") }, AllIcons.Actions.DeleteTag) {
             override fun actionPerformed(e: AnActionEvent) {
                 listener?.onDeleteTask(taskModel)
             }
         })
+
         val popupMenu = ActionManager.getInstance().createActionPopupMenu("WorkspacePopup", actionGroup)
         popupMenu.component.show(button, button.width, button.height)
     }
 
     interface Listener {
-        fun runTask(configuration:TaskModel)
-        fun editTask(configuration:TaskModel, dataContext: DataContext)
-        fun onDeleteTask(configuration: TaskModel)
+        fun runTask(taskModel:TaskModel)
+        fun editTask(taskModel:TaskModel, dataContext: DataContext)
+        fun onDeleteTask(taskModel: TaskModel)
+        fun addToRunConfiguration(taskModel: TaskModel)
+        fun removeRunConfiguration(taskModel: TaskModel)
     }
 
     private companion object {

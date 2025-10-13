@@ -24,5 +24,7 @@ data class TaskModel(
     @Attribute var localFolder: String = "",
     @Attribute var remoteFolder: String = "",
     @Attribute var downloadFiles: String = "",
-    @Attribute var uploadFiles: String = ""
+    @Attribute var uploadFiles: String = "",
+    @Attribute var createTimeStamp: Long = 0L,
+    @Attribute var updatedTimeStamp: Long = 0L
 )

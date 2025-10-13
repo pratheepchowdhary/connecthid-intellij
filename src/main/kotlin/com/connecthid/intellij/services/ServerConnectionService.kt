@@ -80,8 +80,8 @@ class ServerConnectionService() : PersistentStateComponent<ServerConnectionState
         }
     }
 
-    fun getScripts(): List<TaskModel>{
-        return state.taskModels.toList()
+    fun getTasks(): List<TaskModel>{
+        return state.taskModels.toList().sortedByDescending { it.createTimeStamp }
     }
 
     fun removeScript(taskModel: TaskModel){

@@ -77,7 +77,7 @@ class TasksPanel(
         headerLabel?.text = "$title (${taskModels.size})"
         scriptListPanel.removeAll()
         for (script in taskModels) {
-            val devicePanel = TaskItem(script)
+            val devicePanel = TaskItem(script,project)
             devicePanel.listener=this
             scriptListPanel.add(devicePanel)
         }
@@ -136,27 +136,6 @@ class TasksPanel(
             }
         })
         taskDialog.show()
-        return
-        val type = ConfigurationTypeUtil.findConfigurationType("ConnectHID") ?:return
-        val factory = type.configurationFactories.firstOrNull { (it as ConnectHIDConfigurationFactory).task == task } ?: return
-        val settings: RunnerAndConfigurationSettings = runManager.createConfiguration(generateUniqueConfigurationName(task.name), factory)
-        val configurable = SingleConfigurationConfigurable.editSettings<RunConfiguration>(settings, null)
-        val dialog: SingleConfigurableEditor =
-            object : SingleConfigurableEditor(project, configurable, null, IdeModalityType.IDE) {
-                override fun getInitialSize(): Dimension {
-                    return Dimension(650, 500)
-                }
-            }
-        dialog.window.addWindowListener(object : java.awt.event.WindowAdapter() {
-            override fun windowClosed(e: java.awt.event.WindowEvent?) {
-                updateScriptsList()
-            }
-
-            override fun windowClosing(e: java.awt.event.WindowEvent?) {
-
-            }
-        })
-        dialog.show()
     }
 
     fun generateUniqueConfigurationName(baseName: String): String {
@@ -212,50 +191,38 @@ class TasksPanel(
                 createTask(RunConfigurationTask.SftpFileTransfer)
             }
         })
-//        actionGroup.addSeparator()
-//        actionGroup.add(object : AnAction({ PluginBundle.message("task_download") }, AllIcons.Actions.Download) {
-//            override fun actionPerformed(e: AnActionEvent) {
-//                createTask(RunConfigurationTask.Download)
-//            }
-//        })
         val popupMenu = ActionManager.getInstance().createActionPopupMenu("WorkspacePopup", actionGroup)
         popupMenu.component.show(button, button.width/2, button.height)
     }
 
-    fun createRunConfigurations(taskModel: TaskModel): RunConfiguration{
+    fun createRunConfigurations(taskModel: TaskModel,addToConfiguration: Boolean = false): RunConfiguration{
         val type = ConfigurationTypeUtil.findConfigurationType("ConnectHID") ?: throw ExecutionException("Cannot find runner for ${taskModel.scriptName}")
         val factory = type.configurationFactories.firstOrNull { (it as ConnectHIDConfigurationFactory).task == RunConfigurationTask.fromType(taskModel.scriptType) } ?: throw ExecutionException("Cannot find runner for ${taskModel.scriptName}")
         val settings: RunnerAndConfigurationSettings = runManager.createConfiguration(generateUniqueConfigurationName(taskModel.scriptName), factory)
         with(settings.configuration as ConnectHIDRunConfiguration){
-            setServer(taskModel.server)
-            setScriptId(taskModel.scriptId)
-            setScriptText(taskModel.scriptText)
-            setScriptPath(taskModel.scriptFile)
-            setScriptOptions(taskModel.scriptOptions)
-            setScriptWorkingDirectory(taskModel.workingDir)
-            setExecuteInTerminal(taskModel.executeInTerminal)
-            setExecuteScriptFile(taskModel.isScriptFile)
-            setInterpreterPath(taskModel.interpreterPath)
-            setInterpreterOptions(taskModel.interpreterOptions)
-            setShowInRunConfiguration(taskModel.executeInRunConfigurations)
+            setTask(taskModel)
         }
-        runManager.addConfiguration(settings)
+        if (addToConfiguration) {
+            runManager.addConfiguration(settings)
+        }
         return settings.configuration
 
     }
 
-
     private fun updateScriptsList() {
-        val scripts = service.getScripts()
+        val scripts = service.getTasks()
         scripts.forEach {
             println("ConnectHID Run Config: ${it.scriptName}")
         }
         this.taskModels=scripts.toMutableList()
     }
 
-    override fun runTask(configuration: TaskModel) {
-        val scripts = runManager.getConfigurationsList(ConfigurationTypeUtil.findConfigurationType(ConnectHIDRunConfigurationType::class.java))
-        val configuration  = scripts.firstOrNull { (it as ConnectHIDRunConfiguration).getScriptId() == configuration.scriptId } ?: createRunConfigurations(configuration)
+    override fun runTask(taskModel: TaskModel) {
+        val scripts =
+            runManager.getConfigurationsList(ConfigurationTypeUtil.findConfigurationType(ConnectHIDRunConfigurationType::class.java))
+        val configuration =
+            scripts.firstOrNull { (it as ConnectHIDRunConfiguration).getTask().scriptId == taskModel.scriptId }
+                ?: createRunConfigurations(taskModel)
         val executor = DefaultRunExecutor.getRunExecutorInstance()
         val builder = ExecutionEnvironmentBuilder.createOrNull(project, executor, configuration)
             ?: throw ExecutionException("Cannot find runner for ${configuration.name}")
@@ -264,10 +231,10 @@ class TasksPanel(
     }
 
     override fun editTask(
-        configuration: TaskModel,
+        taskModel: TaskModel,
         dataContext: DataContext
     ) {
-        val task = TaskDialog(project, RunConfigurationTask.fromType(configuration.scriptType),configuration)
+        val task = TaskDialog(project, RunConfigurationTask.fromType(taskModel.scriptType), taskModel)
         task.window.addWindowListener(object : java.awt.event.WindowAdapter() {
             override fun windowClosed(e: java.awt.event.WindowEvent?) {
                 updateScriptsList()
@@ -278,27 +245,56 @@ class TasksPanel(
             }
         })
         task.show()
-        return
-
-        val scripts = runManager.getConfigurationsList(ConfigurationTypeUtil.findConfigurationType(ConnectHIDRunConfigurationType::class.java))
-        val configuration  = scripts.firstOrNull { (it as ConnectHIDRunConfiguration).getScriptId() == configuration.scriptId } ?: createRunConfigurations(configuration)
-        editTask(project,configuration)
     }
 
-    override fun onDeleteTask(configuration: TaskModel) {
+    override fun onDeleteTask(taskModel: TaskModel) {
         val confirm = Messages.showYesNoDialog(
             this,
-            "Delete ${configuration.scriptName} ?",
+            "Delete ${taskModel.scriptName} ?",
             "Confirm Delete",
             Messages.getQuestionIcon()
         )
         if (confirm != Messages.YES) return
-        service.removeScript(configuration)
-        val configurations = runManager.getConfigurationsList(ConfigurationTypeUtil.findConfigurationType(ConnectHIDRunConfigurationType::class.java))
+        val configurations =
+            runManager.getConfigurationsList(ConfigurationTypeUtil.findConfigurationType(ConnectHIDRunConfigurationType::class.java))
         val configuration =
-            configurations.firstOrNull { (it as ConnectHIDRunConfiguration).getScriptId() == configuration.scriptId }
+            configurations.firstOrNull { (it as ConnectHIDRunConfiguration).getTask().scriptId == taskModel.scriptId }
         configuration?.let {
-            val settings=
+            val settings =
+                runManager.allSettings.firstOrNull { it.configuration == configuration }
+            runManager.removeConfiguration(settings)
+        }
+        service.removeScript(taskModel)
+        updateScriptsList()
+    }
+
+    override fun addToRunConfiguration(taskModel: TaskModel) {
+        val confirm = Messages.showYesNoDialog(
+            this,
+            "Add ${taskModel.scriptName} to run configuration?",
+            "Confirm Add",
+            Messages.getQuestionIcon()
+        )
+        if (confirm != Messages.YES) return
+
+        createRunConfigurations(taskModel,true)
+        updateScriptsList()
+    }
+
+    override fun removeRunConfiguration(taskModel: TaskModel) {
+        val confirm = Messages.showYesNoDialog(
+            this,
+            "Delete ${taskModel.scriptName} from run configuration?",
+            "Confirm Delete",
+            Messages.getQuestionIcon()
+        )
+        if (confirm != Messages.YES) return
+        val configurations =
+            runManager.getConfigurationsList(ConfigurationTypeUtil.findConfigurationType(ConnectHIDRunConfigurationType::class.java))
+        val configuration =
+            configurations.firstOrNull { (it as ConnectHIDRunConfiguration).getTask().scriptId == taskModel.scriptId }
+        configuration?.let {
+            val settings =
                 runManager.allSettings.firstOrNull { it.configuration == configuration }
             runManager.removeConfiguration(settings)
         }

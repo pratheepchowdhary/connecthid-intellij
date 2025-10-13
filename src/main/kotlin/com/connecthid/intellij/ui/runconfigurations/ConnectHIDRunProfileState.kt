@@ -1,6 +1,6 @@
 package com.connecthid.intellij.ui.runconfigurations
 
-import com.connecthid.intellij.models.Server
+import com.connecthid.intellij.models.TaskModel
 import com.connecthid.intellij.utils.log
 import com.intellij.execution.DefaultExecutionResult
 import com.intellij.execution.ExecutionResult
@@ -16,7 +16,7 @@ import com.intellij.openapi.progress.Task
 
 class ConnectHIDRunProfileState(
     environment: ExecutionEnvironment,
-    private val server: Server?
+    private val taskModel: TaskModel
 ) : CommandLineState(environment) {
 
     override fun startProcess(): ProcessHandler {

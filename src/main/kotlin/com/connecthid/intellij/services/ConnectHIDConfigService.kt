@@ -11,7 +11,8 @@ import com.intellij.openapi.project.Project
 @Service(Service.Level.PROJECT)
 class ConnectHIDConfigService(project: Project):  RunManagerListener{
     private var runManagerListener: RunManagerListener? = null
-    private var service = getSSHService()
+    private val service = getSSHService()
+
 
     init {
         project.messageBus.connect().subscribe(RunManagerListener.TOPIC, this)
@@ -20,21 +21,21 @@ class ConnectHIDConfigService(project: Project):  RunManagerListener{
     override fun runConfigurationAdded(settings: RunnerAndConfigurationSettings) {
         super.runConfigurationAdded(settings)
         if(settings.configuration is ConnectHIDRunConfiguration){
-            println(settings.configuration.name)
-            with(settings.configuration as ConnectHIDRunConfiguration){
-                val taskModel = TaskModel(this.getScriptId(),name,task.type,getServer(),getScriptWorkingDirectory(),getScriptPath(),getScriptText(),isExecuteScriptFile(),getScriptOptions(),getInterpreterPath(),getInterpreterOptions(),isExecuteInTerminal())
-                service.addScript(taskModel)
-            }
-            runManagerListener?.runConfigurationChanged(settings)
+           with(settings.configuration as ConnectHIDRunConfiguration){
+               taskModel.executeInRunConfigurations = true
+               service.addScript(taskModel = taskModel)
+               runManagerListener?.runConfigurationChanged(settings)
+           }
         }
     }
 
     override fun runConfigurationRemoved(settings: RunnerAndConfigurationSettings) {
         super.runConfigurationRemoved(settings)
         if(settings.configuration is ConnectHIDRunConfiguration){
-            println(settings.configuration.name)
             with(settings.configuration as ConnectHIDRunConfiguration){
-                service.removeScript(getScriptId())
+                taskModel.executeInRunConfigurations = false
+                service.addScript(taskModel = taskModel)
+                runManagerListener?.runConfigurationChanged(settings)
             }
             runManagerListener?.runConfigurationChanged(settings)
         }
@@ -43,12 +44,11 @@ class ConnectHIDConfigService(project: Project):  RunManagerListener{
     override fun runConfigurationChanged(settings: RunnerAndConfigurationSettings) {
         super.runConfigurationChanged(settings)
         if(settings.configuration is ConnectHIDRunConfiguration){
-            println(settings.configuration.name)
             with(settings.configuration as ConnectHIDRunConfiguration){
-                val taskModel = TaskModel(this.getScriptId(),name,task.type,getServer(),getScriptWorkingDirectory(),getScriptPath(),getScriptText(),isExecuteScriptFile(),getScriptOptions(),getInterpreterPath(),getInterpreterOptions(),isExecuteInTerminal())
-                service.addScript(taskModel)
+                taskModel.executeInRunConfigurations = true
+                service.addScript(taskModel = taskModel)
+                runManagerListener?.runConfigurationChanged(settings)
             }
-            runManagerListener?.runConfigurationChanged(settings)
         }
     }
 

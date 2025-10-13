@@ -37,7 +37,7 @@ class FilesPickerPanel(val project: Project, val isRemote: Boolean = false): JPa
     init {
         myModel = CollectionListModel<Any>()
         myList = JBList<Any>(myModel)
-        myList.getEmptyText().setText(PluginBundle.message("after.launch.panel.empty"))
+        myList.getEmptyText().setText(PluginBundle.message((if(isRemote)"no.files.empty.upload" else "no.files.empty.download")))
         myList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
         myList.setCellRenderer(MyListCellRenderer())
         myList.setVisibleRowCount(4)
@@ -81,7 +81,7 @@ class FilesPickerPanel(val project: Project, val isRemote: Boolean = false): JPa
 
         myDecorator.setRemoveAction(object : AnActionButtonRunnable {
             override fun run(button: AnActionButton?) {
-                ListUtil.removeSelectedItems<Any>(myList)
+                ListUtil.removeSelectedItems(myList)
             }
         })
 
