@@ -103,7 +103,7 @@ class ServerItem(val device: Server, val connectionService: ServerConnectionServ
 
         // show host right side of the description label and title label and verticaly center
 
-         val hostLabel = JBLabel(device.host)
+         val hostLabel = JBLabel(device.stmpName)
          hostLabel.componentStyle = UIUtil.ComponentStyle.SMALL
          add(
             hostLabel,
@@ -189,7 +189,7 @@ class ServerItem(val device: Server, val connectionService: ServerConnectionServ
                 gridheight = 2
                 weightx = 0.0
                 weighty = 1.0
-                insets = JBUI.insets(0, 0, 0, 20)
+                insets = JBUI.insetsRight(20)
                 anchor = GridBagConstraints.CENTER
             }
         )

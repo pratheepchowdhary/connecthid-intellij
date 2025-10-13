@@ -5,7 +5,7 @@ import com.intellij.icons.AllIcons
 import javax.swing.Icon
 
 enum class RunConfigurationTask(val type: Int, val icon: Icon,val configName: String) {
-    Script(0,AllIcons.Actions.RunAnything,"Script"),
+    Script(0, MyIcons.Script,"Script"),
     SftpFileTransfer(1, MyIcons.FileTransfer,"SftpUploadAndDownload");
     //get enum by type
     companion object {

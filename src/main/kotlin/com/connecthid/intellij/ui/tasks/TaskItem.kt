@@ -89,6 +89,27 @@ class TaskItem(val taskModel: TaskModel,val project: Project) : JBPanel<TaskItem
             insets = JBUI.insetsBottom(8)
         })
 
+        val runButton = JButton().apply {
+            icon = AllIcons.Debugger.ThreadRunning
+            isOpaque = false
+            border = JBUI.Borders.empty(6, 12)
+            preferredSize = Dimension(32, 32)
+            toolTipText = "run"
+            isFocusable = false
+            setContentAreaFilled(false)
+        }
+
+        add(runButton, GridBagConstraints().apply {
+            gridx = 2
+            gridy = 0
+            gridwidth = 1
+            gridheight = 2
+            weightx = 0.0
+            weighty = 1.0
+            insets = JBUI.insetsRight(100)
+            anchor = GridBagConstraints.CENTER
+        })
+
         val moreButton = JButton().apply {
             icon = AllIcons.Actions.More
             isOpaque = false
@@ -99,17 +120,20 @@ class TaskItem(val taskModel: TaskModel,val project: Project) : JBPanel<TaskItem
             setContentAreaFilled(false)
         }
         add(moreButton, GridBagConstraints().apply {
-            gridx = 2
+            gridx = 4
             gridy = 0
             gridwidth = 1
             gridheight = 2
             weightx = 0.0
             weighty = 1.0
-            insets = JBUI.insetsRight(10)
+            insets = JBUI.insetsRight(5)
             anchor = GridBagConstraints.CENTER
         })
         moreButton.addActionListener { _ ->
             showPopupMenu(moreButton)
+        }
+        runButton.addActionListener {
+            listener?.runTask(taskModel)
         }
 
         addMouseListener(hoverListener)
