@@ -2,9 +2,6 @@ package com.connecthid.intellij.connection.sftp
 
 import com.connecthid.intellij.getSSHService
 import com.connecthid.intellij.models.Server
-import com.connecthid.intellij.models.SftpFileOccurrence
-import com.connecthid.intellij.models.SftpMatchInfo
-import com.connecthid.intellij.models.getPassword
 import com.connecthid.intellij.connection.ssh.SSHConnection
 import com.connecthid.intellij.utils.Utils.parseSftpUrl
 import com.connecthid.intellij.utils.isWindows
@@ -12,22 +9,17 @@ import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.fileTypes.FileTypeManager
-import com.intellij.openapi.fileTypes.ex.FileTypeChooser
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileListener
 import com.intellij.openapi.vfs.VirtualFileSystem
-import com.jcraft.jsch.ChannelExec
 import com.jcraft.jsch.ChannelSftp
-import com.jcraft.jsch.Session
 import com.jcraft.jsch.SftpATTRS
 import java.io.IOException
 import java.io.InputStream
-import java.util.concurrent.locks.ReentrantLock
-import kotlin.collections.iterator
 
 
- class SftpFileSystem : VirtualFileSystem() {
+class SftpFileSystem : VirtualFileSystem() {
     // Use lazy initialization to defer service access until actually needed
     val connectionService by lazy { getSSHService() }
     internal val fileCache = mutableMapOf<String, SftpFile>()

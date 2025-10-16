@@ -11,7 +11,7 @@ class SshProcessHandlerTtyConnector(
 ) : TtyConnector {
 
     override fun close() {
-        // No-op: Handler manages lifecycle
+        processHandler.close()
     }
 
     override fun resize(@NotNull termSize: TermSize) {
@@ -20,10 +20,21 @@ class SshProcessHandlerTtyConnector(
     }
 
 
+    override fun read(buf: CharArray, offset: Int, length: Int): Int {
+        if (!processHandler.isConnected()) return -1
+        val byteBuf = ByteArray(length)
+        val bytesRead = processHandler.getShellChannel().inputStream.read(byteBuf)
 
-    @Throws(IOException::class)
-    override fun read(buf: CharArray, offset: Int, length: Int): Int =
-        throw IllegalStateException("Reads handled by ProcessHandler")
+        if (bytesRead == -1) return -1
+
+        val str = byteBuf.decodeToString(0, bytesRead)
+        val chars = str.toCharArray()
+        val copyLength = chars.size.coerceAtMost(length)
+        chars.copyInto(buf, offset, 0, copyLength)
+
+        println("READ [$bytesRead bytes]: $str")
+        return copyLength
+    }
 
     override fun write(bytes: ByteArray) = writeBytes(bytes)
 
@@ -43,13 +54,20 @@ class SshProcessHandlerTtyConnector(
         return 0
     }
 
-    override fun ready(): Boolean = false
+
+
+    override fun ready(): Boolean {
+        val available = processHandler.getShellChannel().inputStream.available()
+        println("ready() -> $available bytes available")
+        return available > 0
+    }
+
     override fun getName(): String {
-        return return ""
+        return "SSH-${processHandler.server.stmpName}"
     }
 
     private fun writeBytes(bytes: ByteArray) {
-        processHandler.processInput?.let { input ->
+        processHandler.processInput.let { input ->
             input.write(bytes)
             input.flush()
         }

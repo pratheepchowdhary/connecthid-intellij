@@ -161,8 +161,7 @@ class RunTask(
         val connection = service.getConnection(server)
         val channel = connection!!.getSession()!!.openChannel("shell") as ChannelShell
         channel.connect()
-        val processHandler = SshProcessHandler(server.host, server.port, server.username, server.getPassword()!!)
-
+        val processHandler = SshProcessHandler(server)
         val connector = SshProcessHandlerTtyConnector(processHandler,Charsets.UTF_8)
         console.attachToProcess(processHandler,connector,true)
         synchronized(activeHandlers) {
@@ -170,8 +169,7 @@ class RunTask(
         }
         processHandler.startNotify()
         processHandler.setCommandDelayMs(10)
-        processHandler.sendCommand("uname")
-
+        processHandler.sendCommand("top")
         while (!processHandler.isProcessTerminated) {
             coroutineScope.ensureActive()
             delay(100)

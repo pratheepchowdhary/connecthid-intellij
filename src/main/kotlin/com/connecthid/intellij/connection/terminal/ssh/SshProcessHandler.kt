@@ -1,51 +1,43 @@
 package com.connecthid.intellij.connection.terminal.ssh
 
 
+import com.connecthid.intellij.connection.ssh.SSHConnection
+import com.connecthid.intellij.getSSHService
+import com.connecthid.intellij.models.Server
 import com.intellij.execution.process.ProcessHandler
 import com.intellij.execution.process.ProcessOutputTypes
 import com.intellij.openapi.diagnostic.Logger
 import com.jcraft.jsch.ChannelShell
-import com.jcraft.jsch.JSch
-import com.jcraft.jsch.Session
 import kotlinx.coroutines.*
 import org.jetbrains.annotations.Nullable
 import java.io.IOException
 import java.io.OutputStream
 import java.io.PipedInputStream
 import java.io.PipedOutputStream
-import java.util.*
 import java.util.concurrent.atomic.AtomicBoolean
 
 class SshProcessHandler(
-    host: String,
-    port: Int,
-    user: String,
-    password: String
+    val server: Server
 ) : ProcessHandler() {
+    private val service = getSSHService()
     private companion object {
         private val LOG = Logger.getInstance(SshProcessHandler::class.java)
     }
 
-    private val session: Session
+    private var connection: SSHConnection
     private val channel: ChannelShell
     private val processStdin: PipedOutputStream = PipedOutputStream()
     private lateinit var shellInput: PipedInputStream
     private val shellOut: Lazy<OutputStream> = lazy { channel.getOutputStream() }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val started = AtomicBoolean(false)
+     val started = AtomicBoolean(false)
     private val inputForwardingActive = AtomicBoolean(true)
     private var commandDelayMs: Long = 200L
 
     init {
-        val jsch = JSch()
-        session = jsch.getSession(user, host, port).apply {
-            setPassword(password)
-            val config = Properties().apply { setProperty("StrictHostKeyChecking", "no") }  // Prod: Use "yes"
-            setConfig(config)
-            connect()
-        }
-        channel = session.openChannel("shell") as ChannelShell
-        channel.setPty(true)  // Initial PTY allocation
+        connection = service.getConnection(server)?:throw Exception("Unable to connect server")
+        channel = connection.getShellChannelFromPool()?:throw  Exception("Unable to connect server")
+        channel.setPty(true)
     }
 
     // PTY Resizing: Send SSH window change signal (call from TtyConnector)
@@ -58,7 +50,7 @@ class SshProcessHandler(
 
     // Send command (suspend for async)
     suspend fun sendCommand(command: String) {
-        if (!started.get() || !shellOut.isInitialized()) {
+        if (!started.get()) {
             throw IllegalStateException("Handler not started.")
         }
         withContext(Dispatchers.IO) {
@@ -81,9 +73,12 @@ class SshProcessHandler(
         scope.cancel()
         runCatching {
             processStdin.close()
-            if (!channel.isClosed) channel.disconnect()
-            if (session.isConnected) session.disconnect()
+            if (!channel.isClosed) {
+                channel.disconnect()
+            }
+            connection.releaseShellChannelToPool(channel)
         }.onFailure { LOG.warn("Cleanup error", it) }
+        scope.cancel()
         notifyProcessDetached()
     }
 
@@ -92,9 +87,14 @@ class SshProcessHandler(
     override fun detachIsDefault(): Boolean = false
 
 
+    fun getShellChannel() = channel
+
+
+
+
 
     @Nullable
-    override fun getProcessInput(): OutputStream? = processStdin
+    override fun getProcessInput(): OutputStream = processStdin
 
     override fun startNotify() {
         if (!started.compareAndSet(false, true)) return
@@ -135,9 +135,24 @@ class SshProcessHandler(
         }
     }
 
+
      fun isConnected(): Boolean {
-        val connected = session.isConnected && channel.isConnected
+        val connected = connection.isConnected() && channel.isConnected
         println("isConnected() -> $connected")
         return connected
+    }
+
+    fun close() {
+        inputForwardingActive.set(false)
+        scope.cancel()
+
+        runCatching {
+            processStdin.close()
+            if (!channel.isClosed) {
+                channel.disconnect()
+            }
+            // Only release to pool after fully disconnected
+            connection.releaseShellChannelToPool(channel)
+        }.onFailure { LOG.warn("Cleanup error", it) }
     }
 }
