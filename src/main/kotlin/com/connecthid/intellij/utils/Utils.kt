@@ -39,5 +39,16 @@ object Utils {
         }
         return parentElement
     }
+    fun mapStringToEnvMap(data: String): MutableMap<String, String>  {
+        val parentElement :MutableMap<String, String> = mutableMapOf()
+
+        data.split(";").forEach { pair ->
+            val parts = pair.split("=")
+            if (parts.size == 2) {
+                parentElement.put(parts[0],parts[1])
+            }
+        }
+        return parentElement
+    }
 
 }

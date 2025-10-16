@@ -6,8 +6,8 @@ import com.connecthid.intellij.models.AuthenticationMethod
 import com.connecthid.intellij.models.Server
 import com.connecthid.intellij.models.SystemInfo
 import com.connecthid.intellij.models.getPassword
+import com.connecthid.intellij.ui.commons.TabSelectedListener
 import com.connecthid.intellij.ui.filemanager.sftp.openSFTP
-import com.connecthid.intellij.utils.removeI
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
@@ -29,7 +29,8 @@ import javax.swing.JButton
 import javax.swing.JPanel
 import javax.swing.JScrollPane
 
-class ServerListPanel internal constructor(val project: Project): JBPanel<ServerListPanel>(), ServerItem.Listener  {
+class ServerListPanel internal constructor(val project: Project): JBPanel<ServerListPanel>(), ServerItem.Listener,
+    TabSelectedListener  {
     // Use lazy initialization to defer service access until actually needed
     private val connectionService by lazy { getSSHService() }
     var devices: MutableList<Server> = emptyList<Server>().toMutableList()
@@ -258,6 +259,13 @@ class ServerListPanel internal constructor(val project: Project): JBPanel<Server
         this.devices = devices
     }
 
+    override fun onTabForeground() {
+
+    }
+
+    override fun onTabBackground() {
+
+    }
 
 
     private companion object {

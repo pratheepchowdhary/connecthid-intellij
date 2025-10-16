@@ -3,7 +3,7 @@ package com.connecthid.intellij.ui.tasks
 import com.connecthid.intellij.PluginBundle
 import com.connecthid.intellij.getSSHService
 import com.connecthid.intellij.models.TaskModel
-import com.connecthid.intellij.ui.runconfigurations.RunConfigurationTask
+import com.connecthid.intellij.ui.runconfigurations.RunConfigurationTaskType
 import com.intellij.execution.ExecutionBundle
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
@@ -121,7 +121,7 @@ class RunAfterTasksPanel(val taskModel: TaskModel): JPanel() {
 
         service.getTasks().forEach {
             if(it.scriptId != taskModel.scriptId && !myModel.contains(it)){
-              actionGroup.add(object : AnAction({ it.scriptName }, RunConfigurationTask.fromType(it.scriptType).icon){
+              actionGroup.add(object : AnAction({ it.scriptName }, RunConfigurationTaskType.fromType(it.scriptType).icon){
                   override fun actionPerformed(p0: AnActionEvent) {
                       myModel.add(it)
                   }
@@ -150,7 +150,7 @@ class RunAfterTasksPanel(val taskModel: TaskModel): JPanel() {
         ): Component {
             super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
             val item = value as TaskModel
-            setIcon(RunConfigurationTask.fromType(item.scriptType).icon)
+            setIcon(RunConfigurationTaskType.fromType(item.scriptType).icon)
             setText(item.scriptName)
             return this
         }

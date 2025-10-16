@@ -5,7 +5,7 @@ import com.connecthid.intellij.models.TaskModel
 import com.connecthid.intellij.ui.MyIcons
 import com.connecthid.intellij.ui.runconfigurations.ConnectHIDRunConfiguration
 import com.connecthid.intellij.ui.runconfigurations.ConnectHIDRunConfigurationType
-import com.connecthid.intellij.ui.runconfigurations.RunConfigurationTask
+import com.connecthid.intellij.ui.runconfigurations.RunConfigurationTaskType
 import com.intellij.execution.RunManager
 import com.intellij.execution.configurations.ConfigurationTypeUtil
 import com.intellij.icons.AllIcons
@@ -27,7 +27,7 @@ import javax.swing.JButton
 
 class TaskItem(val taskModel: TaskModel,val project: Project) : JBPanel<TaskItem>(GridBagLayout()) {
     var listener: Listener? = null
-    val configuration by lazy { RunConfigurationTask.fromType(taskModel.scriptType) }
+    val configuration by lazy { RunConfigurationTaskType.fromType(taskModel.scriptType) }
     val runManager by lazy {
         RunManager.getInstance(project)
     }

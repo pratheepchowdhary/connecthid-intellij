@@ -16,7 +16,7 @@ class ConnectHIDRunConfiguration(
     project: Project,
     factory: ConfigurationFactory,
     name: String?,
-    val taskType: RunConfigurationTask
+    val taskType: RunConfigurationTaskType
 ) : RunConfigurationBase<ConnectHIDRunConfigurationOptions>(project, factory, name) {
 
 

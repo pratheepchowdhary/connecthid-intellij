@@ -5,10 +5,11 @@ import com.connecthid.intellij.getProjectService
 import com.connecthid.intellij.getSSHService
 import com.connecthid.intellij.models.TaskModel
 import com.connecthid.intellij.ui.MyIcons
+import com.connecthid.intellij.ui.commons.TabSelectedListener
 import com.connecthid.intellij.ui.runconfigurations.ConnectHIDConfigurationFactory
 import com.connecthid.intellij.ui.runconfigurations.ConnectHIDRunConfiguration
 import com.connecthid.intellij.ui.runconfigurations.ConnectHIDRunConfigurationType
-import com.connecthid.intellij.ui.runconfigurations.RunConfigurationTask
+import com.connecthid.intellij.ui.runconfigurations.RunConfigurationTaskType
 import com.intellij.execution.ExecutionException
 import com.intellij.execution.RunManager
 import com.intellij.execution.RunManagerListener
@@ -38,7 +39,7 @@ import javax.swing.JScrollPane
 
 class TasksPanel(
     private val project: Project
-) : JPanel(), TaskItem.Listener,RunManagerListener {
+) : JPanel(), TaskItem.Listener,RunManagerListener , TabSelectedListener {
 
     var taskModels: MutableList<TaskModel> = emptyList<TaskModel>().toMutableList()
         set(value) {
@@ -124,7 +125,7 @@ class TasksPanel(
 
     }
 
-    fun createTask(task: RunConfigurationTask){
+    fun createTask(task: RunConfigurationTaskType){
         val taskDialog = TaskDialog(project, task)
         taskDialog.window.addWindowListener(object : java.awt.event.WindowAdapter() {
             override fun windowClosed(e: java.awt.event.WindowEvent?) {
@@ -182,13 +183,13 @@ class TasksPanel(
         actionGroup.addSeparator()
         actionGroup.add(object : AnAction({ PluginBundle.message("task_script") }, AllIcons.Actions.RunAnything) {
             override fun actionPerformed(e: AnActionEvent) {
-                createTask(RunConfigurationTask.Script)
+                createTask(RunConfigurationTaskType.Script)
             }
         })
         actionGroup.addSeparator()
         actionGroup.add(object : AnAction({ PluginBundle.message("task_sftp_file_transfer") }, MyIcons.FileTransfer) {
             override fun actionPerformed(e: AnActionEvent) {
-                createTask(RunConfigurationTask.SftpFileTransfer)
+                createTask(RunConfigurationTaskType.SftpFileTransfer)
             }
         })
         val popupMenu = ActionManager.getInstance().createActionPopupMenu("WorkspacePopup", actionGroup)
@@ -197,7 +198,7 @@ class TasksPanel(
 
     fun createRunConfigurations(taskModel: TaskModel,addToConfiguration: Boolean = false): RunConfiguration{
         val type = ConfigurationTypeUtil.findConfigurationType("ConnectHID") ?: throw ExecutionException("Cannot find runner for ${taskModel.scriptName}")
-        val factory = type.configurationFactories.firstOrNull { (it as ConnectHIDConfigurationFactory).task == RunConfigurationTask.fromType(taskModel.scriptType) } ?: throw ExecutionException("Cannot find runner for ${taskModel.scriptName}")
+        val factory = type.configurationFactories.firstOrNull { (it as ConnectHIDConfigurationFactory).task == RunConfigurationTaskType.fromType(taskModel.scriptType) } ?: throw ExecutionException("Cannot find runner for ${taskModel.scriptName}")
         val settings: RunnerAndConfigurationSettings = runManager.createConfiguration(generateUniqueConfigurationName(taskModel.scriptName), factory)
         with(settings.configuration as ConnectHIDRunConfiguration){
             setTask(taskModel)
@@ -234,7 +235,7 @@ class TasksPanel(
         taskModel: TaskModel,
         dataContext: DataContext
     ) {
-        val task = TaskDialog(project, RunConfigurationTask.fromType(taskModel.scriptType), taskModel)
+        val task = TaskDialog(project, RunConfigurationTaskType.fromType(taskModel.scriptType), taskModel)
         task.window.addWindowListener(object : java.awt.event.WindowAdapter() {
             override fun windowClosed(e: java.awt.event.WindowEvent?) {
                 updateScriptsList()
@@ -303,6 +304,14 @@ class TasksPanel(
 
     override fun runConfigurationChanged(settings: RunnerAndConfigurationSettings) {
         updateScriptsList()
+    }
+
+    override fun onTabForeground() {
+       updateScriptsList()
+    }
+
+    override fun onTabBackground() {
+
     }
 
     private companion object {

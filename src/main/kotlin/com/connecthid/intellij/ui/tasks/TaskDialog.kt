@@ -1,14 +1,14 @@
 package com.connecthid.intellij.ui.tasks
 
 import com.connecthid.intellij.models.TaskModel
-import com.connecthid.intellij.ui.runconfigurations.RunConfigurationTask
+import com.connecthid.intellij.ui.runconfigurations.RunConfigurationTaskType
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
 import java.awt.Dimension
 import javax.swing.JComponent
 
 class TaskDialog(
-    private val project: Project, private val taskType: RunConfigurationTask, taskModel: TaskModel? = null
+    private val project: Project, private val taskType: RunConfigurationTaskType, taskModel: TaskModel? = null
 ) : DialogWrapper(project) {
 
     val form: TaskForm

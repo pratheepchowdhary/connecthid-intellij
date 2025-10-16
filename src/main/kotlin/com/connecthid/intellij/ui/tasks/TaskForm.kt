@@ -4,7 +4,7 @@ import com.connecthid.intellij.PluginBundle
 import com.connecthid.intellij.connection.sftp.SftpFileSystem
 import com.connecthid.intellij.getSSHService
 import com.connecthid.intellij.models.TaskModel
-import com.connecthid.intellij.ui.runconfigurations.RunConfigurationTask
+import com.connecthid.intellij.ui.runconfigurations.RunConfigurationTaskType
 import com.connecthid.intellij.utils.Utils.mapStringToElement
 import com.intellij.execution.configuration.EnvironmentVariablesComponent
 import com.intellij.execution.configuration.EnvironmentVariablesData
@@ -28,7 +28,7 @@ import java.util.UUID
 import javax.swing.DefaultComboBoxModel
 import javax.swing.JPanel
 
-class TaskForm( private val project: Project, private val taskType: RunConfigurationTask, taskModel: TaskModel?=null,val fromRunConfiguration: Boolean=false) {
+class TaskForm(private val project: Project, private val taskType: RunConfigurationTaskType, taskModel: TaskModel?=null, val fromRunConfiguration: Boolean=false) {
     val propertyGraph = PropertyGraph()
     private var myScriptPathPanel: JPanel? = null
     private var myScriptTextPanel: JPanel? = null
@@ -147,7 +147,7 @@ class TaskForm( private val project: Project, private val taskType: RunConfigura
         downloadFiles = FilesPickerPanel(project,true)
         uploadFiles = FilesPickerPanel(project)
         hostBox = ComboBox(servers)
-        servers.selectedItem = if(taskType == RunConfigurationTask.Script) localhost else (if(servers.size == 0) "" else servers.getElementAt(0))
+        servers.selectedItem = if(taskType == RunConfigurationTaskType.Script) localhost else (if(servers.size == 0) "" else servers.getElementAt(0))
         hostBox!!.addActionListener {
             downloadFiles!!.host=servers.selectedItem as String
         }
@@ -181,19 +181,19 @@ class TaskForm( private val project: Project, private val taskType: RunConfigura
 
     private fun selectMode() {
         val scriptExecutionSelected = myScriptFileRadioButton?.isSelected ?:false
-        myScriptPathPanel?.isVisible = taskType == RunConfigurationTask.Script && scriptExecutionSelected
-        myScriptTextPanel?.isVisible = taskType == RunConfigurationTask.Script && !scriptExecutionSelected
-        myScriptTypeJPanel?.isVisible = taskType == RunConfigurationTask.Script
-        myUploadsJPanel?.isVisible = taskType == RunConfigurationTask.SftpFileTransfer
-        myDownloadsJPanel?.isVisible = taskType == RunConfigurationTask.SftpFileTransfer
-        hostJPanel?.isVisible = taskType == RunConfigurationTask.Script
+        myScriptPathPanel?.isVisible = taskType == RunConfigurationTaskType.Script && scriptExecutionSelected
+        myScriptTextPanel?.isVisible = taskType == RunConfigurationTaskType.Script && !scriptExecutionSelected
+        myScriptTypeJPanel?.isVisible = taskType == RunConfigurationTaskType.Script
+        myUploadsJPanel?.isVisible = taskType == RunConfigurationTaskType.SftpFileTransfer
+        myDownloadsJPanel?.isVisible = taskType == RunConfigurationTaskType.SftpFileTransfer
+        hostJPanel?.isVisible = taskType == RunConfigurationTaskType.Script
     }
 
     private fun getServersList(): List<String> {
         return getSSHService().getSavedConnections().map {
             "${it.username}@${it.host}"
         }.toMutableList().also {
-            if(taskType == RunConfigurationTask.Script) it.add(0, localhost)
+            if(taskType == RunConfigurationTaskType.Script) it.add(0, localhost)
         }
     }
     fun setData(){
@@ -235,7 +235,7 @@ class TaskForm( private val project: Project, private val taskType: RunConfigura
             row("Server:") {
                 cell(hostBox!!).resizableColumn().align(Align.FILL)
             }
-            if(taskType == RunConfigurationTask.Script){
+            if(taskType == RunConfigurationTaskType.Script){
                 row {
                     panel {
                         buttonsGroup {
@@ -282,7 +282,7 @@ class TaskForm( private val project: Project, private val taskType: RunConfigura
                     cell(myExecuteFileInTerminal!!).resizableColumn().align(Align.FILL).align(Align.CENTER)
                 }
             }
-            if(taskType == RunConfigurationTask.SftpFileTransfer){
+            if(taskType == RunConfigurationTaskType.SftpFileTransfer){
                 with(collapsibleGroup("Download Files") {
                     row {
                         cell(downloadFiles!!).resizableColumn().align(Align.FILL)
@@ -315,6 +315,8 @@ class TaskForm( private val project: Project, private val taskType: RunConfigura
         resetEditorFrom()
         return panel
     }
+
+
 
 
 }

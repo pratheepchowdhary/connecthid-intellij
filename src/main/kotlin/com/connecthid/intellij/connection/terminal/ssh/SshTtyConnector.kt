@@ -6,7 +6,7 @@ import com.jediterm.terminal.TtyConnector
 import java.io.InputStream
 import java.io.OutputStream
 
-class SshTtyConnector(
+open class SshTtyConnector(
     private val host: String,
     private val port: Int = 22,
     private val user: String,
@@ -17,8 +17,8 @@ class SshTtyConnector(
 
     private lateinit var session: Session
     private lateinit var channel: ChannelShell
-    private lateinit var inputStream: InputStream
-    private lateinit var outputStream: OutputStream
+    lateinit var inputStream: InputStream
+     lateinit var outputStream: OutputStream
     private var isRunning = false
 
     init {
@@ -137,4 +137,11 @@ class SshTtyConnector(
         println("Resizing terminal: ${termSize.columns} cols, ${termSize.rows} rows")
         channel.setPtySize(termSize.columns, termSize.rows, 800, 600)
     }
+    fun sendCommand(command: String) {
+        if (channel.isConnected) {
+            outputStream.write((command + "\n").toByteArray())
+            outputStream.flush() // make sure command is sent immediately
+        }
+    }
 }
+

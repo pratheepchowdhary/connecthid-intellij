@@ -7,7 +7,7 @@ import javax.swing.*
 
 class ConnectHIDSettingsEditor(
     project: Project,
-    taskType: RunConfigurationTask
+    taskType: RunConfigurationTaskType
 ) : SettingsEditor<ConnectHIDRunConfiguration>() {
 
     val form: TaskForm

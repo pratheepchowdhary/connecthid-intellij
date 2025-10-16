@@ -2,6 +2,7 @@ package com.connecthid.intellij.ui.workspaces
 
 import com.connecthid.intellij.getSSHService
 import com.connecthid.intellij.models.Workspace
+import com.connecthid.intellij.ui.commons.TabSelectedListener
 import com.connecthid.intellij.ui.filemanager.sftp.openProject
 import com.connecthid.intellij.ui.servers.ServerListPanel
 import com.intellij.openapi.project.Project
@@ -14,7 +15,7 @@ import javax.swing.JButton
 import javax.swing.JPanel
 import javax.swing.JScrollPane
 
-class WorkSpacesPanel internal constructor(val project: Project) : JBPanel<ServerListPanel>() {
+class WorkSpacesPanel internal constructor(val project: Project) : JBPanel<ServerListPanel>(),TabSelectedListener {
     private val connection = getSSHService()
     private var workspaces: MutableList<Workspace> = connection.getWorkspaces().toMutableList()
     private var header: JPanel? = null
@@ -82,5 +83,13 @@ class WorkSpacesPanel internal constructor(val project: Project) : JBPanel<Serve
     private fun refreshWorkspaces() {
         workspaces = connection.getWorkspaces().toMutableList()
         rebuildUi()
+    }
+
+    override fun onTabForeground() {
+
+    }
+
+    override fun onTabBackground() {
+
     }
 }
