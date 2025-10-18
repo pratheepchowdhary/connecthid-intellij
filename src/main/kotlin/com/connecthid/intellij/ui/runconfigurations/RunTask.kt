@@ -1,7 +1,7 @@
 
 package com.connecthid.intellij.ui.runconfigurations
 
-import com.connecthid.intellij.connection.terminal.ssh.SshProcessHandler
+import com.connecthid.intellij.connection.terminal.ssh.SshShellProcessHandler
 import com.connecthid.intellij.connection.terminal.ssh.SshProcessHandlerTtyConnector
 import com.connecthid.intellij.getSSHService
 import com.connecthid.intellij.models.Server
@@ -156,7 +156,7 @@ class RunTask(
         val connection = service.getConnection(server)
         val channel = connection!!.getSession()!!.openChannel("shell") as ChannelShell
         channel.connect()
-        val processHandler = SshProcessHandler(server)
+        val processHandler = SshShellProcessHandler(server)
         val connector = SshProcessHandlerTtyConnector(processHandler,Charsets.UTF_8)
         console.attachToProcess(processHandler,connector,true)
         synchronized(activeHandlers) {

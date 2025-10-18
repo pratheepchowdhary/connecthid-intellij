@@ -6,7 +6,7 @@ import org.jetbrains.annotations.NotNull
 import java.nio.charset.Charset
 
 class SshProcessHandlerTtyConnector(
-    private val processHandler: SshProcessHandler,
+    private val processHandler: SshShellProcessHandler,
     private val charset: Charset
 ) : TtyConnector {
 

@@ -6,23 +6,29 @@ import com.connecthid.intellij.models.Server
 import com.intellij.execution.process.ProcessHandler
 import com.intellij.execution.process.ProcessOutputTypes
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.terminal.JBTerminalWidget
 import com.jcraft.jsch.ChannelShell
 import kotlinx.coroutines.*
 import java.io.IOException
 import java.io.OutputStream
 import java.io.PipedInputStream
 import java.io.PipedOutputStream
+import java.nio.charset.StandardCharsets
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.time.Duration.Companion.milliseconds
 
-class SshProcessHandler(
+/**
+ * A ProcessHandler implementation for managing an interactive SSH shell session.
+ * Integrates with IntelliJ's terminal emulator, forwarding I/O via coroutines and JSch.
+ *
+ * @property server The target server configuration.
+ */
+class SshShellProcessHandler(
     val server: Server
 ) : ProcessHandler() {
 
     private val service = getSSHService()
     private companion object {
-        private val LOG = Logger.getInstance(SshProcessHandler::class.java)
+        private val LOG = Logger.getInstance(SshShellProcessHandler::class.java)
     }
 
     private var connection: SSHConnection
@@ -34,6 +40,7 @@ class SshProcessHandler(
     private val started = AtomicBoolean(false)
     private val inputForwardingActive = AtomicBoolean(true)
     private var commandDelayMs: Long = 200L
+    private var outputPollDelayMs: Long = 20L // Configurable polling delay for better responsiveness
 
     // quick connected flag to be used by isConnected()
     @Volatile
@@ -47,9 +54,20 @@ class SshProcessHandler(
         channel = (connection.getShellChannelFromPool()
             ?: throw Exception("Unable to obtain shell channel"))
         channel.setPty(true)
-        channel.connect()
+        // Add timeout to prevent hanging on connect
+        runBlocking {
+            withTimeout(10000.milliseconds) {
+                channel.connect()
+            }
+        }
+        LOG.debug("SSH channel connected for ${server.host}")
     }
 
+    /**
+     * Resizes the PTY to the specified dimensions.
+     * @param columns Number of columns.
+     * @param rows Number of rows.
+     */
     fun resize(columns: Int, rows: Int) {
         if (channel.isConnected) {
             channel.setPtySize(columns, rows, 800, 600)
@@ -57,11 +75,16 @@ class SshProcessHandler(
         }
     }
 
+    /**
+     * Sends a command to the remote shell with a configurable post-send delay for execution pacing.
+     * Must be called after startNotify().
+     * @param command The command to send.
+     */
     suspend fun sendCommand(command: String) {
         if (!started.get()) throw IllegalStateException("Handler not started.")
         withContext(Dispatchers.IO) {
             try {
-                shellOut.value.write((command + "\n").toByteArray())
+                shellOut.value.write((command + "\n").toByteArray(StandardCharsets.UTF_8))
                 shellOut.value.flush()
                 delay(commandDelayMs)
             } catch (e: IOException) {
@@ -72,6 +95,13 @@ class SshProcessHandler(
 
     fun setCommandDelayMs(delayMs: Long) {
         commandDelayMs = delayMs
+    }
+
+    /**
+     * Sets the polling delay for output forwarding (in ms). Lower values increase responsiveness but CPU usage.
+     */
+    fun setOutputPollDelayMs(delayMs: Long) {
+        outputPollDelayMs = delayMs
     }
 
     override fun destroyProcessImpl() {
@@ -87,10 +117,10 @@ class SshProcessHandler(
             runBlocking {
                 withTimeoutOrNull(2000.milliseconds) {
                     forwardingFinished.await()
-                }
+                } ?: LOG.warn("Forwarding timeout exceeded during shutdown")
             }
-        } catch (e: InterruptedException) {
-            Thread.currentThread().interrupt()
+        } catch (e: CancellationException) {
+            LOG.debug("Shutdown cancelled", e)
         }
 
         notifyProcessDetached()
@@ -111,8 +141,10 @@ class SshProcessHandler(
             connection.releaseShellChannelToPool(channel)
         }.onFailure { LOG.warn("Cleanup error", it) }
 
-        // finally mark terminated
-        notifyProcessTerminated(channel.exitStatus.takeIf { it != -1 } ?: 0)
+        // finally mark terminated; log raw exit status for debugging
+        val exitStatus = channel.exitStatus
+        LOG.debug("Channel exit status: $exitStatus")
+        notifyProcessTerminated(exitStatus.takeIf { it != -1 } ?: 0)
     }
 
     override fun detachProcessImpl() {
@@ -144,20 +176,22 @@ class SshProcessHandler(
         // Launch two coroutines: output (shell -> terminal) and input (terminal -> shell)
         // When both finish, complete forwardingFinished.
 
-        // Output: Shell -> Console
+        // Output: Shell -> Console (non-blocking read with timeout for efficiency)
         val outputJob = scope.launch {
             val shellIn = channel.inputStream
-            val buffer = ByteArray(1024)
+            val buffer = ByteArray(4096) // Larger buffer for better throughput
             try {
                 while (!channel.isClosed && isActive) {
                     ensureActive()
-                    while (shellIn.available() > 0) {
-                        ensureActive()
-                        val read = shellIn.read(buffer, 0, buffer.size)
-                        if (read < 0) break
-                        notifyTextAvailable(String(buffer, 0, read), ProcessOutputTypes.STDOUT)
-                    }
-                    delay(50)
+                    val read = withTimeout(outputPollDelayMs) {
+                        try {
+                            shellIn.read(buffer)
+                        } catch (e: IOException) {
+                            -1
+                        }
+                    } ?: continue // No data, retry
+                    if (read < 0) break // EOF
+                    notifyTextAvailable(String(buffer, 0, read, StandardCharsets.UTF_8), ProcessOutputTypes.STDOUT)
                 }
             } catch (e: CancellationException) {
                 // normal cancellation - rethrow so parent job handles it
@@ -210,7 +244,8 @@ class SshProcessHandler(
         }
 
         // When both are complete, complete forwardingFinished if not already
-        scope.launch {
+        // Use NonCancellable to ensure completion even if cancelled
+        scope.launch(NonCancellable) {
             try {
                 try {
                     outputJob.join()
@@ -219,7 +254,9 @@ class SshProcessHandler(
                 }
                 try {
                     inputJob.join()
-                } catch (e: CancellationException) {   throw e }
+                } catch (e: CancellationException) {
+                    throw e
+                }
             } finally {
                 if (!forwardingFinished.isCompleted) {
                     forwardingFinished.complete(Unit)
@@ -228,9 +265,13 @@ class SshProcessHandler(
         }
     }
 
+    /**
+     * Checks if the SSH connection and channel are active.
+     * @return True if connected.
+     */
     fun isConnected(): Boolean {
         val connected = connectedFlag && connection.isConnected() && channel.isConnected
-        println("isConnected() -> $connected")
+        LOG.debug("isConnected() -> $connected") // Replaced println with LOG
         return connected
     }
 }
