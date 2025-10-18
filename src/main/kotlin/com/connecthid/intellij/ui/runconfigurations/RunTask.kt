@@ -6,7 +6,6 @@ import com.connecthid.intellij.connection.terminal.ssh.SshProcessHandlerTtyConne
 import com.connecthid.intellij.getSSHService
 import com.connecthid.intellij.models.Server
 import com.connecthid.intellij.models.TaskModel
-import com.connecthid.intellij.models.getPassword
 import com.connecthid.intellij.utils.Utils.mapStringToEnvMap
 import com.connecthid.intellij.utils.getDefaultShell
 import com.intellij.execution.configurations.GeneralCommandLine
@@ -21,11 +20,9 @@ import com.intellij.terminal.TerminalExecutionConsole
 import com.intellij.util.execution.ParametersListUtil
 import com.intellij.util.io.BaseOutputReader
 import com.jcraft.jsch.ChannelShell
-import com.jcraft.jsch.Session
 import kotlinx.coroutines.*
 import java.nio.file.Path
 import java.util.concurrent.CopyOnWriteArrayList
-import java.util.concurrent.atomic.AtomicReference
 
 class RunTask(
     private val taskModel: TaskModel,
@@ -48,8 +45,7 @@ class RunTask(
     private var stopped = false
     private var detached = false
 
-    // SSH session cache
-    private val sshSession = AtomicReference<Session?>(null)
+
 
     fun getConsoleView(): ConsoleView = console
 
@@ -75,7 +71,6 @@ class RunTask(
                     notifyProcessTerminated(1)
                 }
             } finally {
-                sshSession.getAndSet(null)?.disconnect()
                 if (!isProcessTerminated && !detached) {
                     notifyProcessTerminated(0)
                 }
@@ -169,7 +164,7 @@ class RunTask(
         }
         processHandler.startNotify()
         processHandler.setCommandDelayMs(10)
-        processHandler.sendCommand("top")
+       processHandler.sendCommand(task.scriptText)
         while (!processHandler.isProcessTerminated) {
             coroutineScope.ensureActive()
             delay(100)
@@ -230,6 +225,7 @@ class RunTask(
     override fun destroyProcessImpl() {
         stopped = true
         log("❌ Process stopped by user")
+        console.terminalWidget.close()
         coroutineScope.cancel()
         synchronized(activeHandlers) {
             activeHandlers.forEach { it.destroyProcess() }
@@ -240,9 +236,11 @@ class RunTask(
     }
 
     override fun detachProcessImpl() {
+        print("detachProcessImpl")
         stopped = true
         detached = true
         log("⚠️ Process detached by user")
+        console.terminalWidget.close()
         coroutineScope.cancel()
         synchronized(activeHandlers) {
             activeHandlers.forEach { it.destroyProcess() }
@@ -253,11 +251,11 @@ class RunTask(
     }
 
     override fun detachIsDefault() = true
-    override fun isSilentlyDestroyOnClose() = false
 
     fun isStopped(): Boolean = stopped
 
     fun log(message: String) {
+        print(message)
         val contentType = ConsoleViewContentType.SYSTEM_OUTPUT
         val text = if (!message.endsWith("\n")) "$message\n" else message
         console.print(text, contentType)

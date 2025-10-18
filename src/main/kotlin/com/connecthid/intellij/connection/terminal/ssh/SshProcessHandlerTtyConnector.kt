@@ -1,17 +1,17 @@
 package com.connecthid.intellij.connection.terminal.ssh
+
 import com.jediterm.core.util.TermSize
 import com.jediterm.terminal.TtyConnector
 import org.jetbrains.annotations.NotNull
-import java.io.IOException
 import java.nio.charset.Charset
 
 class SshProcessHandlerTtyConnector(
-     private val processHandler: SshProcessHandler,
-     private val charset: Charset
+    private val processHandler: SshProcessHandler,
+    private val charset: Charset
 ) : TtyConnector {
 
     override fun close() {
-        processHandler.close()
+        //processHandler.destroyProcess()
     }
 
     override fun resize(@NotNull termSize: TermSize) {
@@ -40,9 +40,8 @@ class SshProcessHandlerTtyConnector(
 
     override fun isConnected(): Boolean = processHandler.isConnected()
 
-    @Throws(IOException::class)
-    override fun write(string: String) = writeBytes(string.toByteArray(charset))
 
+    override fun write(string: String) = writeBytes(string.toByteArray(charset))
 
 
     override fun waitFor(): Int {
@@ -53,7 +52,6 @@ class SshProcessHandlerTtyConnector(
         println("waitFor() - session closed")
         return 0
     }
-
 
 
     override fun ready(): Boolean {
@@ -72,7 +70,6 @@ class SshProcessHandlerTtyConnector(
             input.flush()
         }
     }
-
 
 
 }
