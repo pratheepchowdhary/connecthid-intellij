@@ -1,8 +1,9 @@
 
 package com.connecthid.intellij.ui.runconfigurations
 
-import com.connecthid.intellij.connection.terminal.ssh.SshShellProcessHandler
+import com.connecthid.intellij.connection.terminal.ssh.SshExecProcessHandler
 import com.connecthid.intellij.connection.terminal.ssh.SshProcessHandlerTtyConnector
+import com.connecthid.intellij.connection.terminal.ssh.SshShellProcessHandler
 import com.connecthid.intellij.getSSHService
 import com.connecthid.intellij.models.Server
 import com.connecthid.intellij.models.TaskModel
@@ -19,7 +20,6 @@ import com.intellij.openapi.project.Project
 import com.intellij.terminal.TerminalExecutionConsole
 import com.intellij.util.execution.ParametersListUtil
 import com.intellij.util.io.BaseOutputReader
-import com.jcraft.jsch.ChannelShell
 import kotlinx.coroutines.*
 import java.nio.file.Path
 import java.util.concurrent.CopyOnWriteArrayList
@@ -91,7 +91,10 @@ class RunTask(
                 buildExecutionResult(task)
             } else {
                 service.getServer(task.server)?.let {
-                    buildSSHExecutionResult(task,it)
+                 val resultCode =   buildSSHExecutionResult(task,it)
+                 if(resultCode != 0){
+                     return
+                 }
                 }
             }
         } else if (taskType == RunConfigurationTaskType.SftpFileTransfer) {
@@ -147,24 +150,24 @@ class RunTask(
     /**
      * Build and execute command over SSH.
      */
-    private suspend fun buildSSHExecutionResult(task: TaskModel, server: Server) {
+    private suspend fun buildSSHExecutionResult(task: TaskModel, server: Server) : Int{
         val commandLine: GeneralCommandLine = if (task.isScriptFile) {
             createCommandLineForFile(task)
         } else {
             createCommandLineForScript(task)
         }
-        val connection = service.getConnection(server)
-        val channel = connection!!.getSession()!!.openChannel("shell") as ChannelShell
-        channel.connect()
-        val processHandler = SshShellProcessHandler(server)
+        log("Connecting to ${server.stmpName}")
+        val processHandler = if(!task.executeInTerminal) SshExecProcessHandler(server) else SshShellProcessHandler(server)
+        log("Connected to ${server.stmpName}")
         val connector = SshProcessHandlerTtyConnector(processHandler,Charsets.UTF_8)
         console.attachToProcess(processHandler,connector,true)
         synchronized(activeHandlers) {
             activeHandlers.add(processHandler)
         }
         processHandler.startNotify()
-        processHandler.setCommandDelayMs(10)
-       processHandler.sendCommand(task.scriptText)
+        processHandler.commandDelayMs=(10)
+        log("${task.scriptName} started executing..")
+        val resultCode = processHandler.sendCommand(task.scriptText)
         while (!processHandler.isProcessTerminated) {
             coroutineScope.ensureActive()
             delay(100)
@@ -173,8 +176,12 @@ class RunTask(
         synchronized(activeHandlers) {
             activeHandlers.remove(processHandler)
         }
-
-        log("✅ Remote script completed: ${task.scriptName}")
+        if(resultCode == 0){
+            log("✅ ${task.scriptName} finished successfully")
+        } else {
+           log("❌  ${task.scriptName} task failed", ConsoleViewContentType.LOG_ERROR_OUTPUT)
+        }
+        return  resultCode
     }
 
 
@@ -254,11 +261,9 @@ class RunTask(
 
     fun isStopped(): Boolean = stopped
 
-    fun log(message: String) {
-        print(message)
-        val contentType = ConsoleViewContentType.SYSTEM_OUTPUT
+    fun log(message: String,logType:ConsoleViewContentType = ConsoleViewContentType.SYSTEM_OUTPUT) {
         val text = if (!message.endsWith("\n")) "$message\n" else message
-        console.print(text, contentType)
+        console.print(text, logType)
     }
 
     fun finish(cancelled: Boolean = false) {

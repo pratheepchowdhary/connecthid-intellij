@@ -4,6 +4,7 @@ import com.connecthid.intellij.connection.sftp.SftpFile
 import com.connecthid.intellij.models.Server
 import com.connecthid.intellij.models.SftpFileOccurrence
 import com.connecthid.intellij.models.SftpMatchInfo
+import com.jcraft.jsch.Channel
 import com.jcraft.jsch.ChannelExec
 import com.jcraft.jsch.ChannelSftp
 import com.jcraft.jsch.ChannelShell
@@ -162,7 +163,18 @@ class SSHConnection(
         }
     }
 
-    fun releaseChannelToPool(channel: ChannelSftp?) {
+    fun releaseChannelToPool(channel: Channel?){
+        if (channel == null) return
+        if(channel is ChannelShell){
+            releaseShellChannelToPool(channel)
+        } else if (channel is ChannelExec){
+            releaseExecChannelToPool(channel)
+        } else if (channel is ChannelSftp){
+            releaseSftpChannelToPool(channel)
+        }
+    }
+
+    fun releaseSftpChannelToPool(channel: ChannelSftp?) {
         if (channel == null) return
         channelPoolLock.lock()
         try {
@@ -340,7 +352,7 @@ class SSHConnection(
         } catch (e: SftpException) {
             throw IOException("Failed to upload file: ${e.message}", e)
         } finally {
-            releaseChannelToPool(sftpChannel)
+            releaseSftpChannelToPool(sftpChannel)
         }
     }
 
@@ -351,7 +363,7 @@ class SSHConnection(
         } catch (e: SftpException) {
             throw IOException("Failed to download file: ${e.message}", e)
         } finally {
-            releaseChannelToPool(sftpChannel)
+            releaseSftpChannelToPool(sftpChannel)
         }
     }
 

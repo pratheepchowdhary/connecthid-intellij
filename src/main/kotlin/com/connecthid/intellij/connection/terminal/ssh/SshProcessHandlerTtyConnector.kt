@@ -6,7 +6,7 @@ import org.jetbrains.annotations.NotNull
 import java.nio.charset.Charset
 
 class SshProcessHandlerTtyConnector(
-    private val processHandler: SshShellProcessHandler,
+    private val processHandler: SshProcessHandler,
     private val charset: Charset
 ) : TtyConnector {
 
@@ -23,7 +23,7 @@ class SshProcessHandlerTtyConnector(
     override fun read(buf: CharArray, offset: Int, length: Int): Int {
         if (!processHandler.isConnected()) return -1
         val byteBuf = ByteArray(length)
-        val bytesRead = processHandler.getShellChannel().inputStream.read(byteBuf)
+        val bytesRead = processHandler.channel.inputStream.read(byteBuf)
 
         if (bytesRead == -1) return -1
 
@@ -55,7 +55,7 @@ class SshProcessHandlerTtyConnector(
 
 
     override fun ready(): Boolean {
-        val available = processHandler.getShellChannel().inputStream.available()
+        val available = processHandler.channel.inputStream.available()
         println("ready() -> $available bytes available")
         return available > 0
     }

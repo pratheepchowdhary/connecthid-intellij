@@ -65,7 +65,7 @@ class SftpFileSystem : VirtualFileSystem() {
         } catch (e: Exception) {
             return null
         } finally {
-            connection.releaseChannelToPool(channel)
+            connection.releaseSftpChannelToPool(channel)
         }
     }
 
@@ -115,7 +115,7 @@ class SftpFileSystem : VirtualFileSystem() {
         } catch (e: Exception) {
             throw IOException("Failed to delete file: ${e.message}", e)
         } finally {
-            connection.releaseChannelToPool(channel)
+            connection.releaseSftpChannelToPool(channel)
         }
     }
 
@@ -134,7 +134,7 @@ class SftpFileSystem : VirtualFileSystem() {
         } catch (e: Exception) {
             throw IOException("Failed to move file: ${e.message}", e)
         } finally {
-            connection.releaseChannelToPool(channel)
+            connection.releaseSftpChannelToPool(channel)
         }
     }
 
@@ -159,7 +159,7 @@ class SftpFileSystem : VirtualFileSystem() {
         } catch (e: Exception) {
             throw IOException("Failed to rename file: ${e.message}", e)
         } finally {
-            connection.releaseChannelToPool(channel)
+            connection.releaseSftpChannelToPool(channel)
         }
     }
 
@@ -178,7 +178,7 @@ class SftpFileSystem : VirtualFileSystem() {
         } catch (e: Exception) {
             throw IOException("Failed to create file: ${e.message}", e)
         } finally {
-            connection.releaseChannelToPool(channel)
+            connection.releaseSftpChannelToPool(channel)
         }
     }
 
@@ -197,7 +197,7 @@ class SftpFileSystem : VirtualFileSystem() {
         } catch (e: Exception) {
             throw IOException("Failed to create directory: ${e.message}", e)
         } finally {
-            connection.releaseChannelToPool(channel)
+            connection.releaseSftpChannelToPool(channel)
         }
     }
 
@@ -222,7 +222,7 @@ class SftpFileSystem : VirtualFileSystem() {
         } catch (_: Exception) {
             throw IOException("Failed to copy file")
         } finally {
-            connection.releaseChannelToPool(channel)
+            connection.releaseSftpChannelToPool(channel)
         }
     }
 
@@ -279,7 +279,7 @@ class SftpFileSystem : VirtualFileSystem() {
 
     fun releaseChannelToPool(channel: ChannelSftp?,server: Server) {
         val connection = getConnection(server) ?: return
-        connection.releaseChannelToPool(channel)
+        connection.releaseSftpChannelToPool(channel)
     }
 
 }
