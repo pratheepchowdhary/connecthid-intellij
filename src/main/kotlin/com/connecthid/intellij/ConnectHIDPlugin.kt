@@ -28,8 +28,7 @@ class ConnectHIDPlugin : ToolWindowFactory {
         tabbedPane.addTab("Servers", ServerListPanel(project))
         tabbedPane.addTab("Workspaces",  WorkSpacesPanel(project))
         tabbedPane.addTab("Tasks", TasksPanel(project))
-
-        tabbedPane.addTab("Server Status", ServerStatusDashboardPanel().createComponent())
+        //tabbedPane.addTab("Server Status", ServerStatusDashboardPanel().createComponent())
         tabbedPane.addChangeListener(object : ChangeListener {
             override fun stateChanged(e: ChangeEvent) {
                 val sourceTabbedPane = e.getSource() as JTabbedPane

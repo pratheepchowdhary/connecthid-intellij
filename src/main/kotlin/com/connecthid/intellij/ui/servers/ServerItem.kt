@@ -165,7 +165,7 @@ class ServerItem(val device: Server, val connectionService: ServerConnectionServ
                     gridheight = 2
                     weightx = 0.0
                     weighty = 1.0
-                    insets = JBUI.insets(0, 0, 0, 5)
+                    insets = JBUI.insetsRight(5)
                     anchor = GridBagConstraints.CENTER
                 }
             )

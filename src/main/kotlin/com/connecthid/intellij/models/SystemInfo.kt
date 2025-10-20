@@ -11,19 +11,21 @@ data class SystemInfo(
     val usedRam: String = "",
     val totalStorage: String = "",
     val usedStorage: String = "",
-    val hostName: String = ""
+    val hostName: String = "",
+    val defaultShell: String="",
+    val connectHidDir: String=""
 )
 
 class SystemInfoConverter : Converter<SystemInfo>() {
     override fun toString(value: SystemInfo): String? {
         return "${value.osName}|${value.osVersion}|${value.cpuType}|${value.totalRam}|" +
-                "${value.usedRam}|${value.totalStorage}|${value.usedStorage}|${value.hostName}"
+                "${value.usedRam}|${value.totalStorage}|${value.usedStorage}|${value.hostName}|${value.defaultShell}|${value.connectHidDir}"
     }
 
     override fun fromString(value: String): SystemInfo {
         if (value.isBlank()) return SystemInfo()
         val parts = value.split("|")
-        return if (parts.size == 8) {
+        return if (parts.size == 10) {
             SystemInfo(
                 osName = parts[0],
                 osVersion = parts[1],
@@ -32,7 +34,9 @@ class SystemInfoConverter : Converter<SystemInfo>() {
                 usedRam = parts[4],
                 totalStorage = parts[5],
                 usedStorage = parts[6],
-                hostName = parts[7]
+                hostName = parts[7],
+                defaultShell = parts[8],
+                connectHidDir = parts[9]
             )
         } else {
             SystemInfo()

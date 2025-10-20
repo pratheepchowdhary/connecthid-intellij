@@ -2,6 +2,9 @@ package com.connecthid.intellij.utils
 
 import com.connecthid.intellij.models.SftpUrl
 import org.jdom.Element
+import java.io.File
+import java.math.BigInteger
+import java.security.MessageDigest
 
 object Utils {
     fun parseSftpUrl(url: String): SftpUrl {
@@ -19,6 +22,32 @@ object Utils {
         val path = uri.path ?: "/"
 
         return SftpUrl(username, host, port, path)
+    }
+
+    /**
+     * Computes the SHA-256 hash of a file's contents.
+     * @param filePath The path to the file.
+     * @return The hash as a 64-character hexadecimal string.
+     * @throws java.io.FileNotFoundException If the file doesn't exist.
+     * @throws Exception For other I/O errors.
+     */
+    fun getFileHash(filePath: String): String {
+        val file = File(filePath)
+        if (!file.exists()) {
+            throw kotlinx.io.files.FileNotFoundException("File '$filePath' not found.")
+        }
+
+        val digest = MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { inputStream ->
+            val buffer = ByteArray(4096)  // 4KB buffer for chunked reading
+            var bytesRead: Int
+            while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+                digest.update(buffer, 0, bytesRead)
+            }
+        }
+
+        val hashBytes = digest.digest()
+        return BigInteger(1, hashBytes).toString(16).padStart(64, '0')
     }
 
 

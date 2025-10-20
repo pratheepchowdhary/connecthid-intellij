@@ -6,6 +6,7 @@ import com.connecthid.intellij.getSSHService
 import com.connecthid.intellij.models.TaskModel
 import com.connecthid.intellij.ui.runconfigurations.RunConfigurationTaskType
 import com.connecthid.intellij.utils.Utils.mapStringToElement
+import com.connecthid.intellij.utils.getDefaultShell
 import com.intellij.execution.configuration.EnvironmentVariablesComponent
 import com.intellij.execution.configuration.EnvironmentVariablesData
 import com.intellij.openapi.fileChooser.FileChooser
@@ -150,6 +151,13 @@ class TaskForm(private val project: Project, private val taskType: RunConfigurat
         servers.selectedItem = if(taskType == RunConfigurationTaskType.Script) localhost else (if(servers.size == 0) "" else servers.getElementAt(0))
         hostBox!!.addActionListener {
             downloadFiles!!.host=servers.selectedItem as String
+            if(localhost.equals(downloadFiles!!.host)){
+                myInterpreterSelector!!.text = project.getDefaultShell()
+            } else{
+                service.getServer( downloadFiles!!.host)?.let {
+                    myInterpreterSelector!!.text =it.systemInfo.defaultShell
+                }
+            }
         }
         setupPickers()
         return createUI()

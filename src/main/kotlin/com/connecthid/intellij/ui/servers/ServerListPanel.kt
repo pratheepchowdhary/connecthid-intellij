@@ -155,12 +155,12 @@ class ServerListPanel internal constructor(val project: Project): JBPanel<Server
         addServer(server)
     }
 
-    override fun onOpenSFTPClicked(device: Server) {
-        project.openSFTP(device)
+    override fun onOpenSFTPClicked(server: Server) {
+        project.openSFTP(server)
     }
 
     override fun onServerClicked(server: Server) {
-        project.openServerInfo(server)
+        //project.openServerInfo(server)
     }
 
     private fun updateServerList() {
