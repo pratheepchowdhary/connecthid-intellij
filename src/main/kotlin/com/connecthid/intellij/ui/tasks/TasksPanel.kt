@@ -25,7 +25,9 @@ import com.intellij.openapi.actionSystem.*
 import com.intellij.openapi.options.ex.SingleConfigurableEditor
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
+import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.ui.JBColor
+import com.intellij.ui.awt.RelativePoint
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.panels.OpaquePanel
 import com.intellij.util.ui.JBUI
@@ -124,6 +126,8 @@ class TasksPanel(
         add(header)
 
     }
+
+
 
     fun createTask(task: RunConfigurationTaskType){
         val taskDialog = TaskDialog(project, task)

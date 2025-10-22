@@ -16,18 +16,30 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.DialogPanel
 import com.intellij.openapi.ui.TextFieldWithBrowseButton
+import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.ui.RawCommandLineEditor
 import com.intellij.ui.TitledSeparator
+import com.intellij.ui.awt.RelativePoint
 import com.intellij.ui.components.JBCheckBox
+import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBRadioButton
 import com.intellij.ui.dsl.builder.Align
 import com.intellij.ui.dsl.builder.bindText
 import com.intellij.ui.dsl.builder.panel
+import com.intellij.ui.layout.ComponentPredicate
+import com.intellij.ui.layout.and
 import com.intellij.ui.layout.selected
+import com.intellij.ui.layout.selectedValueMatches
+import java.awt.Component
+import java.awt.Point
 import java.util.UUID
 import javax.swing.DefaultComboBoxModel
+import javax.swing.DefaultListCellRenderer
+import javax.swing.JButton
+import javax.swing.JComponent
 import javax.swing.JPanel
+import javax.swing.SwingConstants
 
 class TaskForm(private val project: Project, private val taskType: RunConfigurationTaskType, taskModel: TaskModel?=null, val fromRunConfiguration: Boolean=false) {
     val propertyGraph = PropertyGraph()
@@ -62,14 +74,20 @@ class TaskForm(private val project: Project, private val taskType: RunConfigurat
 
     private var task = taskModel ?: TaskModel(scriptId = UUID.randomUUID().toString())
     var taskName = propertyGraph.property("")
+    var notLocalHost:ComponentPredicate ?=null
 
 
     private fun setupPickers() {
-        myScriptSelector?.addBrowseFolderListener(
-            project,
-            FileChooserDescriptorFactory.createSingleFileDescriptor()
-                .withTitle(PluginBundle.message("sh.label.choose.shell.script"))
-        )
+        myScriptSelector?.addActionListener {
+            val selectedServer = getSelectedServer() ?: return@addActionListener
+            if(notLocalHost!!.invoke()){
+                showPopup(myScriptSelector!!)
+            } else{
+                chooseFile(selectedServer, PluginBundle.message("sh.label.choose.shell.script"),isLocalFile = true) {
+                    myScriptSelector!!.text = it
+                }
+            }
+        }
         remoteUploadPath?.addActionListener {
             val selectedServer = getSelectedServer() ?: return@addActionListener
             chooseFolder(selectedServer, "Choose upload folder") {
@@ -83,6 +101,7 @@ class TaskForm(private val project: Project, private val taskType: RunConfigurat
         )
         myScriptFileWorkingDirectory?.addActionListener {
             val selectedServer = getSelectedServer() ?: return@addActionListener
+
             chooseFolder(selectedServer, "Choose script working directory") {
                 myScriptFileWorkingDirectory!!.text = it
             }
@@ -96,10 +115,50 @@ class TaskForm(private val project: Project, private val taskType: RunConfigurat
         }
     }
 
+    fun showPopup(button: JComponent) {
+        val list = JBList(listOf("Local File", "Remote File"))
+        list.cellRenderer = object : DefaultListCellRenderer() {
+            override fun getListCellRendererComponent(
+                list: javax.swing.JList<*>,
+                value: Any?,
+                index: Int,
+                isSelected: Boolean,
+                cellHasFocus: Boolean
+            ): Component {
+                val comp = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
+                if (comp is javax.swing.JLabel) {
+                    comp.horizontalAlignment = SwingConstants.LEFT
+                    comp.border = javax.swing.BorderFactory.createEmptyBorder(0, 10, 0, 0) // 10px left padding
+                }
+                return comp
+            }
+        }
+        val popupMenu = JBPopupFactory.getInstance()
+            .createListPopupBuilder(list)
+            .setItemChosenCallback { selected ->
+                val selectedServer = getSelectedServer() ?: return@setItemChosenCallback
+                if(selected.equals("Local File")){
+                    chooseFile(selectedServer, PluginBundle.message("sh.label.choose.shell.script"),isLocalFile = true) {
+                        myScriptSelector!!.text = it
+                    }
+                } else{
+                    chooseFile(selectedServer, PluginBundle.message("sh.label.choose.shell.script"), isLocalFile = false) {
+                        myScriptSelector!!.text = it
+                    }
+                }
+            }
+            .createPopup()
+
+        val popupWidth = popupMenu.content.preferredSize.width
+        val popupLocation = RelativePoint(button, Point(button.width - popupWidth, button.height))
+        popupMenu.show(popupLocation)
+
+    }
+
     private fun getSelectedServer(): String? = hostBox?.selectedItem as? String
 
-    private fun chooseFile(server: String, title: String, onChosen: (String) -> Unit) {
-        if (server == localhost) {
+    private fun chooseFile(server: String, title: String, isLocalFile: Boolean = server == localhost, onChosen: (String) -> Unit) {
+        if (isLocalFile) {
             val descriptor = FileChooserDescriptorFactory.createSingleFileDescriptor().withTitle(title)
             FileChooser.chooseFile(descriptor, project, null) { it?.path?.let(onChosen) }
         } else {
@@ -108,7 +167,7 @@ class TaskForm(private val project: Project, private val taskType: RunConfigurat
                 isForcedToUseIdeaFileChooser = true
                 setRoots(remoteFile)
             }
-            FileChooser.chooseFile(descriptor, project, null) { it?.path?.let(onChosen) }
+            FileChooser.chooseFile(descriptor, project, null) { it?.url?.let(onChosen) }
         }
     }
 
@@ -149,6 +208,9 @@ class TaskForm(private val project: Project, private val taskType: RunConfigurat
         uploadFiles = FilesPickerPanel(project)
         hostBox = ComboBox(servers)
         servers.selectedItem = if(taskType == RunConfigurationTaskType.Script) localhost else (if(servers.size == 0) "" else servers.getElementAt(0))
+        notLocalHost = hostBox!!.selectedValueMatches{
+            it != localhost
+        }
         hostBox!!.addActionListener {
             downloadFiles!!.host=servers.selectedItem as String
             if(localhost.equals(downloadFiles!!.host)){
@@ -261,6 +323,7 @@ class TaskForm(private val project: Project, private val taskType: RunConfigurat
                             }
                         }
                     }.align(Align.CENTER)
+
                 }
                 row("Script Text:") {
                     cell(myScript!!).resizableColumn().align(Align.FILL)

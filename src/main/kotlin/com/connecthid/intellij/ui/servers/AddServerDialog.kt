@@ -2,7 +2,9 @@ package com.connecthid.intellij.ui.servers
 
 import com.connecthid.intellij.PluginBundle
 import com.connecthid.intellij.getSSHService
+import com.connecthid.intellij.utils.showNotification
 import com.intellij.icons.AllIcons
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.fileChooser.FileChooserDescriptor
 import com.intellij.openapi.observable.properties.PropertyGraph
 import com.intellij.openapi.project.Project
@@ -46,7 +48,7 @@ open class AddServerDialog(val project: Project, val host: String? = null, val u
     val sshConnection by lazy { getSSHService() }
 
     init {
-        title = "Add Server"
+        title = if(host == null)"Add Server" else "Update Server"
         init()
     }
 
@@ -170,7 +172,9 @@ open class AddServerDialog(val project: Project, val host: String? = null, val u
                 sshConnection.removeServerConnection(host,username)
             }
             super.doOKAction()
-            JOptionPane.showMessageDialog(null, "Server Connected Successfully")
+            ApplicationManager.getApplication().invokeLater {
+                project.showNotification((if(host == null)"Added Server" else "Updated Server"), "Server Connected & Updated")
+            }
         } else {
             loaderLabel.isVisible = true
             loaderLabel.text = "Connection Failed"
