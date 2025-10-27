@@ -91,6 +91,7 @@ class SSHConnection(
         return session
     }
 
+
     fun execute(command: String): String {
         if (!isConnected()) {
             connect()
@@ -666,6 +667,44 @@ class SSHConnection(
             }
         }
         return indices
+    }
+
+
+
+    /**
+     * Fetches all environment variables from the remote server and returns them as a key-value map.
+     * Supports Unix-like systems (via `env`) and Windows OpenSSH (via `set` fallback).
+     *
+     * @return A map where keys are variable names (case-sensitive) and values are their corresponding values.
+     * @throws IOException If both commands fail or connection issues occur.
+     */
+    fun getEnvironmentVariables(): Map<String, String> {
+        if (!isConnected()) {
+            connect()
+        }
+        val output = try {
+            execute("env")  // Unix/Linux/macOS: Standard, exports only
+        } catch (e: IOException) {
+            // Fallback for Windows OpenSSH (cmd.exe default): Use 'set' for all vars
+            try {
+                execute("cmd.exe /c set")
+            } catch (fallbackException: IOException) {
+                throw IOException("Failed to fetch environment variables on any platform: ${e.message}. Tried 'env' and 'set'.", fallbackException)
+            }
+        }
+
+        return output.lines()
+            .mapNotNull { line ->
+                val trimmed = line.trim()
+                if (trimmed.isEmpty() || !trimmed.contains("=")) return@mapNotNull null
+                val parts = trimmed.split("=", limit = 2)
+                if (parts.size == 2) {
+                    val key = parts[0].trim()
+                    val value = parts[1].trim()  // Trim values (Windows 'set' may have trailing spaces)
+                    if (key.isNotEmpty()) key to value else null
+                } else null
+            }
+            .toMap()  // Immutable Map; use .associateTo(mutableMapOf()) if mutable needed
     }
 
 

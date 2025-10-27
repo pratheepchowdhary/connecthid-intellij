@@ -17,6 +17,8 @@ import com.intellij.ui.dsl.builder.bindText
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.ui.layout.selected
 import com.intellij.util.ui.JBUI
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.jetbrains.annotations.ApiStatus
 import java.awt.Dimension
 import java.awt.event.ActionEvent
@@ -124,7 +126,7 @@ open class AddServerDialog(val project: Project, val host: String? = null, val u
         return panel
     }
     override fun createLeftSideActions(): Array<Action> {
-        return arrayOf<Action>(object : AbstractAction(PluginBundle.message("testconnection")) {
+        return arrayOf(object : AbstractAction(PluginBundle.message("testconnection")) {
             override fun actionPerformed(  e: ActionEvent) {
                 //show loader while testing connection inside a dialog like circular progress bar inside a dialog
                 testConnection()
@@ -133,13 +135,15 @@ open class AddServerDialog(val project: Project, val host: String? = null, val u
     }
     private fun testConnection() {
         val result = runWithModalProgressBlocking(project = project, title = "Testing Connection") {
-            return@runWithModalProgressBlocking sshConnection.isValidSshConnection(
-                host = selectedHost.get(),
-                username = selectedUsername.get(),
-                port = selectedPort.get().toInt(),
-                password = if (selectedMethod == "PASSWORD") selectedPassword.get() else null,
-                privateKeyPath = if (selectedMethod == "PRIVATE_KEY") selectedPrivateKeyPath.get() else null
-            )
+            withContext(Dispatchers.IO) {
+                sshConnection.isValidSshConnection(
+                    host = selectedHost.get(),
+                    username = selectedUsername.get(),
+                    port = selectedPort.get().toInt(),
+                    password = if (selectedMethod == "PASSWORD") selectedPassword.get() else null,
+                    privateKeyPath = if (selectedMethod == "PRIVATE_KEY") selectedPrivateKeyPath.get() else null
+                )
+            }
         }
         if (result) {
             loaderLabel.isVisible = true
@@ -158,14 +162,15 @@ open class AddServerDialog(val project: Project, val host: String? = null, val u
 
     override fun doOKAction() {
         val result = runWithModalProgressBlocking(project = project, title = "Connecting to Server") {
-            return@runWithModalProgressBlocking sshConnection.connect(
-                host = selectedHost.get(),
-                username = selectedUsername.get(),
-                port = selectedPort.get().toInt(),
-                password = if (selectedMethod == "PASSWORD") selectedPassword.get() else null,
-                privateKeyPath = if (selectedMethod == "PRIVATE_KEY") selectedPrivateKeyPath.get() else null
-            )
-
+            withContext(Dispatchers.IO) {
+                sshConnection.connect(
+                    host = selectedHost.get(),
+                    username = selectedUsername.get(),
+                    port = selectedPort.get().toInt(),
+                    password = if (selectedMethod == "PASSWORD") selectedPassword.get() else null,
+                    privateKeyPath = if (selectedMethod == "PRIVATE_KEY") selectedPrivateKeyPath.get() else null
+                )
+            }
         }
         if (result) {
             if(host!= null && (!selectedHost.get().equals(host) || !selectedUsername.get().equals(username))){

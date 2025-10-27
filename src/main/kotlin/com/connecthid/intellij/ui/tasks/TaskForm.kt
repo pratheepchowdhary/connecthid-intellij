@@ -4,11 +4,12 @@ import com.connecthid.intellij.PluginBundle
 import com.connecthid.intellij.connection.sftp.SftpFileSystem
 import com.connecthid.intellij.getSSHService
 import com.connecthid.intellij.models.TaskModel
+import com.connecthid.intellij.ui.commons.ssh.EnvironmentVariablesComponent
 import com.connecthid.intellij.ui.runconfigurations.RunConfigurationTaskType
 import com.connecthid.intellij.utils.Utils.mapStringToElement
 import com.connecthid.intellij.utils.getDefaultShell
-import com.intellij.execution.configuration.EnvironmentVariablesComponent
 import com.intellij.execution.configuration.EnvironmentVariablesData
+import com.intellij.execution.configurations.GeneralCommandLine
 import com.intellij.openapi.fileChooser.FileChooser
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
 import com.intellij.openapi.observable.properties.PropertyGraph
@@ -28,18 +29,12 @@ import com.intellij.ui.dsl.builder.Align
 import com.intellij.ui.dsl.builder.bindText
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.ui.layout.ComponentPredicate
-import com.intellij.ui.layout.and
 import com.intellij.ui.layout.selected
 import com.intellij.ui.layout.selectedValueMatches
 import java.awt.Component
 import java.awt.Point
-import java.util.UUID
-import javax.swing.DefaultComboBoxModel
-import javax.swing.DefaultListCellRenderer
-import javax.swing.JButton
-import javax.swing.JComponent
-import javax.swing.JPanel
-import javax.swing.SwingConstants
+import java.util.*
+import javax.swing.*
 
 class TaskForm(private val project: Project, private val taskType: RunConfigurationTaskType, taskModel: TaskModel?=null, val fromRunConfiguration: Boolean=false) {
     val propertyGraph = PropertyGraph()
@@ -119,14 +114,14 @@ class TaskForm(private val project: Project, private val taskType: RunConfigurat
         val list = JBList(listOf("Local File", "Remote File"))
         list.cellRenderer = object : DefaultListCellRenderer() {
             override fun getListCellRendererComponent(
-                list: javax.swing.JList<*>,
+                list: JList<*>,
                 value: Any?,
                 index: Int,
                 isSelected: Boolean,
                 cellHasFocus: Boolean
             ): Component {
                 val comp = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
-                if (comp is javax.swing.JLabel) {
+                if (comp is JLabel) {
                     comp.horizontalAlignment = SwingConstants.LEFT
                     comp.border = javax.swing.BorderFactory.createEmptyBorder(0, 10, 0, 0) // 10px left padding
                 }
@@ -198,7 +193,19 @@ class TaskForm(private val project: Project, private val taskType: RunConfigurat
         myInterpreterSelector = TextFieldWithBrowseButton()
         myInterpreterOptions = RawCommandLineEditor()
         myExecuteFileInTerminal = JBCheckBox("Execute in Terminal")
-        myEnvComponent = EnvironmentVariablesComponent().apply{
+        myEnvComponent = EnvironmentVariablesComponent(project){
+            if(notLocalHost!!.invoke()){
+                service.getServer( hostBox!!.selectedItem!! as String)?.let {
+                   service.getConnection(it)?.let {
+                       return@EnvironmentVariablesComponent it.getEnvironmentVariables() .toMutableMap()
+                   }
+                }
+                return@EnvironmentVariablesComponent mutableMapOf()
+            } else{
+                return@EnvironmentVariablesComponent GeneralCommandLine().parentEnvironment.toMutableMap()
+            }
+
+        }.apply{
             text=""
         }
         remoteUploadPath = TextFieldWithBrowseButton()
