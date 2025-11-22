@@ -25,6 +25,7 @@ import com.intellij.ui.SpinningProgressIcon
 import com.intellij.ui.content.ContentFactory
 import com.intellij.ui.treeStructure.Tree
 import kotlinx.coroutines.*
+import net.schmizz.sshj.sftp.FileMode
 import java.awt.BorderLayout
 import java.awt.Color
 import java.awt.Rectangle
@@ -46,12 +47,6 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server, showToolba
     val tree: Tree
     val treeModel: DefaultTreeModel
     val rootNode: SftpTreeNode
-    val fileSystem by lazy {
-        println("Initializing SftpFileSystem for server: ${serverItem.host}")
-        VirtualFileManager.getInstance().getFileSystem(SftpFileSystem.PROTOCOL) as SftpFileSystem
-    }
-
-
 
     val coroutineScope = CoroutineScope(Dispatchers.Main + Job())
     private var fileScrollView: com.intellij.ui.components.JBScrollPane
@@ -86,7 +81,7 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server, showToolba
     init {
         println("Initializing SftpPanel for server: ${serverItem.host}")
         // Create the root node
-        rootNode = SftpTreeNode(SftpFile(parseSftpUrl(rootPath).path,serverItem))
+        rootNode = SftpTreeNode(SftpFile(parseSftpUrl(rootPath).path,serverItem, fileType = FileMode.Type.DIRECTORY))
 
         rootNode.add(DefaultMutableTreeNode("Loading..."))
         // Create the tree model
@@ -291,7 +286,8 @@ class SftpExplorerPanel(val project: Project, val serverItem: Server, showToolba
         // Cleanup resources
         coroutineScope.cancel()
         DataManager.removeDataProvider(tree)
-        fileSystem.getConnection(serverItem)?.disconnectAllChannels()
+        //todo ssh
+       // fileSystem.getConnection(serverItem)?.disconnectAllChannels()
     }
 
     override fun performCopy(p0: DataContext) {

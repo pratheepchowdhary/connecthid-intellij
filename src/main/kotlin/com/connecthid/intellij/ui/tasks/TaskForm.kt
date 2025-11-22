@@ -241,7 +241,20 @@ class TaskForm(private val project: Project, private val taskType: RunConfigurat
         myScriptSelector!!.text = configuration.scriptFile
         myScriptOptions!!.text = configuration.scriptOptions
         myScriptFileWorkingDirectory!!.text = configuration.workingDir
-        myInterpreterSelector!!.text = configuration.interpreterPath
+        downloadFiles!!.host=servers.selectedItem as String
+
+        if (configuration.interpreterPath.isEmpty()) {
+            if (localhost.equals(downloadFiles!!.host)) {
+                myInterpreterSelector!!.text = project.getDefaultShell()
+            } else {
+                service.getServer(downloadFiles!!.host)?.let {
+                    myInterpreterSelector!!.text = it.systemInfo.defaultShell
+                }
+            }
+        } else {
+            myInterpreterSelector!!.text = configuration.interpreterPath
+        }
+
         myInterpreterOptions!!.text = configuration.interpreterOptions
         myExecuteFileInTerminal!!.isSelected = configuration.executeInTerminal
         servers.selectedItem = if(!configuration.server.isEmpty()) configuration.server else servers.selectedItem
@@ -261,8 +274,8 @@ class TaskForm(private val project: Project, private val taskType: RunConfigurat
         myScriptPathPanel?.isVisible = taskType == RunConfigurationTaskType.Script && scriptExecutionSelected
         myScriptTextPanel?.isVisible = taskType == RunConfigurationTaskType.Script && !scriptExecutionSelected
         myScriptTypeJPanel?.isVisible = taskType == RunConfigurationTaskType.Script
-        myUploadsJPanel?.isVisible = taskType == RunConfigurationTaskType.SftpFileTransfer
-        myDownloadsJPanel?.isVisible = taskType == RunConfigurationTaskType.SftpFileTransfer
+        myUploadsJPanel?.isVisible = taskType == RunConfigurationTaskType.ScpFileTransfer
+        myDownloadsJPanel?.isVisible = taskType == RunConfigurationTaskType.ScpFileTransfer
         hostJPanel?.isVisible = taskType == RunConfigurationTaskType.Script
     }
 
@@ -360,13 +373,16 @@ class TaskForm(private val project: Project, private val taskType: RunConfigurat
                     cell(myExecuteFileInTerminal!!).resizableColumn().align(Align.FILL).align(Align.CENTER)
                 }
             }
-            if(taskType == RunConfigurationTaskType.SftpFileTransfer){
+            if(taskType == RunConfigurationTaskType.ScpFileTransfer){
                 with(collapsibleGroup("Download Files") {
                     row {
                         cell(downloadFiles!!).resizableColumn().align(Align.FILL)
                     }
                 }) {
                     expanded =true
+                }
+                row("Local Download Path:") {
+                    cell(localDownloadPath!!).resizableColumn().align(Align.FILL)
                 }
                 with(collapsibleGroup("Upload Files") {
                     row {
@@ -377,9 +393,6 @@ class TaskForm(private val project: Project, private val taskType: RunConfigurat
                 }
                 row("Remote Upload Path:") {
                     cell(remoteUploadPath!!).resizableColumn().align(Align.FILL)
-                }
-                row("Local Download Path:") {
-                    cell(localDownloadPath!!).resizableColumn().align(Align.FILL)
                 }
             }
             with(collapsibleGroup("Run After Tasks") {

@@ -1,23 +1,27 @@
 package com.connecthid.intellij.connection.terminal
 
 import com.connecthid.intellij.models.Server
-import com.connecthid.intellij.connection.terminal.ssh.SshTerminalRunner
-import com.connecthid.intellij.connection.terminal.ssh.SshTtyConnector
-import com.connecthid.intellij.models.getPassword
+import com.connecthid.intellij.models.TaskModel
+import com.connecthid.intellij.utils.Utils.mapStringToEnvMap
+import com.intellij.execution.configurations.GeneralCommandLine
+import com.intellij.execution.configurations.PtyCommandLine
+import com.intellij.execution.process.KillableProcessHandler
+import com.intellij.execution.process.ProcessHandler
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
 import com.intellij.terminal.ui.TerminalWidget
+import com.intellij.util.execution.ParametersListUtil
+import com.intellij.util.io.BaseOutputReader
 import com.jediterm.terminal.ProcessTtyConnector
 import com.jediterm.terminal.TtyConnector
 import org.apache.commons.lang3.StringUtils
 import org.jetbrains.plugins.terminal.ProxyTtyConnector
-import org.jetbrains.plugins.terminal.ShellStartupOptions
 import org.jetbrains.plugins.terminal.TerminalToolWindowManager
 import org.jetbrains.plugins.terminal.TerminalUtil
 import java.nio.file.Path
 
 
-object SshTerminalUtils {
+object TerminalExecution {
 
 
     fun executeInTerminal(project: Project, command: String) {
@@ -40,35 +44,27 @@ object SshTerminalUtils {
         terminalWidget.ttyConnectorAccessor.executeWithTtyConnector {
             terminalWidget.sendCommandToExecute(command)
         }
+
     }
     fun openSshSession(
         project: Project,
-        host: String,
-        username: String,
-        password: String? = null,
-        privateKey: String? = null,
-        port: Int = 22,
+        server: Server,
         workingDir: String? = null,
     ) {
         val manager = TerminalToolWindowManager.getInstance(project)
-        val runner = SshTerminalRunner(project,host, port, username, password, privateKey,workingDir)
+        val runner = SshTerminalRunner(project,server,workingDir)
         manager.createNewSession(runner)
-
     }
 
     fun openSshSession1(
         project: Project,
-        host: String,
-        username: String,
-        password: String? = null,
-        privateKey: String? = null,
-        port: Int = 22,
-        terminalTabTitle: String = "SSH: $username@$host"
+        server: Server,
+        terminalTabTitle: String = "SSH: ${server.username}@${server.host}"
     ) {
         // Create terminal widget
 
         try {
-            val connector = SshTtyConnector(host, port, username, password, privateKey)
+            val connector = SshTtyConnector(server = server)
             val terminalWidget = createTerminalWidget(project, null, terminalTabTitle)
             terminalWidget.connectToTty(connector, terminalWidget.termSize!!)
             terminalWidget.ttyConnectorAccessor.executeWithTtyConnector {
@@ -130,10 +126,57 @@ object SshTerminalUtils {
         }
     }
 
+    fun runInConsole(task: TaskModel,server: Server?): ProcessHandler {
+        val command = task.buildCommand()
+        if (server == null) {
+            val processHandler = createProcessHandler(command)
+            return processHandler
+        } else{
+            return SshProcessHandler(server,task.executeInTerminal).also {
+                it.commandDelayMs = 10
+                it.generalCommandLine = command
+            }
+        }
+    }
+
+    private fun createProcessHandler(commandLine: GeneralCommandLine): ProcessHandler {
+        return object : KillableProcessHandler(commandLine) {
+            override fun readerOptions(): BaseOutputReader.Options {
+                return BaseOutputReader.Options.forTerminalPtyProcess()
+            }
+        }
+    }
+
 
 
 }
 
+fun TaskModel.buildCommand():GeneralCommandLine{
+    val commandLine = PtyCommandLine()
+        .withConsoleMode(executeInTerminal)
+        .withInitialColumns(160)
+        .withInitialRows(40)
+        .withEnvironment(mapStringToEnvMap(envData))
+        .withParentEnvironmentType(GeneralCommandLine.ParentEnvironmentType.CONSOLE)
+        .withWorkingDirectory(Path.of(workingDir))
+        .withExePath(interpreterPath)
+
+    if (interpreterOptions.isNotEmpty()) {
+        commandLine.addParameters(ParametersListUtil.parse(interpreterOptions))
+    }
+    if (scriptFile.isNotEmpty()) {
+        if (scriptOptions.isNotEmpty()) {
+            commandLine.addParameters(ParametersListUtil.parse(scriptOptions))
+        }
+        commandLine.addParameter(scriptFile)
+    } else {
+        commandLine.addParameters("-c")
+        commandLine.addParameters(scriptText)
+    }
+
+    return commandLine
+}
+
 fun Project.openTerminal(server: Server,path: String?=null){
-    SshTerminalUtils.openSshSession(this,server.host,server.username,server.getPassword(),server.privateKeyPath,server.port,path)
+    TerminalExecution.openSshSession(this,server,path)
 }

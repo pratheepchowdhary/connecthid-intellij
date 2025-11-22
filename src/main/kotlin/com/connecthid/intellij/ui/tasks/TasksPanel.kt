@@ -191,7 +191,7 @@ class TasksPanel(
         actionGroup.addSeparator()
         actionGroup.add(object : AnAction({ PluginBundle.message("task_sftp_file_transfer") }, MyIcons.FileTransfer) {
             override fun actionPerformed(e: AnActionEvent) {
-                createTask(RunConfigurationTaskType.SftpFileTransfer)
+                createTask(RunConfigurationTaskType.ScpFileTransfer)
             }
         })
         val popupMenu = ActionManager.getInstance().createActionPopupMenu("WorkspacePopup", actionGroup)

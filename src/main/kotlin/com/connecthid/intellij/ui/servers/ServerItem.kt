@@ -209,7 +209,7 @@ class ServerItem(val device: Server, val connectionService: ServerConnectionServ
     private fun hostDescription(): String{
 
         //need this formate  512 MB Memory / 10 GB Disk / SGP1 - Ubuntu 24.10 x64
-        return "${device.systemInfo.totalRam} / ${device.systemInfo.totalStorage} - ${device.systemInfo.osName} ${device.systemInfo.osVersion} ${device.systemInfo.architecture}"
+        return "${device.systemInfo.totalRam} / ${device.systemInfo.totalStorage} - ${device.systemInfo.displayName} ${device.systemInfo.osVersion} ${device.systemInfo.architecture}"
     }
 
     fun showPopupMenu(x: Int, y: Int, button: JButton,device: Server) {

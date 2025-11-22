@@ -1,6 +1,9 @@
 package com.connecthid.intellij.utils
 
+import com.connecthid.intellij.connection.sftp.SftpFile
+import com.connecthid.intellij.models.Server
 import com.connecthid.intellij.models.SftpUrl
+import com.connecthid.intellij.utils.Utils.parseSftpUrl
 import org.jdom.Element
 import java.io.File
 import java.math.BigInteger
@@ -80,4 +83,27 @@ object Utils {
         return parentElement
     }
 
+}
+
+fun String.getLocalFiles(): List<File> {
+    val fileTasks = this.split(";")
+    return fileTasks.map { file ->
+        File(file.trim())
+    }
+}
+
+fun String.getSftpFile(server: Server): SftpFile {
+    return SftpFile(this, server)
+}
+
+fun String.getRemoteFiles(server: Server): List<SftpFile> {
+    val fileTasks = this.split(";")
+    return fileTasks.map {
+        SftpFile(it, server)
+
+    }
+}
+
+fun String.getLocalFile(): File {
+    return File(this)
 }

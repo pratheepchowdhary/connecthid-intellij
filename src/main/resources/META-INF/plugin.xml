@@ -34,6 +34,7 @@
   <extensions defaultExtensionNs="com.intellij">
       <applicationService serviceImplementation="com.connecthid.intellij.services.ServerConnectionService"/>
       <postStartupActivity implementation="com.connecthid.intellij.ConnectHIDStartupActivity"/>
+      <navbar implementation="com.connecthid.intellij.ui.filemanager.sftp.SftpNavBarExtension"/>
     <toolWindow
             id="Connect HID"
             icon="icons/connecthid.svg"

@@ -1,28 +1,32 @@
 
 package com.connecthid.intellij.ui.runconfigurations
 
-import com.connecthid.intellij.connection.terminal.ssh.SshExecProcessHandler
-import com.connecthid.intellij.connection.terminal.ssh.SshProcessHandlerTtyConnector
-import com.connecthid.intellij.connection.terminal.ssh.SshShellProcessHandler
+import com.connecthid.intellij.connection.sftp.downloadSftpFiles
+import com.connecthid.intellij.connection.sftp.uploadSftpFiles
+import com.connecthid.intellij.connection.terminal.SshProcessHandler
+import com.connecthid.intellij.connection.terminal.TerminalExecution
 import com.connecthid.intellij.getSSHService
 import com.connecthid.intellij.models.Server
 import com.connecthid.intellij.models.TaskModel
-import com.connecthid.intellij.utils.Utils.mapStringToEnvMap
 import com.connecthid.intellij.utils.getDefaultShell
+import com.connecthid.intellij.utils.getLocalFile
+import com.connecthid.intellij.utils.getLocalFiles
+import com.connecthid.intellij.utils.getRemoteFiles
+import com.connecthid.intellij.utils.getSftpFile
 import com.intellij.execution.configurations.GeneralCommandLine
-import com.intellij.execution.configurations.PtyCommandLine
-import com.intellij.execution.process.KillableProcessHandler
 import com.intellij.execution.process.OSProcessHandler
 import com.intellij.execution.process.ProcessHandler
+import com.intellij.execution.process.ProcessOutputTypes
 import com.intellij.execution.ui.ConsoleView
 import com.intellij.execution.ui.ConsoleViewContentType
+import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
 import com.intellij.terminal.TerminalExecutionConsole
-import com.intellij.util.execution.ParametersListUtil
 import com.intellij.util.io.BaseOutputReader
 import kotlinx.coroutines.*
-import java.nio.file.Path
+import org.slf4j.LoggerFactory
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.CountDownLatch
 
 class RunTask(
     private val taskModel: TaskModel,
@@ -30,10 +34,12 @@ class RunTask(
 ) : OSProcessHandler(GeneralCommandLine().apply {
     withExePath(project.getDefaultShell())
 }) {
+    private val log = LoggerFactory.getLogger(RunTask::class.java)
 
     private val service by lazy { getSSHService() }
     private val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val activeHandlers = CopyOnWriteArrayList<ProcessHandler>()
+    private val fileOperations = mutableListOf<Task.Backgroundable>()
 
 
     val console: TerminalExecutionConsole by lazy {
@@ -87,18 +93,51 @@ class RunTask(
         val taskType = RunConfigurationTaskType.fromType(task.scriptType)
 
         if (taskType == RunConfigurationTaskType.Script) {
-            if (task.server.equals("localhost", ignoreCase = true)) {
-                buildExecutionResult(task)
-            } else {
-                service.getServer(task.server)?.let {
-                 val resultCode =   buildSSHExecutionResult(task,it)
-                 if(resultCode != 0){
-                     return
-                 }
+            val resultCode =   startTask(task)
+            if(resultCode != 0){
+                return
+            }
+        } else if (taskType == RunConfigurationTaskType.ScpFileTransfer) {
+            log("📂 File transfer task ")
+            console.attachToProcess(this)
+            service.getServer(task.server)?.let {
+                if (taskModel.uploadFiles.isNotEmpty() && taskModel.remoteFolder.isNotEmpty()) {
+                    val files = taskModel.uploadFiles.getLocalFiles()
+                    val remoteLocation = taskModel.remoteFolder.getSftpFile(it)
+                    val latch = CountDownLatch(1)
+                    val task =  uploadSftpFiles(project, remoteDir = remoteLocation, files, progress = { percent, text ->
+                        val line = "\r"  + "$text ${coloredProgressBar((percent*100).toInt())}"
+                        notifyTextAvailable(line, ProcessOutputTypes.STDOUT)
+
+                    }) {
+                        println("Upload completed, refreshing tree...")
+                        latch.countDown()
+
+                    }
+                    task?.let {
+                        fileOperations.add(it)
+                        latch.await()
+                        fileOperations.remove(it)
+                    }
+                }
+                if (taskModel.downloadFiles.isNotEmpty()) {
+                    val remoteFiles = taskModel.downloadFiles.getRemoteFiles(it)
+                    val localLocation = taskModel.remoteFolder.getLocalFile()
+                    val latch = CountDownLatch(1)
+                    val task = downloadSftpFiles(project, remoteFiles, localLocation,progress = { percent, text ->
+
+
+                    }) {
+                        latch.countDown()
+                    }
+                    task?.let {
+                        fileOperations.add(it)
+                        latch.await()
+                        fileOperations.remove(it)
+                    }
+
                 }
             }
-        } else if (taskType == RunConfigurationTaskType.SftpFileTransfer) {
-            log("📂 File transfer task detected (not implemented)")
         }
 
         // Execute dependent tasks
@@ -117,19 +156,38 @@ class RunTask(
         coroutineScope.ensureActive()
         finish()
     }
+    fun coloredProgressBar(progress: Int, size: Int = 20): String {
+        val green = "\u001B[32m"
+        val yellow = "\u001B[33m"
+        val red = "\u001B[31m"
+        val reset = "\u001B[0m"
+
+        val filled = (progress * size) / 100
+        val partialBlock = listOf(" ", "▏", "▎", "▍", "▌", "▋", "▊", "▉", "█")
+        val fractional = ((progress * size * 8) / 100) % 8
+
+        val fullBlocks = "█".repeat(filled)
+        val halfBlock = if (progress < 100) partialBlock[fractional] else ""
+        val emptyBlocks = "-".repeat(size - filled - if (fractional > 0 && progress < 100) 1 else 0)
+
+        return buildString {
+            append("[")
+            append(green).append(fullBlocks)
+            if (fractional > 0 && progress < 100) {
+                append(yellow).append(halfBlock)
+            }
+            append(red).append(emptyBlocks)
+            append(reset).append("] ").append(progress).append("%")
+        }
+    }
+
 
     /**
      * Build and execute local command line.
      */
-    private suspend fun buildExecutionResult(task: TaskModel) {
-        val commandLine: GeneralCommandLine = if (task.isScriptFile) {
-            createCommandLineForFile(task)
-        } else {
-            createCommandLineForScript(task)
-        }
+    private suspend fun startTask(task: TaskModel) : Int{
 
-        val processHandler = createProcessHandler(commandLine)
-
+        val processHandler = TerminalExecution.runInConsole(task,(if(task.server.equals("localhost", ignoreCase = true)) null else service.getServer(task.server)))
         console.attachToProcess(processHandler)
         synchronized(activeHandlers) {
             activeHandlers.add(processHandler)
@@ -143,87 +201,13 @@ class RunTask(
         synchronized(activeHandlers) {
             activeHandlers.remove(processHandler)
         }
-
-        log("✅ Script completed: ${task.scriptName}")
-    }
-
-    /**
-     * Build and execute command over SSH.
-     */
-    private suspend fun buildSSHExecutionResult(task: TaskModel, server: Server) : Int{
-        val commandLine: GeneralCommandLine = if (task.isScriptFile) {
-            createCommandLineForFile(task)
-        } else {
-            createCommandLineForScript(task)
-        }
-        log("Connecting to ${server.stmpName}")
-        val processHandler = if(!task.executeInTerminal) SshExecProcessHandler(server) else SshShellProcessHandler(server)
-        log("Connected to ${server.stmpName}")
-        val connector = SshProcessHandlerTtyConnector(processHandler,Charsets.UTF_8)
-        console.attachToProcess(processHandler,connector,true)
-        synchronized(activeHandlers) {
-            activeHandlers.add(processHandler)
-        }
-        processHandler.startNotify()
-        processHandler.commandDelayMs=(10)
-        log("${task.scriptName} started executing..")
-        val resultCode = processHandler.sendCommand(task.scriptText)
-        while (!processHandler.isProcessTerminated) {
-            coroutineScope.ensureActive()
-            delay(100)
-        }
-
-        synchronized(activeHandlers) {
-            activeHandlers.remove(processHandler)
-        }
+        val resultCode = processHandler.exitCode?:-1
         if(resultCode == 0){
             log("✅ ${task.scriptName} finished successfully")
         } else {
-           log("❌  ${task.scriptName} task failed", ConsoleViewContentType.LOG_ERROR_OUTPUT)
+            log("❌  ${task.scriptName} task failed", ConsoleViewContentType.LOG_ERROR_OUTPUT)
         }
-        return  resultCode
-    }
-
-
-
-    private fun createProcessHandler(commandLine: GeneralCommandLine): ProcessHandler {
-        return object : KillableProcessHandler(commandLine) {
-            override fun readerOptions(): BaseOutputReader.Options {
-                return BaseOutputReader.Options.forTerminalPtyProcess()
-            }
-        }
-    }
-
-    private fun createCommandLineForFile(task: TaskModel): GeneralCommandLine {
-        val commandLine = PtyCommandLine()
-            .withConsoleMode(false)
-            .withInitialColumns(160)
-            .withInitialRows(40)
-            .withEnvironment(mapStringToEnvMap(task.envData))
-            .withParentEnvironmentType(GeneralCommandLine.ParentEnvironmentType.CONSOLE)
-            .withWorkingDirectory(Path.of(task.workingDir))
-            .withExePath(task.interpreterPath)
-
-        if (task.interpreterOptions.isNotEmpty()) {
-            commandLine.addParameters(ParametersListUtil.parse(task.interpreterOptions))
-        }
-        commandLine.addParameter(task.scriptFile)
-        if (task.scriptOptions.isNotEmpty()) {
-            commandLine.addParameters(ParametersListUtil.parse(task.scriptOptions))
-        }
-        return commandLine
-    }
-
-    private fun createCommandLineForScript(task: TaskModel): GeneralCommandLine {
-        return PtyCommandLine()
-            .withConsoleMode(false)
-            .withInitialColumns(160)
-            .withInitialRows(40)
-            .withParentEnvironmentType(GeneralCommandLine.ParentEnvironmentType.CONSOLE)
-            .withWorkingDirectory(Path.of(task.workingDir))
-            .withExePath(project.getDefaultShell())
-            .withParameters("-c")
-            .withParameters(task.scriptText)
+        return 0
     }
 
     /**
@@ -232,6 +216,10 @@ class RunTask(
     override fun destroyProcessImpl() {
         stopped = true
         log("❌ Process stopped by user")
+        fileOperations.forEach {
+            it.onCancel()
+        }
+        fileOperations.clear()
         console.terminalWidget.close()
         coroutineScope.cancel()
         synchronized(activeHandlers) {
@@ -243,10 +231,14 @@ class RunTask(
     }
 
     override fun detachProcessImpl() {
-        print("detachProcessImpl")
+        log.debug("detachProcessImpl")
         stopped = true
         detached = true
         log("⚠️ Process detached by user")
+        fileOperations.forEach {
+            it.onCancel()
+        }
+        fileOperations.clear()
         console.terminalWidget.close()
         coroutineScope.cancel()
         synchronized(activeHandlers) {
@@ -262,7 +254,7 @@ class RunTask(
     fun isStopped(): Boolean = stopped
 
     fun log(message: String,logType:ConsoleViewContentType = ConsoleViewContentType.SYSTEM_OUTPUT) {
-        val text = if (!message.endsWith("\n")) "$message\n" else message
+        val text = if (!message.endsWith("\n") && !message.startsWith("\r")) "$message\n" else message
         console.print(text, logType)
     }
 

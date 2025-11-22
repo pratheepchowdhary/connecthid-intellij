@@ -5,7 +5,7 @@ import javax.swing.Icon
 
 enum class RunConfigurationTaskType(val type: Int, val icon: Icon, val configName: String) {
     Script(0, MyIcons.Script,"Script"),
-    SftpFileTransfer(1, MyIcons.FileTransfer,"SftpUploadAndDownload");
+    ScpFileTransfer(1, MyIcons.FileTransfer,"SCPUploadAndDownload");
     //get enum by type
     companion object {
         fun fromType(type: Int): RunConfigurationTaskType {

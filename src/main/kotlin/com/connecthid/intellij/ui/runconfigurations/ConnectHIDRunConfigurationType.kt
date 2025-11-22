@@ -13,7 +13,7 @@ internal class ConnectHIDRunConfigurationType : ConfigurationTypeBase(
 ) {
     init {
         addFactory(ConnectHIDConfigurationFactory(this, RunConfigurationTaskType.Script))
-        addFactory(ConnectHIDConfigurationFactory(this, RunConfigurationTaskType.SftpFileTransfer))
+        addFactory(ConnectHIDConfigurationFactory(this, RunConfigurationTaskType.ScpFileTransfer))
     }
 
     override fun getConfigurationFactories(): Array<ConfigurationFactory> {

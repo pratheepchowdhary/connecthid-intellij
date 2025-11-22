@@ -33,7 +33,7 @@ class ConnectHIDRunConfiguration(
 
     @Throws(RuntimeConfigurationException::class)
     override fun checkConfiguration() {
-        print("check configation")
+        println("check configation")
         //todo
         return
 //        val scriptPath = Path.of(myScriptPath)

@@ -23,21 +23,16 @@ kotlin {
 
 
 dependencies {
-  implementation("com.jcraft:jsch:0.1.55")
-  implementation("com.github.docker-java:docker-java-core:3.3.4")
-  implementation("com.github.docker-java:docker-java-transport-httpclient5:3.3.4")
-  implementation("org.postgresql:postgresql:42.6.0")
-  implementation("mysql:mysql-connector-java:8.0.33")
-  implementation("org.mongodb:mongodb-driver-sync:4.10.2")
-  implementation("io.micrometer:micrometer-core:1.11.3")
-  implementation("io.micrometer:micrometer-registry-prometheus:1.11.3")
+   // implementation("com.connecthid.sshjpool:SshJPool:1.0.0")
+    implementation("org.apache.commons:commons-pool2:2.12.1")
+    implementation("org.slf4j:slf4j-api:2.0.12")
+    implementation("ch.qos.logback:logback-classic:1.4.14")
 
-
-  intellijPlatform {
-    intellijIdeaCommunity("2025.1")
-    bundledPlugin("org.jetbrains.plugins.terminal")
-    bundledPlugin("Git4Idea")
-  }
+    intellijPlatform {
+        intellijIdeaCommunity("2025.1")
+        bundledPlugin("org.jetbrains.plugins.terminal")
+        bundledPlugin("Git4Idea")
+    }
 }
 
 

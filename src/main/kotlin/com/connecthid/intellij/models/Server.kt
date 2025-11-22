@@ -27,7 +27,7 @@ data class Server(
 ) {
 
     val icon by lazy {
-        systemInfo.osName.toImageIcon()
+        systemInfo.displayName.toImageIcon()
     }
 
 
@@ -39,7 +39,7 @@ data class Server(
         if (username == "root") "/root" else "/home/${username}"
     }
     val sftpRootPath by lazy {
-        "${SftpFileSystem.PROTOCOL}://${username}@${host}:${port}${rootPath}"
+        "${SftpFileSystem.PROTOCOL}://${username}@${host}:${port}${if(!systemInfo.homePath.isEmpty())systemInfo.homePath else rootPath}"
     }
 
 

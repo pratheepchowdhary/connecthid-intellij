@@ -1,56 +1,46 @@
-package com.connecthid.intellij.connection.terminal.ssh
+package com.connecthid.intellij.connection.terminal
 
-import com.jcraft.jsch.*
+import com.connecthid.intellij.connection.ssh.SSHJConnection
+import com.connecthid.intellij.getSSHService
+import com.connecthid.intellij.models.Server
+import com.connecthid.sshjpool.SSHConnection
 import com.jediterm.core.util.TermSize
 import com.jediterm.terminal.TtyConnector
+import net.schmizz.sshj.connection.channel.direct.Session
 import java.io.InputStream
 import java.io.OutputStream
 
+
 open class SshTtyConnector(
-    private val host: String,
-    private val port: Int = 22,
-    private val user: String,
-    private val password: String? = null,
-    private val privateKeyPath: String? = null,
-    private val workingDir: String? = null
+    val server: Server,
+    private val workingDir: String? = null,
+    val interactive: Boolean = true
 ) : TtyConnector {
 
-    private lateinit var session: Session
-    private lateinit var channel: ChannelShell
+
     lateinit var inputStream: InputStream
      lateinit var outputStream: OutputStream
     private var isRunning = false
+    val service = getSSHService()
+    private var connectionPool: Pair<SSHConnection, Session>? = null
+    private var connection: SSHJConnection? = null
+    private var shell: Session.Shell?=null
 
     init {
         connect()
     }
 
     private fun connect() {
-        println("Connecting to $user@$host:$port")
-
-        val jsch = JSch()
-        if (!privateKeyPath.isNullOrEmpty()) {
-            println("Using private key at: $privateKeyPath")
-            jsch.addIdentity(privateKeyPath)
+        println("Connecting to ${server.username}@${server.host}:${server.port}")
+        connection = service.getConnection(server) ?: throw Exception("Unable to connect to server")
+        connectionPool = connection!!.sshPool.borrowExecutionSession()
+        connectionPool!!.second.allocateDefaultPTY()
+        if (interactive) {
+            shell = connectionPool!!.second.startShell()
         }
 
-        session = jsch.getSession(user, host, port).apply {
-            if (!password.isNullOrEmpty()) {
-                setPassword(password)
-            }
-            setConfig("StrictHostKeyChecking", "no")
-            connect(5000)
-        }
-
-        println("Session connected.")
-
-        channel = session.openChannel("shell") as ChannelShell
-      //  channel.setPty(true)
-       // channel.setPtyType("xterm-256color")
-        inputStream = channel.inputStream
-        outputStream = channel.outputStream
-
-        channel.connect(3000)
+        inputStream = connectionPool!!.second.inputStream
+        outputStream = connectionPool!!.second.outputStream
         workingDir?.let {
             val cmd = "cd $it\n"
             outputStream.write(cmd.toByteArray(Charsets.UTF_8))
@@ -96,7 +86,7 @@ open class SshTtyConnector(
     }
 
     override fun isConnected(): Boolean {
-        val connected = session.isConnected && channel.isConnected
+        val connected = connectionPool?.first?.isAlive()?:false && connectionPool?.second?.isOpen?:false
         println("isConnected() -> $connected")
         return connected
     }
@@ -117,15 +107,14 @@ open class SshTtyConnector(
     }
 
     override fun getName(): String {
-        return "SSH-$user@$host"
+        return "SSH-${server.username}@${server.host}"
     }
 
     override fun close() {
         println("Closing SSH connection...")
         isRunning = false
         try {
-            channel.disconnect()
-            session.disconnect()
+            connection?.sshPool?.returnExecutionClient(connectionPool!!.first, connectionPool!!.second)
             println("SSH connection closed.")
         } catch (e: Exception) {
             println("Error closing SSH connection: ${e.message}")
@@ -135,13 +124,24 @@ open class SshTtyConnector(
 
     override fun resize(termSize: TermSize) {
         println("Resizing terminal: ${termSize.columns} cols, ${termSize.rows} rows")
-        channel.setPtySize(termSize.columns, termSize.rows, 800, 600)
+        shell?.changeWindowDimensions(termSize.columns, termSize.rows, 800, 600)
     }
-    fun sendCommand(command: String) {
-        if (channel.isConnected) {
-            outputStream.write((command + "\n").toByteArray())
-            outputStream.flush() // make sure command is sent immediately
+    fun sendCommand(command: String) : Int{
+        if (isConnected()) {
+            if (interactive) {
+                outputStream.write((command + "\n").toByteArray())
+                outputStream.flush() // make sure command is sent immediately
+                return 0
+            } else {
+                val cmd = connectionPool!!.second.exec(command)
+                cmd.autoExpand = true
+                inputStream = cmd.inputStream
+                outputStream = cmd.outputStream
+                cmd.join()
+                return cmd.getExitStatus()
+            }
         }
+        return 255
     }
 }
 

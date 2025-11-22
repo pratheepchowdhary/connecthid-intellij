@@ -177,6 +177,7 @@ class ServerListPanel internal constructor(val project: Project): JBPanel<Server
                 authMethod = AuthenticationMethod.PRIVATE_KEY,
                 systemInfo = SystemInfo(
                     osName = "Ubuntu",
+                    displayName = "Ubuntu",
                     osVersion = "22.04 LTS",
                     cpuType = "AMD Ryzen 9 5950X",
                     totalRam = "32GB",
@@ -193,6 +194,7 @@ class ServerListPanel internal constructor(val project: Project): JBPanel<Server
                 authMethod = AuthenticationMethod.PASSWORD,
                 systemInfo = SystemInfo(
                     osName = "Debian",
+                    displayName = "Debian",
                     osVersion = "11",
                     cpuType = "Intel Xeon E5-2680",
                     totalRam = "64GB",
@@ -209,6 +211,7 @@ class ServerListPanel internal constructor(val project: Project): JBPanel<Server
                 authMethod = AuthenticationMethod.PRIVATE_KEY,
                 systemInfo = SystemInfo(
                     osName = "Fedora",
+                    displayName = "Fedora",
                     osVersion = "39",
                     cpuType = "Intel i9-13900K",
                     totalRam = "128GB",
@@ -225,6 +228,7 @@ class ServerListPanel internal constructor(val project: Project): JBPanel<Server
                 authMethod = AuthenticationMethod.PASSWORD,
                 systemInfo = SystemInfo(
                     osName = "Windows",
+                    displayName = "Windows",
                     osVersion = "2022",
                     cpuType = "Intel Xeon Gold 6330",
                     totalRam = "256GB",
@@ -241,6 +245,7 @@ class ServerListPanel internal constructor(val project: Project): JBPanel<Server
                 authMethod = AuthenticationMethod.PRIVATE_KEY,
                 systemInfo = SystemInfo(
                     osName = "Linux",
+                    displayName = "Linux",
                     osVersion = "8",
                     cpuType = "AMD EPYC 7763",
                     totalRam = "512GB",

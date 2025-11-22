@@ -12,16 +12,20 @@ import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
-import com.jcraft.jsch.ChannelSftp
-import com.jcraft.jsch.SftpProgressMonitor
+import net.schmizz.sshj.common.StreamCopier
+import net.schmizz.sshj.xfer.TransferListener
+
+
 import java.io.File
 import java.io.IOException
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.to
 
-class SftpDownloadTask private constructor(
+class   SftpDownloadTask private constructor(
     project: Project,
     private val downloads: List<Pair<SftpFile, File>>,
     private val callback: (Boolean, String) -> Unit,
+    private val progress:(Double, String)-> Unit
 ) : Task.Backgroundable(
     project,
     buildTitle(downloads),
@@ -45,9 +49,10 @@ class SftpDownloadTask private constructor(
                     val zipFile = File(local.parentFile, zipName)
                     //remote.zipToLocal(zipFile, indicator)
                 } else {
-                    downloadFile(remote, local,{ indicator.isCanceled }) { it ->
+                    downloadFile(remote, local,{ indicator.isCanceled }) {
                         indicator.fraction = it
                         indicator.text2 = "File ${index + 1} of $total — ${(it*100).toInt()}%"
+                        progress(it,"File ${index + 1} of $total Downloading")
                     }
                 }
 
@@ -66,45 +71,36 @@ class SftpDownloadTask private constructor(
         progress: (Double) -> Unit   // 0–100 %
     ) {
         val tempFile = File(local.parentFile, "${local.name}.part")
-
         val fileSystem = remote.fileSystem
-
-        val channel = fileSystem.getChannelFromPool(remote.server)
-            ?: throw IOException("Failed to get SFTP channel")
-
+        val connection = fileSystem.getConnection(remote.server) ?: throw Exception("")
+        val connectionPool = connection.sshPool.borrowSCPClient()
         try {
-            val monitor = object : SftpProgressMonitor {
-                private var transferred: Long = 0
-                private var fileSize: Long = 0
-                private var lastPercent = 0.0
-
-                override fun init(op: Int, src: String?, dest: String?, max: Long) {
-                    fileSize = max
-                    transferred = 0
-                    lastPercent = 0.0
+            connectionPool.second.transferListener = object : TransferListener {
+                override fun directory(name: String?): TransferListener {
+                    return this
                 }
 
-                override fun count(count: Long): Boolean {
-                    if (cancelled()) return false // abort transfer
-                    transferred += count
-                    if (fileSize > 0) {
-                        val percent = (transferred.toDouble() / fileSize)
-                        println(percent)
-                        if (percent > lastPercent) {
-                            lastPercent = percent
-                            progress(percent)
+                override fun file(name: String, fileSize: Long): StreamCopier.Listener {
+                    val transferred = AtomicLong(0)
+                    var lastPercent = 0.0
+                    return StreamCopier.Listener { transferredSoFar ->
+                        transferred.set(transferredSoFar)
+                        val progress = (transferred.get() * 100 / fileSize).toInt()
+                        if (fileSize > 0) {
+                            val percent = (transferred.toDouble() / fileSize)
+                            println(percent)
+                            if (percent > lastPercent) {
+                                lastPercent = percent
+                                progress(percent)
+                            }
                         }
+                        print("\rDownloading $name: $progress%")
                     }
-                    return true
                 }
 
-                override fun end() {
-                    // called when done or aborted
-                }
             }
+            connectionPool.second.download(remote.path, tempFile.absolutePath)
 
-            // synchronous → blocks until complete or cancelled
-            channel.get(remote.path, tempFile.absolutePath, monitor)
 
             // replace final file atomically
             if (!cancelled()) {
@@ -120,7 +116,7 @@ class SftpDownloadTask private constructor(
             tempFile.delete()
             println(e.message)
         } finally {
-            fileSystem.releaseChannelToPool(channel,remote.server)
+            connection.sshPool.returnSCPClient(connectionPool.first, connectionPool.second)
         }
     }
 
@@ -147,13 +143,17 @@ class SftpDownloadTask private constructor(
     class Builder(private val project: Project) {
         private var downloads: List<Pair<SftpFile, File>> = emptyList()
         private var callback: (Boolean, String) -> Unit = { _, _ -> }
+        private var progress:(Double, String) -> Unit = { _, _ -> }
 
         fun downloads(list: List<Pair<SftpFile, File>>) = apply { this.downloads = list }
         fun callback(cb: (Boolean, String) -> Unit) = apply { this.callback = cb }
+        fun progress(cb: (Double, String) -> Unit) = apply {
+            this.progress =cb
+        }
 
         fun build(): SftpDownloadTask {
             require(downloads.isNotEmpty()) { "At least one download must be provided" }
-            return SftpDownloadTask(project, downloads, callback)
+            return SftpDownloadTask(project, downloads, callback,progress)
         }
     }
 }
@@ -164,6 +164,7 @@ class SftpUploadTask private constructor(
     private val uploads: List<File>,   // unified list of local→remoteDir
     private val remoteDir: SftpFile,
     private val callback: (Boolean, String) -> Unit,
+    private val progress:(Double, String)-> Unit
 ) : Task.Backgroundable(
     project,
     buildTitle(uploads),
@@ -182,9 +183,10 @@ class SftpUploadTask private constructor(
                 indicator.text = "Uploading ${local.name}"
                 indicator.text2 = "File ${processedFiles + 1} of $totalFiles → ${remoteDir.name}"
 
-                uploadFile(local, remoteDir,{ indicator.isCanceled }) { it ->
+                uploadFile(local, remoteDir,{ indicator.isCanceled }) {
                     indicator.fraction = it
                     indicator.text2 = "File ${processedFiles + 1} of $totalFiles — ${(it*100).toInt()}%"
+                    progress(it,"File ${processedFiles + 1} of $totalFiles Uploading")
                 }
                 processedFiles++
             }
@@ -200,36 +202,39 @@ class SftpUploadTask private constructor(
 
     private fun uploadFile(local: File, remoteDir: SftpFile,cancelled: () -> Boolean, progress: (Double) -> Unit) {
         if (!local.exists() || !local.isFile) throw IllegalArgumentException("Local file does not exist: ${local.path}")
-        val fileSystem  = remoteDir.fileSystem
-        var channel: ChannelSftp? = null
+        val fileSystem = remoteDir.fileSystem
+        val connection = fileSystem.getConnection(remoteDir.server) ?: throw Exception("")
+        val connectionPool = connection.sshPool.borrowSCPClient()
         try {
-            channel = fileSystem.getChannelFromPool(remoteDir.server) ?: throw IOException("Failed to get SFTP channel")
-            val outputStream = channel.put("${remoteDir.pathLocation}/${local.name}") ?: throw IOException("Failed to get output stream")
-            local.inputStream().use { input ->
-                outputStream.use { output ->
-                    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-                    var bytesCopied: Long = 0
-                    val totalBytes = local.length()
+            connectionPool.second.transferListener = object : TransferListener {
+                override fun directory(name: String?): TransferListener {
+                    return this
+                }
 
-                    var bytes = input.read(buffer)
-                    while (bytes >= 0) {
-                        if (cancelled()) return
-                        output.write(buffer, 0, bytes)
-                        bytesCopied += bytes
-
-                        // update fraction if size is known
-                        if (totalBytes > 0) {
-                            val fileProgress = bytesCopied.toDouble() / totalBytes
-                            progress((fileProgress))
+                override fun file(name: String, fileSize: Long): StreamCopier.Listener {
+                    val transferred = AtomicLong(0)
+                    var lastPercent = 0.0
+                    return StreamCopier.Listener { transferredSoFar ->
+                        transferred.set(transferredSoFar)
+                        val progress = (transferred.get() * 100 / fileSize).toInt()
+                        if (fileSize > 0) {
+                            val percent = (transferred.toDouble() / fileSize)
+                            println(percent)
+                            if (percent > lastPercent) {
+                                lastPercent = percent
+                                progress(percent)
+                            }
                         }
-                        bytes = input.read(buffer)
+                        print("\rUploading $name: $progress%")
                     }
                 }
+
             }
-        }catch (e: Exception) {
+            connectionPool.second.upload(local.path, remoteDir.pathLocation)
+        } catch (e: Exception) {
             println(e.message)
         } finally {
-            fileSystem.releaseChannelToPool(channel,remoteDir.server)
+            connection.sshPool.returnSCPClient(connectionPool.first, connectionPool.second)
         }
     }
     override fun onCancel() {
@@ -253,6 +258,7 @@ class SftpUploadTask private constructor(
         private var uploads: List<File> = emptyList()
         private lateinit var remoteDir: SftpFile
         private var callback: (Boolean, String) -> Unit = { _, _ -> }
+        private var progress:(Double, String) -> Unit = { _, _ -> }
         fun uploads(list: List<File>) = apply { this.uploads = list }
         fun remoteDir(dir: SftpFile) = apply {
             this.remoteDir= dir
@@ -261,9 +267,13 @@ class SftpUploadTask private constructor(
             this.callback =
                 cb
         }
+
+        fun progress(cb: (Double, String) -> Unit) = apply {
+            this.progress =cb
+        }
         fun build(): SftpUploadTask {
             require(uploads.isNotEmpty()) { "At least one upload must be provided" }
-            return SftpUploadTask(project, uploads,remoteDir, callback)
+            return SftpUploadTask(project, uploads,remoteDir, callback,progress)
         }
     }
 }
@@ -488,14 +498,14 @@ fun moveFiles(project: Project,files: List<SftpFile>, targetDir: SftpFile, callb
 }
 
 
-fun uploadSftpFiles(project: Project,remoteDir: SftpFile, needUpload: List<File> = emptyList(), callback: (Boolean) -> Unit = {}) {
+fun uploadSftpFiles(project: Project,remoteDir: SftpFile, needUpload: List<File> = emptyList(),progress:(Double, String) -> Unit = { _, _ -> }, callback: (Boolean) -> Unit = {}): Task.Backgroundable? {
     var files = needUpload.filter { it.exists() && it.isFile }
     if (files.isEmpty()) {
         val descriptor = FileChooserDescriptorFactory.createMultipleFilesNoJarsDescriptor()
         descriptor.title = "Select Files or Folders to Upload"
         descriptor.description = "Choose files or folders to upload to the remote directory."
         val localFiles = FileChooser.chooseFiles(descriptor, project, null).toList()
-        if (localFiles.isEmpty()) return
+        if (localFiles.isEmpty()) return null
         else files = localFiles.map {
             File(it.path)
         }
@@ -503,6 +513,7 @@ fun uploadSftpFiles(project: Project,remoteDir: SftpFile, needUpload: List<File>
     val task = SftpUploadTask.Builder(project)
         .uploads(files)
         .remoteDir(remoteDir)
+        .progress(progress)
         .callback { success, msg ->
             if (success) {
                 println("✅ Uploaded successfully: $msg")
@@ -528,13 +539,16 @@ fun uploadSftpFiles(project: Project,remoteDir: SftpFile, needUpload: List<File>
         .build()
 
     task.queue()
+    return task
 }
 
-fun downloadSftpFiles(project: Project,files: List<SftpFile>) {
-    if (files.isEmpty()) return
+fun downloadSftpFiles(project: Project,files: List<SftpFile>,localPath: File?=null,progress:(Double, String) -> Unit = { _, _ -> }, callback: (Boolean) -> Unit = {}):Task.Backgroundable? {
+    if (files.isEmpty()) return null
     val isSingle = files.size == 1
     val first = files.first()
-    val fileDialog = if (isSingle) {
+    val fileDialog = if (localPath != null) {
+        null
+    } else if (isSingle) {
         val isDirectory = first.isDirectory
         val descriptor = if (isDirectory) {
             FileSaverDescriptor("Download Folder as Zip", "Select location to save the zip file", "zip")
@@ -544,14 +558,18 @@ fun downloadSftpFiles(project: Project,files: List<SftpFile>) {
         FileChooserFactory.getInstance().createSaveFileDialog(descriptor, project)
     } else null
 
-    val targetDir: File? = if (!isSingle) {
+    val targetDir: File? = if (localPath != null) {
+        null
+    } else if (!isSingle) {
         val dirDescriptor = FileChooserDescriptorFactory.createSingleFolderDescriptor()
         dirDescriptor.title = "Select Target Directory for Downloaded Files"
         FileChooser.chooseFiles(dirDescriptor, project, null).firstOrNull()?.let { File(it.path) }
     } else null
 
 
-    val downloads:List<Pair<SftpFile, File>> = if (isSingle) {
+    val downloads:List<Pair<SftpFile, File>> = if (localPath != null){
+        files.map { it to localPath.let { dir -> File(dir, if (it.isDirectory) "${it.name}.zip" else it.name) } }
+    } else if (isSingle) {
         val saved = fileDialog?.save(null as VirtualFile?, if (first.isDirectory) "${first.name}.zip" else first.name)
         val pairs = if (saved != null) listOf(first to saved.file) else emptyList()
         pairs
@@ -560,10 +578,11 @@ fun downloadSftpFiles(project: Project,files: List<SftpFile>) {
     } else {emptyList()}
 
 
-    if (downloads.isEmpty()) return
+    if (downloads.isEmpty()) return null
 
     val task = SftpDownloadTask.Builder(project)
         .downloads(downloads)
+        .progress(progress)
         .callback { success, msg ->
             if (success) {
                 println("✅ Downloaded successfully: $msg")
@@ -594,10 +613,12 @@ fun downloadSftpFiles(project: Project,files: List<SftpFile>) {
                 notifyLater(project, title, message, type)
                 println("❌ Failed: $msg")
             }
+            callback(success)
         }
         .build()
 
     task.queue()
+    return task
 }
 
 private fun notifyLater(project: Project, title: String, message: String, type: NotificationType) {

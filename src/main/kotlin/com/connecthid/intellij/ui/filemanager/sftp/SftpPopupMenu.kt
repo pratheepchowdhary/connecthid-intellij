@@ -429,7 +429,6 @@ fun Tree.downloadFiles(project: Project) {
     if (selectedNodes.size == 0) return
     val files = selectedNodes.mapNotNull { it.userObject as? SftpFile }
     if (files.isEmpty()) return
-    val fileSystem = files[0].fileSystem
     downloadSftpFiles(project,files)
 }
 
@@ -581,7 +580,7 @@ fun Tree.refreshSelectedNode(selectedNode: SftpTreeNode? = null) {
         val node = selectedNodes.first()
         val file = node.userObject as? SftpFile ?: return
         if (!file.isDirectory) return
-        file.refresh(false, true) {
+        file.refresh(false, false) {
 
         }
         node.removeAllChildren()

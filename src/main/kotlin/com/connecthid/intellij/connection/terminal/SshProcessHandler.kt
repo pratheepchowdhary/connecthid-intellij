@@ -1,14 +1,23 @@
-package com.connecthid.intellij.connection.terminal.ssh
+package com.connecthid.intellij.connection.terminal
 
-import com.connecthid.intellij.connection.ssh.SSHConnection
-import com.connecthid.intellij.getSSHService
 import com.connecthid.intellij.models.Server
+import com.intellij.execution.configurations.GeneralCommandLine
 import com.intellij.execution.process.ProcessHandler
 import com.intellij.execution.process.ProcessOutputTypes
 import com.intellij.openapi.diagnostic.Logger
-import com.jcraft.jsch.Channel
-import com.jcraft.jsch.ChannelShell
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.IOException
 import java.io.OutputStream
 import java.io.PipedInputStream
@@ -23,20 +32,18 @@ import kotlin.time.Duration.Companion.milliseconds
  *
  * @property server The target server configuration.
  */
-abstract class SshProcessHandler(
-    val server: Server
+ class SshProcessHandler(
+    val server: Server,
+    val interactive: Boolean = true
 ) : ProcessHandler() {
 
-    private val service = getSSHService()
     private companion object {
         private val LOG = Logger.getInstance(SshProcessHandler::class.java)
     }
 
-    var connection: SSHConnection
-    val channel: Channel
     private val processStdin: PipedOutputStream = PipedOutputStream()
     private lateinit var shellInput: PipedInputStream
-    val shellOut: Lazy<OutputStream> = lazy { channel.outputStream }
+    val shellOut: Lazy<OutputStream> = lazy { sshTtyConnector.outputStream }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val inputForwardingActive = AtomicBoolean(true)
     var commandDelayMs: Long = 200L
@@ -50,35 +57,42 @@ abstract class SshProcessHandler(
     private val forwardingFinished = CompletableDeferred<Unit>()
 
     var exitStatus = 0
+    val sshTtyConnector: SshTtyConnector
+    var generalCommandLine:GeneralCommandLine ?=null
+
 
 
 
     init {
-        connection = service.getConnection(server) ?: throw Exception("Unable to connect server")
-        channel = getChannelTarget()
-            ?: throw Exception("Unable to obtain shell channel")
-        if(channel is ChannelShell){
-            channel.connect(10000)
-        }
         LOG.debug("SSH channel connected for ${server.host}")
+        sshTtyConnector = SshTtyConnector(server, interactive = interactive)
     }
-
-    abstract fun getChannelTarget(): Channel?
-
-    /**
-     * Resizes the PTY to the specified dimensions.
-     * @param columns Number of columns.
-     * @param rows Number of rows.
-     */
-    abstract fun resize(columns: Int, rows: Int)
-
 
     /**
      * Sends a command to the remote shell with a configurable post-send delay for execution pacing.
      * Must be called after startNotify().
      * @param command The command to send.
      */
-    abstract suspend fun sendCommand(command: String):Int
+
+    fun sendCommand(command: String): Int {
+        return try {
+            LOG.debug("Executing command '$command'")
+            exitStatus = sshTtyConnector.sendCommand(command)
+            LOG.debug("Command '$command' completed with exit status: $exitStatus")
+            exitStatus.takeIf { it != -1 } ?: 0 // Return 0 if unavailable
+        } catch (e: Exception) {
+            LOG.warn("Failed to execute command '$command'", e)
+            notifyTextAvailable("Error executing command: ${e.message}\n", ProcessOutputTypes.STDERR)
+            exitStatus = -1
+            exitStatus// Return error code
+        } finally {
+            // Optional: Auto-destroy after command if desired (uncomment if caller doesn't manage lifecycle)
+            if(!interactive){
+                destroyProcess()
+                notifyProcessTerminated(exitStatus)
+            }
+        }
+    }
 
     /**
      * Sets the polling delay for output forwarding (in ms). Lower values increase responsiveness but CPU usage.
@@ -108,14 +122,7 @@ abstract class SshProcessHandler(
         runCatching { processStdin.close() }.onFailure { LOG.warn("Error closing stdin", it) }
 
         runCatching {
-            if (channel.isConnected && !channel.isClosed) {
-                try {
-                    channel.disconnect()
-                } catch (ignored: Exception) {
-                    LOG.warn("Error disconnecting channel", ignored)
-                }
-            }
-            connection.releaseChannelToPool(channel)
+            sshTtyConnector.close()
         }.onFailure { LOG.warn("Cleanup error", it) }
 
         LOG.debug("Channel exit status: $exitStatus")
@@ -132,6 +139,8 @@ abstract class SshProcessHandler(
 
     override fun getProcessInput(): OutputStream = processStdin
 
+
+
     override fun startNotify() {
         super.startNotify()
         runCatching {
@@ -140,6 +149,10 @@ abstract class SshProcessHandler(
             setupForwarding()
             // NOTE: assume providedChannel is already connected by caller if provided.
             // If not provided and channel came from pool, caller should ensure it's connected (or you can call channel.connect())
+            generalCommandLine?.let {
+                sendCommand(it.commandLineString)
+            }
+
         }.onFailure {
             LOG.warn("Failed to start SSH terminal", it)
             notifyProcessTerminated(-1)
@@ -152,10 +165,10 @@ abstract class SshProcessHandler(
 
         // Output: Shell -> Console (non-blocking read with timeout for efficiency)
         val outputJob = scope.launch {
-            val shellIn = channel.inputStream
+            val shellIn = sshTtyConnector.inputStream
             val buffer = ByteArray(4096) // Larger buffer for better throughput
             try {
-                while (!channel.isClosed && isActive) {
+                while (sshTtyConnector.isConnected && isActive) {
                     ensureActive()
                     val read = withTimeout(outputPollDelayMs) {
                         try {
@@ -239,13 +252,4 @@ abstract class SshProcessHandler(
         }
     }
 
-    /**
-     * Checks if the SSH connection and channel are active.
-     * @return True if connected.
-     */
-    fun isConnected(): Boolean {
-        val connected = connectedFlag && connection.isConnected() && channel.isConnected
-        LOG.debug("isConnected() -> $connected")
-        return connected
-    }
 }

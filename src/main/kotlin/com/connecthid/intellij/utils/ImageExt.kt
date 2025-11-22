@@ -1,5 +1,6 @@
 package com.connecthid.intellij.utils
 
+import com.connecthid.intellij.connection.ssh.system.Os
 import com.intellij.util.ui.JBUI.CurrentTheme.TabbedPane.HOVER_COLOR
 import java.awt.Image
 import java.awt.RenderingHints
@@ -18,7 +19,7 @@ object ImageExt{
         val iconSize = 48
         try {
             // Load OS icons from resources and make them circular
-            listOf("ubuntu", "debian", "fedora", "windows", "linux").forEach { os ->
+            listOf("ubuntu", "debian", "fedora", "windows", "linux","macos").forEach { os ->
                 val resource = javaClass.getResourceAsStream("/icons/$os.png")
                 if (resource != null) {
                     val originalIcon = ImageIO.read(resource)
@@ -52,5 +53,8 @@ fun String.toImageIcon(): ImageIcon {
     return ImageExt.osImages[this.lowercase()] ?: ImageIcon()
 }
 fun String.isWindows(): Boolean {
-    return this.lowercase().contains("windows")
+    return this.lowercase().contains(Os.Windows.os)
+}
+fun String.isMacOs(): Boolean {
+    return this.lowercase().contains(Os.MacOS.os)
 }

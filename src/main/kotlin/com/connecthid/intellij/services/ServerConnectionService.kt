@@ -1,8 +1,9 @@
 package com.connecthid.intellij.services
 
-import com.connecthid.intellij.connection.ssh.SSHConnection
+import com.connecthid.intellij.connection.ssh.SSHJConnection
+import com.connecthid.intellij.connection.ssh.system.Os
+import com.connecthid.intellij.connection.ssh.system.getOs
 import com.connecthid.intellij.models.*
-import com.connecthid.intellij.utils.isWindows
 import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.State
 import com.intellij.openapi.components.Storage
@@ -20,7 +21,7 @@ data class ServerConnectionState(
 
 @State(name = "ServerConnectionService", storages = [Storage("server-connections.xml")])
 class ServerConnectionService() : PersistentStateComponent<ServerConnectionState> {
-    private val connections = ConcurrentHashMap<String, SSHConnection>()
+    private val connections = ConcurrentHashMap<String, SSHJConnection>()
     private var state = ServerConnectionState()
     var searchServers = arrayListOf<Server>()
     private val connectionLock = ReentrantLock()
@@ -95,104 +96,65 @@ class ServerConnectionService() : PersistentStateComponent<ServerConnectionState
         saveState()
     }
 
-    private fun createConnectHidDir(osName: String, sshConnection: SSHConnection): String{
-        val connectHidDir = if (osName.isWindows()) {
-            // Windows: use USERPROFILE as home
-            val userHome = sshConnection.execute("echo %USERPROFILE%").lines().firstOrNull()?.trim()
-                ?: "C:\\Users\\\$USER" // fallback
-            val dirPath = "$userHome\\.connecthid"
-            sshConnection.execute("if not exist \"$dirPath\" mkdir \"$dirPath\"")
-            dirPath
-        } else {
-            // Unix-like: use $SHELL or /etc/passwd to find home
-            val userHome = sshConnection.execute("getent passwd \$(whoami) | cut -d: -f6").lines()
-                .firstOrNull()?.trim()
-                ?: sshConnection.execute("echo \$HOME").lines().firstOrNull()?.trim()
-                ?: "~" // fallback
-            val dirPath = "$userHome/.connecthid"
-            sshConnection.execute("mkdir -p \"$dirPath\"")
-            dirPath
+    private fun createConnectHidDir(osName: Os, sshConnection: SSHJConnection,  userHome: String): String {
+        var connectHidDir =""
+        return try {
+            if (osName == Os.Windows) {
+
+                val dirPath = "$userHome\\.connecthid"
+                // mkdir if missing
+                sshConnection.execute("if not exist \"$dirPath\" mkdir \"$dirPath\"")
+                connectHidDir = dirPath
+            } else {
+
+                val dirPath = "$userHome/.connecthid"
+                sshConnection.execute("mkdir -p \"$dirPath\" || true")
+                connectHidDir = dirPath
+            }
+
+            println("Home path: $connectHidDir")
+           return connectHidDir
+        } catch (e: Exception) {
+            e.printStackTrace()
+            connectHidDir
         }
-        println("Home path $connectHidDir")
-        return connectHidDir
     }
 
 
     private fun updateSystemInfo(server: Server) {
         val sshConnection = connections["${server.username}@${server.host}"] ?: return
         try {
-            // Get OS information
-            val osInfo = sshConnection.execute("cat /etc/os-release").split("\n")
-                .associate { line ->
-                    val parts = line.split("=")
-                    if (parts.size == 2) parts[0] to parts[1].trim('"') else "" to ""
-                }
+            val systemInformation = sshConnection.getSystemInfo()
+            systemInformation.osName?:return
+            val os = systemInformation.osName!!.getOs()
+            val connectHidPath = createConnectHidDir(os, sshConnection,systemInformation.homePath!!)
 
-            val hostName = sshConnection.execute("hostname")
-
-
-            // Get CPU information
-            val cpuInfo = sshConnection.execute("cat /proc/cpuinfo | grep 'model name' | head -n1")
-                .substringAfter(":").trim()
-            val architecture = sshConnection.execute("uname -m")
-
-            // Get RAM information
-            val memInfo = sshConnection.execute("free -h").split("\n")[1]
-                .split("\\s+".toRegex())
-            val totalRam = memInfo[1]
-            val usedRam = memInfo[2]
-
-            // Get Storage information
-            val dfOutput = sshConnection.execute("df -h /").split("\n")[1]
-                .split("\\s+".toRegex())
-            val totalStorage = dfOutput[1]
-            val usedStorage = dfOutput[2]
-            val osName = osInfo["NAME"] ?: ""
-
-            var defaultShellPath = ""
-            if (osName.isWindows()) {
-                val dfOutput = sshConnection.execute("where powershell").lines()
-                defaultShellPath = if (dfOutput.isNotEmpty()) {
-                    dfOutput[0].trim() // first path returned
-                } else {
-                    "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
-                }
-            } else {
-                // Try $SHELL first, fallback to /etc/passwd
-                var shellOutput = sshConnection.execute("echo \$SHELL").lines().firstOrNull()?.trim()
-                if (shellOutput.isNullOrEmpty()) {
-                    shellOutput = sshConnection.execute("getent passwd \$(whoami) | cut -d: -f7").lines()
-                        .firstOrNull()?.trim() ?: "/bin/sh"
-                }
-                defaultShellPath = shellOutput
-            }
-            val hidPath = createConnectHidDir(osName,sshConnection)
-
-            // Update system info
+            // --- Update state ---
             val systemInfo = SystemInfo(
-                osName = osName,
-                osVersion = osInfo["VERSION_ID"] ?: "",
-                cpuType = cpuInfo,
-                architecture = architecture,
-                totalRam = totalRam,
-                usedRam = usedRam,
-                totalStorage = totalStorage,
-                usedStorage = usedStorage,
-                hostName = hostName,
-                defaultShell = defaultShellPath,
-                hidPath
+                osName = systemInformation.osName?:"",
+                displayName = systemInformation.displayName?:"",
+                osVersion = systemInformation.osVersion?:"",
+                cpuType = systemInformation.cpuModel?:"",
+                architecture = systemInformation.architecture?:"",
+                totalRam = systemInformation.totalRam ?: "",
+                usedRam = systemInformation.usedRam ?: "",
+                totalStorage = systemInformation.totalStorage ?: "",
+                usedStorage = systemInformation.usedStorage ?: "",
+                hostName = systemInformation.hostName?:"",
+                defaultShell = systemInformation.defaultShell?:"",
+                connectHidDir = connectHidPath,
+                homePath = systemInformation.homePath ?: ""
             )
-            // Find and update the connection in state
-            val index = state.connections.indexOfFirst { it.host == server.host && it.username.equals(server.username) }
+            println(systemInfo.toString())
+
+            val index = state.connections.indexOfFirst { it.host == server.host && it.username == server.username }
             if (index != -1) {
                 state.connections[index] = server.copy(systemInfo = systemInfo)
             }
         } catch (e: Exception) {
             e.printStackTrace()
-            // Handle error silently - system info will remain empty
         }
     }
-
     fun removeServerConnection(host: String, username: String) {
         state.connections.removeIf { it.host == host }
         // Trigger state change to ensure persistence
@@ -219,7 +181,7 @@ class ServerConnectionService() : PersistentStateComponent<ServerConnectionState
     ): Boolean {
 
         try {
-            val connection = SSHConnection(host, username, password, port, privateKeyPath)
+            val connection = SSHJConnection(host, username, password, port, privateKeyPath)
             connection.connect()
             return true
         } catch (e: Exception) {
@@ -235,7 +197,7 @@ class ServerConnectionService() : PersistentStateComponent<ServerConnectionState
         privateKeyPath: String? = null
     ): Boolean {
         try {
-            val connection = SSHConnection(host, username, password, port, privateKeyPath)
+            val connection = SSHJConnection(host, username, password, port, privateKeyPath)
             connection.connect()
             connections["$username@${host}"] = connection
 
@@ -292,7 +254,7 @@ class ServerConnectionService() : PersistentStateComponent<ServerConnectionState
         }
     }
 
-    private fun getConnection(host: String, username: String): SSHConnection? {
+    private fun getConnection(host: String, username: String): SSHJConnection? {
         return connections["$username@${host}"]
     }
 
@@ -300,12 +262,12 @@ class ServerConnectionService() : PersistentStateComponent<ServerConnectionState
         return state.connections.firstOrNull() { it.stmpName.equals(server) }
     }
 
-    fun getConnection(userAtHost: String): SSHConnection? {
+    fun getConnection(userAtHost: String): SSHJConnection? {
         return connections[userAtHost]
     }
 
 
-    fun getConnection(server: Server): SSHConnection? {
+    fun getConnection(server: Server): SSHJConnection? {
         connectionLock.lock()
         try {
             var connection = getConnection(server.host, server.username)

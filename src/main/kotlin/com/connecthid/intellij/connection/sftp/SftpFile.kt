@@ -1,208 +1,281 @@
 package com.connecthid.intellij.connection.sftp
 
+import com.connecthid.intellij.connection.ssh.SSHJConnection
 import com.connecthid.intellij.models.Server
+import com.connecthid.sshjpool.SSHConnection
+import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.application.runReadAction
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileManager
-import com.jcraft.jsch.ChannelSftp
-import com.jcraft.jsch.SftpATTRS
-import java.io.IOException
-import java.io.InputStream
-import java.io.OutputStream
+import net.schmizz.sshj.sftp.*
+import net.schmizz.sshj.xfer.FilePermission
+import org.slf4j.LoggerFactory
+import java.io.*
+import java.util.concurrent.atomic.AtomicInteger
 
 class SftpFile(
     var pathLocation: String,
     val server: Server,
-    var fileEntry:SftpATTRS? = null
+    var fileEntry: FileAttributes? = null,
+    var fileType:FileMode.Type?=null
 ) : VirtualFile() {
-    val sftpFileSystem by lazy {
+    private val log = LoggerFactory.getLogger(SftpFile::class.java)
+    companion object {
+        private const val DEFAULT_BUFFER_SIZE = 8192
+    }
+
+    private val sftpFileSystem by lazy {
         VirtualFileManager.getInstance().getFileSystem(SftpFileSystem.PROTOCOL) as SftpFileSystem
     }
+    private val activeStreams = AtomicInteger(0)  // Tracks open streams for coordinated release
+
     private var children: Array<VirtualFile>? = null
+    private var connectionPool: Pair<SSHConnection, SFTPClient>? = null
+    private var connection: SSHJConnection? = null
+    private var inputHandle: RemoteFile? = null
+    private var outputHandle: RemoteFile? = null
+
     override fun getFileSystem(): SftpFileSystem = sftpFileSystem
 
-    override fun getName(): String = pathLocation.split("/").last()
+    override fun getName(): String = pathLocation.substringAfterLast('/')
+
+    override fun getUrl(): String =
+        "${fileSystem.protocol}://${server.username}@${server.host}:${server.port}$pathLocation"
 
     override fun isWritable(): Boolean {
-        if(fileEntry == null){
-            fileEntry = runReadAction {fileSystem.getFileStat(pathLocation,server)}
-            return fileEntry != null && fileEntry!!.isWritable()
-        }
-        return fileEntry!!.isWritable()
+        if (fileEntry == null)
+            fileEntry = runReadAction { fileSystem.getFileStat(pathLocation, server) }
+        return fileEntry?.isWritable() ?: false
     }
-
-    override fun getUrl(): String {
-        return "${fileSystem.protocol}://${server.username}@${server.host}:${server.port}${pathLocation}"
-    }
-
 
     override fun isDirectory(): Boolean {
-        if (fileEntry == null) {
-            fileEntry = runReadAction {fileSystem.getFileStat(pathLocation,server)}
-            return fileEntry == null || fileEntry!!.isDir
+        if (fileType == null){
+            fileEntry = fileEntry ?: runReadAction { fileSystem.getFileStat(pathLocation, server) }
+            fileType = fileEntry?.type
         }
-        return fileEntry!!.isDir
+        return fileType == FileMode.Type.DIRECTORY
     }
 
     override fun isValid(): Boolean = true
 
     override fun getParent(): VirtualFile? {
         val parentPath = pathLocation.substringBeforeLast("/", "")
-        return if (parentPath.isEmpty()) null else SftpFile(parentPath, server)
+        return if (parentPath.isEmpty()) null else SftpFile(parentPath, server,fileType = FileMode.Type.DIRECTORY)
     }
-
 
     override fun getChildren(): Array<VirtualFile> {
-            return runReadAction {
-        if (children == null) {
-            // show hidden files and folder based on fileSystem.showHiddenFiles
-            var channel: ChannelSftp? = null
-            try {
-                channel = fileSystem.getChannelFromPool(server)
-                if (channel == null || !channel.isConnected) {
-                    println("Failed to establish SFTP channel")
-                    return@runReadAction emptyArray()
-                }
-                val currentPath = if (pathLocation == "/") "." else pathLocation
-                println(currentPath)
-                val files = channel.ls(currentPath) ?: return@runReadAction emptyArray()
-                val entries = files
-                    .mapNotNull { it as? ChannelSftp.LsEntry }
-                    .filter { it.filename != "." && it.filename != ".." }
-                    .filter { fileSystem.showHiddenFiles || !it.filename.startsWith(".") }
-                // Sort: folders first, then files, both alphabetically
-                val sortedEntries = entries.sortedWith(compareBy<ChannelSftp.LsEntry>({ !it.attrs.isDir }, { it.filename.lowercase() }))
-                children = sortedEntries
-                    .map {
-                        val childPath = if (pathLocation == "/") "/${it.filename}" else "$pathLocation/${it.filename}"
-                        SftpFile(childPath, server, it.attrs)
-                    }
-                    .toTypedArray()
-            } catch (e: Exception) {
-                println("Error listing directory: ${e.message}")
-                e.printStackTrace()
-                return@runReadAction emptyArray()
-            } finally {
-                fileSystem.releaseChannelToPool(channel,server)
+        log.debug("getChildren $pathLocation")
+        return run {
+            children?.forEach {
+                fileSystem.fileCache.remove(it.url)
             }
-        }
-         children ?: emptyArray()
+            children ?: run {
+                val connection = fileSystem.connectionService.getConnection(server)
+                    ?: return emptyArray()
+                connection.withSftp { sftp ->
+                    val currentPath = if (pathLocation == "/") "." else pathLocation
+                    val files = sftp.ls(currentPath)
+
+                    val entries = files
+                        .filter { it.name != "." && it.name != ".." }
+                        .filter { fileSystem.showHiddenFiles || !it.name.startsWith(".") }
+
+                    val sorted = entries.sortedWith(
+                        compareBy<RemoteResourceInfo>(
+                            { !it.isDirectory },
+                            { it.name.lowercase() })
+                    )
+
+                    children = sorted.map {
+                        val childPath =
+                            if (pathLocation == "/") "/${it.name}" else "$pathLocation/${it.name}"
+                        SftpFile(childPath, server, it.attributes,it.attributes.type).also {
+                            sftpFileSystem.fileCache.put(it.url,it)
+                        }
+                    }.toTypedArray()
+                }
+                children ?: emptyArray()
+            }
         }
     }
 
-
     override fun getTimeStamp(): Long {
-        if (fileEntry == null) {
-            fileEntry = runReadAction {fileSystem.getFileStat(pathLocation,server)}
-            return  fileEntry ?.mTime?.toLong() ?: 0L
-        }
-        return fileEntry!!.aTime.toLong()
-
+        if (fileEntry == null)
+            fileEntry = runReadAction { fileSystem.getFileStat(pathLocation, server) }
+        return fileEntry?.atime ?: 0L
     }
 
     override fun getModificationStamp(): Long {
-        if (fileEntry == null) {
-            fileEntry = runReadAction {fileSystem.getFileStat(pathLocation,server)}
-            return  fileEntry ?.mTime?.toLong() ?: 0L
-        }
-        return fileEntry!!.mTime.toLong()
+        if (fileEntry == null)
+            fileEntry = runReadAction { fileSystem.getFileStat(pathLocation, server) }
+        return fileEntry?.mtime ?: 0L
     }
 
     override fun getLength(): Long {
-        if (fileEntry == null) {
-            fileEntry = runReadAction {fileSystem.getFileStat(pathLocation,server)}
-            return  fileEntry?.size?.toLong() ?: 0L
-        }
-        return fileEntry!!.size.toLong()
+        if (fileEntry == null)
+            fileEntry = runReadAction { fileSystem.getFileStat(pathLocation, server) }
+        return fileEntry?.size ?: 0L
     }
 
     override fun refresh(asynchronous: Boolean, recursive: Boolean, postRunnable: Runnable?) {
+        log.debug("Refreshing $pathLocation")
+        children?.forEach {
+          fileSystem.fileCache.remove(it.url)
+        }
         children = null
+//        if (recursive && isDirectory) {
+//            getChildren().forEach { it.refresh(asynchronous, recursive, null) }
+//        }
+        fileEntry = null
         postRunnable?.run()
     }
 
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (other !is SftpFile) return false
-        return pathLocation == other.pathLocation
-    }
+    override fun equals(other: Any?): Boolean =
+        other is SftpFile && other.pathLocation == pathLocation && other.server == server
 
-    override fun hashCode(): Int = pathLocation.hashCode()
+    override fun hashCode(): Int = (pathLocation + server.host).hashCode()
 
     override fun toString(): String = "SftpFile: $pathLocation"
 
+    /**
+     * Opens and returns a RemoteFile.
+     * Ensures a pooled SFTPClient is used and returned properly.
+     */
+    @Synchronized
+    private fun getSftpClient(): Pair<SSHConnection, SFTPClient>? {
+        if (connectionPool == null) {
+            connection = fileSystem.connectionService.getConnection(server)
+                ?: throw IOException("Unable to connect to server")
+            connectionPool = connection!!.getSftpClient()
+
+        }
+        return connectionPool
+    }
+
+    override fun getInputStream(): InputStream {
+        log.debug("Opening input stream for $pathLocation")
+        return ReadAction.compute<InputStream, RuntimeException> {
+            synchronized(this) {
+                activeStreams.incrementAndGet()
+            }
+            val sftp = getSftpClient()?.second ?: throw IOException("Unable to connect to server")
+            this.inputHandle = sftp.open(pathLocation, setOf(OpenMode.READ))
+            object : FilterInputStream(inputHandle!!.RemoteFileInputStream()) {
+                private var closed = false
+                override fun close() {
+                    if (closed) return
+                    closed = true
+                    try {
+                        super.close()
+                        inputHandle?.close()
+                        inputHandle = null
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    } finally {
+                        maybeDispose()
+                    }
+                }
+            }
+        }
+    }
+
     override fun getOutputStream(requestor: Any?, modStamp: Long, timeStamp: Long): OutputStream {
-        var channel: ChannelSftp? = null
-        try {
-            channel = fileSystem.getChannelFromPool(server) ?: throw IOException("Failed to get SFTP channel")
-            return channel.put(pathLocation) ?: throw IOException("Failed to get output stream")
-        } catch (e: Exception) {
-            throw IOException("Failed to get output stream: ${e.message}", e)
-        } finally {
-            fileSystem.releaseChannelToPool(channel,server)
+        log.debug("Opening output stream for $pathLocation")
+        return WriteAction.compute<OutputStream, RuntimeException> {
+            synchronized(this) {
+                activeStreams.incrementAndGet()
+            }
+            val sftp = getSftpClient()?.second ?: throw IOException("Unable to connect to server")
+            this.outputHandle = sftp.open(pathLocation, setOf(OpenMode.WRITE))
+
+            object : FilterOutputStream(outputHandle!!.RemoteFileOutputStream()) {
+                private var closed = false
+                override fun close() {
+                    if (closed) return
+                    closed = true
+                    try {
+                        super.close()
+                        outputHandle?.close()
+                        outputHandle = null
+                    } finally {
+                        maybeDispose()
+                    }
+                }
+            }
         }
     }
 
     override fun contentsToByteArray(): ByteArray {
-        return runReadAction {
-            var channel: ChannelSftp? = null
+        log.debug("Reading file contents from $pathLocation")
+        return ReadAction.compute<ByteArray, RuntimeException> {
             try {
-                channel = fileSystem.getChannelFromPool(server) ?: throw IOException("Failed to get SFTP channel")
-                val inputStream = channel.get(pathLocation) ?: throw IOException("Failed to get input stream")
-                return@runReadAction inputStream.readBytes()
-            } catch (e: Exception) {
-                throw IOException("Failed to read file contents: ${e.message}", e)
-            } finally {
-                fileSystem.releaseChannelToPool(channel,server)
-            }
-        }
-    }
-
-    override fun getInputStream(): InputStream {
-        return runReadAction {
-            var channel: ChannelSftp? = null
-            try {
-                channel = fileSystem.getChannelFromPool(server) ?: throw IOException("Failed to get SFTP channel")
-                val inputStream = channel.get(pathLocation) ?: throw IOException("Failed to get input stream")
-                return@runReadAction object : InputStream() {
-                    private var isClosed = false
-
-                    override fun read(): Int = inputStream.read()
-
-                    override fun read(b: ByteArray): Int = inputStream.read(b)
-
-                    override fun read(b: ByteArray, off: Int, len: Int): Int = inputStream.read(b, off, len)
-
-                    override fun skip(n: Long): Long = inputStream.skip(n)
-
-                    override fun available(): Int = inputStream.available()
-
-                    override fun close() {
-                        if (isClosed) return
-                        isClosed = true
-                        try {
-                            inputStream.close()
-                        } catch (e: Exception) {
-                            println("Error closing input stream: ${e.message}")
-                        } finally {
-                            fileSystem.releaseChannelToPool(channel,server)
+                val sftp = getSftpClient()?.second ?: throw IOException("Unable to connect to server")
+                // Open temporary handle for direct read (no stream wrapper or activeStreams impact)
+                sftp.open(pathLocation, setOf(OpenMode.READ)).use { handle ->
+                    // Wrap input stream in use for proper closure
+                    handle.RemoteFileInputStream().use { input ->
+                        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                        val output = ByteArrayOutputStream()
+                        var bytesRead: Int
+                        while (input.read(buffer).also { bytesRead = it } != -1) {
+                            output.write(buffer, 0, bytesRead)
                         }
+                        output.toByteArray()
                     }
                 }
             } catch (e: Exception) {
-                fileSystem.releaseChannelToPool(channel,server)
-                throw IOException("Failed to get input stream: ${e.message}", e)
+                throw IOException("Failed to read file contents from $pathLocation", e)
             }
         }
     }
 
     override fun getPath(): String = pathLocation
 
+    /**
+     * Public cleanup method: Force release SFTP client (ignores active streams).
+     * Call this manually (e.g., via VFS listeners) or from parent Disposable.
+     * Set isValid = false afterward if invalidating the file.
+     */
+    fun dispose() {  // No 'override' – it's a custom method
+        activeStreams.set(0)  // Force to zero
+        internalDispose()
+    }
+
+    /**
+     * Releases client only if no active streams remain.
+     * Call this from stream closes or manual dispose.
+     */
+    private fun maybeDispose() {
+        log.debug("Maybe releasing SFTP client for $pathLocation")
+        if (activeStreams.decrementAndGet() == 0) {
+            internalDispose()
+        }
+    }
+
+    private fun internalDispose() {
+        log.debug("Releasing SFTP client for $pathLocation")
+        synchronized(this) {
+            connectionPool?.let { (conn, client) ->
+                connection!!.sshPool.returnSftpClient(conn, client)
+            }
+            connectionPool = null
+            connection = null
+        }
+    }
 }
 
-fun SftpATTRS.isWritable(): Boolean {
-    val permissions = this.permissions // This is an int
-    // Check if owner has write permission (bitmask 0o200 == 128)
-    val S_IWUSR = 0b10_0000_000 // Octal 0200 == decimal 128
-    return (permissions and S_IWUSR) != 0
-}
+/**
+ * Extension helpers for readability
+ */
+fun FileAttributes.isWritable(): Boolean =
+    this.permissions?.contains(FilePermission.USR_W) ?: false
+
+fun FileAttributes.isDirectory(): Boolean =
+    this.type == FileMode.Type.DIRECTORY
+
+fun FileAttributes.isRegularFile(): Boolean =
+    this.type == FileMode.Type.REGULAR
+
+fun FileAttributes.isSymlink(): Boolean =
+    this.type == FileMode.Type.SYMLINK
