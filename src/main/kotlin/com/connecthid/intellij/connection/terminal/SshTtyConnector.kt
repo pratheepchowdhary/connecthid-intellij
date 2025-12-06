@@ -126,22 +126,22 @@ open class SshTtyConnector(
         println("Resizing terminal: ${termSize.columns} cols, ${termSize.rows} rows")
         shell?.changeWindowDimensions(termSize.columns, termSize.rows, 800, 600)
     }
-    fun sendCommand(command: String) : Int{
+    fun sendCommand(command: String) : Pair<Int, String>{
         if (isConnected()) {
             if (interactive) {
                 outputStream.write((command + "\n").toByteArray())
                 outputStream.flush() // make sure command is sent immediately
-                return 0
+                return Pair(0,"")
             } else {
                 val cmd = connectionPool!!.second.exec(command)
                 cmd.autoExpand = true
                 inputStream = cmd.inputStream
                 outputStream = cmd.outputStream
                 cmd.join()
-                return cmd.getExitStatus()
+                return Pair(cmd.getExitStatus(),cmd.exitErrorMessage)
             }
         }
-        return 255
+        return Pair(255,"Invalid command-line usage")
     }
 }
 

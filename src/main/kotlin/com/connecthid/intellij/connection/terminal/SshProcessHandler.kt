@@ -5,6 +5,7 @@ import com.intellij.execution.configurations.GeneralCommandLine
 import com.intellij.execution.process.ProcessHandler
 import com.intellij.execution.process.ProcessOutputTypes
 import com.intellij.openapi.diagnostic.Logger
+import com.jediterm.core.util.TermSize
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -33,6 +34,7 @@ import kotlin.time.Duration.Companion.milliseconds
  * @property server The target server configuration.
  */
  class SshProcessHandler(
+    termSize: TermSize,
     val server: Server,
     val interactive: Boolean = true
 ) : ProcessHandler() {
@@ -66,6 +68,7 @@ import kotlin.time.Duration.Companion.milliseconds
     init {
         LOG.debug("SSH channel connected for ${server.host}")
         sshTtyConnector = SshTtyConnector(server, interactive = interactive)
+        sshTtyConnector.resize(termSize)
     }
 
     /**
@@ -75,11 +78,15 @@ import kotlin.time.Duration.Companion.milliseconds
      */
 
     fun sendCommand(command: String): Int {
+        var exitMessage = ""
+        val RED = "\u001B[31m"
         return try {
             LOG.debug("Executing command '$command'")
-            exitStatus = sshTtyConnector.sendCommand(command)
+            val (exitCode,errorMessage) = sshTtyConnector.sendCommand(command)
+            exitStatus = exitCode
+            exitMessage = errorMessage
             LOG.debug("Command '$command' completed with exit status: $exitStatus")
-            exitStatus.takeIf { it != -1 } ?: 0 // Return 0 if unavailable
+            exitStatus.takeIf { it != -1 } ?: 0
         } catch (e: Exception) {
             LOG.warn("Failed to execute command '$command'", e)
             notifyTextAvailable("Error executing command: ${e.message}\n", ProcessOutputTypes.STDERR)
@@ -88,8 +95,10 @@ import kotlin.time.Duration.Companion.milliseconds
         } finally {
             // Optional: Auto-destroy after command if desired (uncomment if caller doesn't manage lifecycle)
             if(!interactive){
+                if(exitStatus !=0 && exitMessage.isNotEmpty() && !exitMessage.equals("null")){
+                    notifyTextAvailable("${RED} ${exitMessage}\n", ProcessOutputTypes.STDERR)
+                }
                 destroyProcess()
-                notifyProcessTerminated(exitStatus)
             }
         }
     }
@@ -251,5 +260,7 @@ import kotlin.time.Duration.Companion.milliseconds
             }
         }
     }
+
+
 
 }

@@ -3,17 +3,12 @@ package com.connecthid.intellij.ui.runconfigurations
 
 import com.connecthid.intellij.connection.sftp.downloadSftpFiles
 import com.connecthid.intellij.connection.sftp.uploadSftpFiles
-import com.connecthid.intellij.connection.terminal.SshProcessHandler
 import com.connecthid.intellij.connection.terminal.TerminalExecution
 import com.connecthid.intellij.getSSHService
-import com.connecthid.intellij.models.Server
 import com.connecthid.intellij.models.TaskModel
-import com.connecthid.intellij.utils.getDefaultShell
-import com.connecthid.intellij.utils.getLocalFile
-import com.connecthid.intellij.utils.getLocalFiles
-import com.connecthid.intellij.utils.getRemoteFiles
-import com.connecthid.intellij.utils.getSftpFile
+import com.connecthid.intellij.utils.*
 import com.intellij.execution.configurations.GeneralCommandLine
+import com.intellij.execution.process.KillableProcessHandler
 import com.intellij.execution.process.OSProcessHandler
 import com.intellij.execution.process.ProcessHandler
 import com.intellij.execution.process.ProcessOutputTypes
@@ -68,12 +63,12 @@ class RunTask(
             try {
                 executeTask(task)
             } catch (e: CancellationException) {
-                log("⚠️ Task cancelled.")
+                log("Task cancelled.")
                 finish(cancelled = true)
                 throw e
             } catch (e: Exception) {
                 if (!isStopped()) {
-                    log("❌ Task failed: ${e.message}")
+                    log("Task failed: ${e.message}")
                     notifyProcessTerminated(1)
                 }
             } finally {
@@ -91,13 +86,18 @@ class RunTask(
         coroutineScope.ensureActive()
 
         val taskType = RunConfigurationTaskType.fromType(task.scriptType)
+        var resultCode = 0
 
         if (taskType == RunConfigurationTaskType.Script) {
-            val resultCode =   startTask(task)
+            resultCode =   startTask(task)
             if(resultCode != 0){
+                if(task.scriptId.equals(this.taskModel.scriptId)){
+                    log("Process finished with exit code ${resultCode}")
+                }
                 return
             }
-        } else if (taskType == RunConfigurationTaskType.ScpFileTransfer) {
+        }
+        else if (taskType == RunConfigurationTaskType.ScpFileTransfer) {
             log("📂 File transfer task ")
             console.attachToProcess(this)
             service.getServer(task.server)?.let {
@@ -152,6 +152,9 @@ class RunTask(
                 }
             }
         }
+        if(task.scriptId.equals(this.taskModel.scriptId)){
+            log("Process finished with exit code ${resultCode}")
+        }
 
         coroutineScope.ensureActive()
         finish()
@@ -186,13 +189,18 @@ class RunTask(
      * Build and execute local command line.
      */
     private suspend fun startTask(task: TaskModel) : Int{
-
-        val processHandler = TerminalExecution.runInConsole(task,(if(task.server.equals("localhost", ignoreCase = true)) null else service.getServer(task.server)))
+        log("----- ${task.scriptName} task started ----")
+        val termSize = console.terminalWidget.terminal.size
+        val processHandler = TerminalExecution.runInConsole(termSize,task,(if(task.server.equals("localhost", ignoreCase = true)) null else service.getServer(task.server)))
         console.attachToProcess(processHandler)
         synchronized(activeHandlers) {
             activeHandlers.add(processHandler)
         }
         processHandler.startNotify()
+
+        if(processHandler is KillableProcessHandler && taskModel.executeInTerminal){
+            console.terminalWidget.ttyConnector.write("${TerminalExecution.buildInterpreterCommand(taskModel)} \n")
+        }
 
         while (!processHandler.isProcessTerminated) {
             coroutineScope.ensureActive()
@@ -203,11 +211,11 @@ class RunTask(
         }
         val resultCode = processHandler.exitCode?:-1
         if(resultCode == 0){
-            log("✅ ${task.scriptName} finished successfully")
+            log("----- ${task.scriptName} task completed ----")
         } else {
-            log("❌  ${task.scriptName} task failed", ConsoleViewContentType.LOG_ERROR_OUTPUT)
+            log("${task.scriptName} task failed", ConsoleViewContentType.LOG_ERROR_OUTPUT)
         }
-        return 0
+        return resultCode
     }
 
     /**
@@ -215,18 +223,18 @@ class RunTask(
      */
     override fun destroyProcessImpl() {
         stopped = true
-        log("❌ Process stopped by user")
+        log("Process stopped by user \n")
         fileOperations.forEach {
             it.onCancel()
         }
         fileOperations.clear()
-        console.terminalWidget.close()
+        //todo
+        //console.terminalWidget.close()
         coroutineScope.cancel()
         synchronized(activeHandlers) {
             activeHandlers.forEach { it.destroyProcess() }
             activeHandlers.clear()
         }
-        notifyProcessTerminated(1)
         super.destroyProcessImpl()
     }
 
@@ -234,18 +242,18 @@ class RunTask(
         log.debug("detachProcessImpl")
         stopped = true
         detached = true
-        log("⚠️ Process detached by user")
+        log("\nProcess stopped by user")
         fileOperations.forEach {
             it.onCancel()
         }
         fileOperations.clear()
-        console.terminalWidget.close()
+            //todo
+       // console.terminalWidget.close()
         coroutineScope.cancel()
         synchronized(activeHandlers) {
             activeHandlers.forEach { it.destroyProcess() }
             activeHandlers.clear()
         }
-        notifyProcessDetached()
         super.detachProcessImpl()
     }
 
@@ -261,10 +269,10 @@ class RunTask(
     fun finish(cancelled: Boolean = false) {
         if (!stopped && !detached) {
             if (cancelled) {
-                log("⚠️ Task cancelled.")
-                notifyProcessTerminated(1)
+                log("Task cancelled.")
+                notifyProcessTerminated(130)
             } else {
-                log("✅ Task finished successfully")
+                log("Task finished successfully")
                 notifyProcessTerminated(0)
             }
         }

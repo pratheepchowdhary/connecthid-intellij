@@ -12,8 +12,10 @@ import com.intellij.openapi.ui.Messages
 import com.intellij.terminal.ui.TerminalWidget
 import com.intellij.util.execution.ParametersListUtil
 import com.intellij.util.io.BaseOutputReader
+import com.jediterm.core.util.TermSize
 import com.jediterm.terminal.ProcessTtyConnector
 import com.jediterm.terminal.TtyConnector
+import com.pty4j.unix.UnixPtyProcess
 import org.apache.commons.lang3.StringUtils
 import org.jetbrains.plugins.terminal.ProxyTtyConnector
 import org.jetbrains.plugins.terminal.TerminalToolWindowManager
@@ -126,13 +128,13 @@ object TerminalExecution {
         }
     }
 
-    fun runInConsole(task: TaskModel,server: Server?): ProcessHandler {
+    fun runInConsole(termSize: TermSize, task: TaskModel, server: Server?): ProcessHandler {
         val command = task.buildCommand()
         if (server == null) {
             val processHandler = createProcessHandler(command)
             return processHandler
         } else{
-            return SshProcessHandler(server,task.executeInTerminal).also {
+            return SshProcessHandler(termSize,server,task.executeInTerminal).also {
                 it.commandDelayMs = 10
                 it.generalCommandLine = command
             }
@@ -142,10 +144,87 @@ object TerminalExecution {
     private fun createProcessHandler(commandLine: GeneralCommandLine): ProcessHandler {
         return object : KillableProcessHandler(commandLine) {
             override fun readerOptions(): BaseOutputReader.Options {
+                val te : UnixPtyProcess
                 return BaseOutputReader.Options.forTerminalPtyProcess()
             }
         }
     }
+
+    fun buildInterpreterCommand(task: TaskModel): String {
+        val interp = task.interpreterPath.lowercase()
+        val file = task.scriptFile
+        val opts = task.scriptOptions
+        val interpOpts = task.interpreterOptions
+
+        // Escape Windows paths
+        fun esc(path: String) = path.replace("\\", "\\\\")
+
+        return when {
+            // -------------------------
+            // UNIX-LIKE SHELLS (Mac/Linux or Git-Bash on Windows)
+            // -------------------------
+            interp.endsWith("bash") ||
+                    interp.endsWith("zsh") ||
+                    interp.endsWith("sh") ||
+                    interp.endsWith("fish") -> {
+                // Source = run in the same session
+                ". \"${file}\" ${opts}"
+            }
+
+            // -------------------------
+            // POWERSHELL (powershell.exe, pwsh.exe)
+            // -------------------------
+            interp.endsWith("powershell.exe") ||
+                    interp.endsWith("pwsh.exe") ||
+                    interp.endsWith("powershell") ||
+                    interp.endsWith("pwsh") -> {
+                // Dot-source equivalent of 'source'
+                ". \"${esc(file)}\" ${opts}"
+            }
+
+            // -------------------------
+            // CMD (cmd.exe)
+            // -------------------------
+            interp.endsWith("cmd.exe") ||
+                    interp.endsWith("cmd") -> {
+                // Equivalent of sourcing
+                "call \"${esc(file)}\" ${opts}"
+            }
+
+            // -------------------------
+            // PYTHON
+            // -------------------------
+            interp.endsWith("python") ||
+                    interp.endsWith("python3") ||
+                    interp.endsWith("python.exe") -> {
+                "\"${task.interpreterPath}\" ${interpOpts} \"${file}\" ${opts}"
+            }
+
+            // -------------------------
+            // NODE
+            // -------------------------
+            interp.endsWith("node") ||
+                    interp.endsWith("node.exe") -> {
+                "\"${task.interpreterPath}\" ${interpOpts} \"${file}\" ${opts}"
+            }
+
+            // -------------------------
+            // RUBY
+            // -------------------------
+            interp.endsWith("ruby") ||
+                    interp.endsWith("ruby.exe") -> {
+                "\"${task.interpreterPath}\" ${interpOpts} \"${file}\" ${opts}"
+            }
+
+            // -------------------------
+            // DEFAULT (any custom interpreter)
+            // -------------------------
+            else -> {
+                "\"${task.interpreterPath}\" ${interpOpts} \"${file}\" ${opts}"
+            }
+        }
+    }
+
 
 
 
@@ -173,7 +252,6 @@ fun TaskModel.buildCommand():GeneralCommandLine{
         commandLine.addParameters("-c")
         commandLine.addParameters(scriptText)
     }
-
     return commandLine
 }
 
