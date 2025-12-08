@@ -144,7 +144,6 @@ object TerminalExecution {
     private fun createProcessHandler(commandLine: GeneralCommandLine): ProcessHandler {
         return object : KillableProcessHandler(commandLine) {
             override fun readerOptions(): BaseOutputReader.Options {
-                val te : UnixPtyProcess
                 return BaseOutputReader.Options.forTerminalPtyProcess()
             }
         }
@@ -239,18 +238,19 @@ fun TaskModel.buildCommand():GeneralCommandLine{
         .withParentEnvironmentType(GeneralCommandLine.ParentEnvironmentType.CONSOLE)
         .withWorkingDirectory(Path.of(workingDir))
         .withExePath(interpreterPath)
-
     if (interpreterOptions.isNotEmpty()) {
         commandLine.addParameters(ParametersListUtil.parse(interpreterOptions))
     }
-    if (scriptFile.isNotEmpty()) {
-        if (scriptOptions.isNotEmpty()) {
-            commandLine.addParameters(ParametersListUtil.parse(scriptOptions))
+    if (!executeInTerminal) {
+        if (scriptFile.isNotEmpty()) {
+            if (scriptOptions.isNotEmpty()) {
+                commandLine.addParameters(ParametersListUtil.parse(scriptOptions))
+            }
+            commandLine.addParameter(scriptFile)
+        } else {
+            commandLine.addParameters("-c")
+            commandLine.addParameters(scriptText)
         }
-        commandLine.addParameter(scriptFile)
-    } else {
-        commandLine.addParameters("-c")
-        commandLine.addParameters(scriptText)
     }
     return commandLine
 }
