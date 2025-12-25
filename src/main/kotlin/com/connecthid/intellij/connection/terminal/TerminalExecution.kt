@@ -135,7 +135,6 @@ object TerminalExecution {
             return processHandler
         } else{
             return SshProcessHandler(server,task.executeInTerminal).also {
-                it.commandDelayMs = 10
                 it.generalCommandLine = command
             }
         }

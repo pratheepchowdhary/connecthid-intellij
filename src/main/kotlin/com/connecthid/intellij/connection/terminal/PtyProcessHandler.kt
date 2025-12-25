@@ -1,34 +1,21 @@
 package com.connecthid.intellij.connection.terminal
 
-import com.intellij.execution.process.ProcessHandler
-import com.intellij.execution.process.ProcessOutputTypes
 import com.pty4j.PtyProcess
 import com.pty4j.PtyProcessBuilder
-import kotlinx.coroutines.*
-import kotlinx.io.IOException
-import java.io.PipedInputStream
-import java.io.PipedOutputStream
+import java.io.InputStream
+import java.io.OutputStream
 import java.nio.charset.StandardCharsets
-import kotlin.time.Duration.Companion.milliseconds
 
 class PtyProcessHandler(
     private val command: List<String>,
     private val workingDir: String,
     private val env: Map<String, String>
-) : ProcessHandler() {
+) : CProcessHandler() {
 
     private lateinit var pty: PtyProcess
     lateinit var connector: LocalPtyConnector
 
-    private val stdinPipe = PipedOutputStream()
-    private lateinit var stdinInput: PipedInputStream
-
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val finished = CompletableDeferred<Unit>()
-
     override fun startNotify() {
-        super.startNotify()
-
         pty = PtyProcessBuilder()
             .setCommand(command.toTypedArray())
             .setDirectory(workingDir)
@@ -36,65 +23,27 @@ class PtyProcessHandler(
             .start()
 
         connector = LocalPtyConnector(pty)
-        stdinInput = PipedInputStream(stdinPipe)
-
-        setupForwarding()
+        super.startNotify()
     }
 
-    override fun getProcessInput() = stdinPipe
+    override fun getProcessOutputStream(): OutputStream = pty.outputStream
+    override fun getProcessInputStream(): InputStream = pty.inputStream
+    override fun isConnected(): Boolean = pty.isAlive
 
-    override fun destroyProcessImpl() {
-        scope.cancel()
+    override fun disconnect() {
         runCatching { pty.destroy() }
-        notifyProcessTerminated(0)
     }
 
-    override fun detachProcessImpl() {
-        destroyProcessImpl()
-        notifyProcessDetached()
+    override fun executeCommand(command: String): Int {
+        return try {
+            val cmd = if (command.endsWith("\n")) command else "$command\n"
+            pty.outputStream.write(cmd.toByteArray(StandardCharsets.UTF_8))
+            pty.outputStream.flush()
+            0
+        } catch (e: Exception) {
+            -1
+        }
     }
 
-    override fun detachIsDefault(): Boolean = false
     override fun isProcessTerminated(): Boolean = !pty.isAlive
-
-    private fun setupForwarding() {
-        val outputJob = scope.launch {
-            val input = pty.inputStream
-            val buffer = ByteArray(4096)
-            try {
-                while (isActive && pty.isAlive) {
-                    val read = withTimeout(20.milliseconds) {
-                        input.read(buffer)
-                    }
-                    if (read <= 0) break
-                    notifyTextAvailable(
-                        String(buffer, 0, read, StandardCharsets.UTF_8),
-                        ProcessOutputTypes.STDOUT
-                    )
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: IOException) {
-            }
-        }
-
-        val inputJob = scope.launch {
-            val buffer = ByteArray(1024)
-            try {
-                while (isActive && pty.isAlive) {
-                    val read = stdinInput.read(buffer)
-                    if (read <= 0) break
-                    pty.outputStream.write(buffer, 0, read)
-                    pty.outputStream.flush()
-                }
-            } catch (_: Exception) {}
-        }
-
-        scope.launch {
-            outputJob.join()
-            inputJob.join()
-            if (!finished.isCompleted)
-                finished.complete(Unit)
-        }
-    }
 }
