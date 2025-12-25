@@ -7,8 +7,10 @@ import com.connecthid.sshjpool.SSHConnection
 import com.jediterm.core.util.TermSize
 import com.jediterm.terminal.TtyConnector
 import net.schmizz.sshj.connection.channel.direct.Session
+import net.schmizz.sshj.connection.channel.direct.SessionChannel
 import java.io.InputStream
 import java.io.OutputStream
+import java.util.Collections
 
 
 open class SshTtyConnector(
@@ -125,6 +127,9 @@ open class SshTtyConnector(
     override fun resize(termSize: TermSize) {
         println("Resizing terminal: ${termSize.columns} cols, ${termSize.rows} rows")
         shell?.changeWindowDimensions(termSize.columns, termSize.rows, 800, 600)
+        if(shell == null && connectionPool!!.second is SessionChannel){
+            (connectionPool!!.second as SessionChannel).changeWindowDimensions(termSize.columns, termSize.rows, 800, 600)
+        }
     }
     fun sendCommand(command: String) : Pair<Int, String>{
         if (isConnected()) {

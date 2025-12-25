@@ -12,10 +12,10 @@ import com.intellij.openapi.ui.Messages
 import com.intellij.terminal.ui.TerminalWidget
 import com.intellij.util.execution.ParametersListUtil
 import com.intellij.util.io.BaseOutputReader
-import com.jediterm.core.util.TermSize
 import com.jediterm.terminal.ProcessTtyConnector
 import com.jediterm.terminal.TtyConnector
-import com.pty4j.unix.UnixPtyProcess
+import com.pty4j.PtyProcess
+import com.pty4j.PtyProcessBuilder
 import org.apache.commons.lang3.StringUtils
 import org.jetbrains.plugins.terminal.ProxyTtyConnector
 import org.jetbrains.plugins.terminal.TerminalToolWindowManager
@@ -128,98 +128,97 @@ object TerminalExecution {
         }
     }
 
-    fun runInConsole(termSize: TermSize, task: TaskModel, server: Server?): ProcessHandler {
+    fun runInConsole(task: TaskModel, server: Server?): ProcessHandler {
         val command = task.buildCommand()
         if (server == null) {
-            val processHandler = createProcessHandler(command)
+            val processHandler = createProcessHandler(command,task.executeInTerminal)
             return processHandler
         } else{
-            return SshProcessHandler(termSize,server,task.executeInTerminal).also {
+            return SshProcessHandler(server,task.executeInTerminal).also {
                 it.commandDelayMs = 10
                 it.generalCommandLine = command
             }
         }
     }
 
-    private fun createProcessHandler(commandLine: GeneralCommandLine): ProcessHandler {
-        return object : KillableProcessHandler(commandLine) {
-            override fun readerOptions(): BaseOutputReader.Options {
-                return BaseOutputReader.Options.forTerminalPtyProcess()
+    private fun createProcessHandler(commandLine: GeneralCommandLine, executeInTerminal: Boolean): ProcessHandler {
+        if (!executeInTerminal) {
+            return object : KillableProcessHandler(commandLine) {
+                override fun readerOptions(): BaseOutputReader.Options {
+                    return BaseOutputReader.Options.forTerminalPtyProcess()
+                }
             }
         }
+
+        val cmd = commandLine.commandLineString.split(" ").toList()
+        val env = commandLine.environment+ mapOf(
+            "TERM" to "xterm-256color",
+            "LANG" to "en_US.UTF-8"
+        )
+        val workingDir = commandLine.workDirectory?.absolutePath?:""
+        return PtyProcessHandler(cmd,workingDir,env)
     }
+
+
 
     fun buildInterpreterCommand(task: TaskModel): String {
         val interp = task.interpreterPath.lowercase()
         val file = task.scriptFile
+        val text = task.scriptText
         val opts = task.scriptOptions
         val interpOpts = task.interpreterOptions
 
         // Escape Windows paths
         fun esc(path: String) = path.replace("\\", "\\\\")
 
+        // --------------------------------------
+        // If script TEXT is provided
+        // --------------------------------------
+        if (text.isNotBlank()) {
+            return text.trim()
+        }
+
+        // --------------------------------------
+        // FALLBACK: Original behaviour → when script FILE is provided
+        // --------------------------------------
         return when {
-            // -------------------------
-            // UNIX-LIKE SHELLS (Mac/Linux or Git-Bash on Windows)
-            // -------------------------
             interp.endsWith("bash") ||
                     interp.endsWith("zsh") ||
                     interp.endsWith("sh") ||
                     interp.endsWith("fish") -> {
-                // Source = run in the same session
-                ". \"${file}\" ${opts}"
+                ". \"${file}\" $opts"
             }
 
-            // -------------------------
-            // POWERSHELL (powershell.exe, pwsh.exe)
-            // -------------------------
             interp.endsWith("powershell.exe") ||
                     interp.endsWith("pwsh.exe") ||
                     interp.endsWith("powershell") ||
                     interp.endsWith("pwsh") -> {
-                // Dot-source equivalent of 'source'
-                ". \"${esc(file)}\" ${opts}"
+                ". \"${esc(file)}\" $opts"
             }
 
-            // -------------------------
-            // CMD (cmd.exe)
-            // -------------------------
             interp.endsWith("cmd.exe") ||
                     interp.endsWith("cmd") -> {
-                // Equivalent of sourcing
-                "call \"${esc(file)}\" ${opts}"
+                "call \"${esc(file)}\" $opts"
             }
 
-            // -------------------------
-            // PYTHON
-            // -------------------------
             interp.endsWith("python") ||
                     interp.endsWith("python3") ||
                     interp.endsWith("python.exe") -> {
-                "\"${task.interpreterPath}\" ${interpOpts} \"${file}\" ${opts}"
+                "\"${task.interpreterPath}\" $interpOpts \"${file}\" $opts"
             }
 
-            // -------------------------
-            // NODE
-            // -------------------------
             interp.endsWith("node") ||
                     interp.endsWith("node.exe") -> {
-                "\"${task.interpreterPath}\" ${interpOpts} \"${file}\" ${opts}"
+                "\"${task.interpreterPath}\" $interpOpts \"${file}\" $opts"
             }
 
-            // -------------------------
-            // RUBY
-            // -------------------------
             interp.endsWith("ruby") ||
                     interp.endsWith("ruby.exe") -> {
-                "\"${task.interpreterPath}\" ${interpOpts} \"${file}\" ${opts}"
+                "\"${task.interpreterPath}\" $interpOpts \"${file}\" $opts"
             }
 
-            // -------------------------
-            // DEFAULT (any custom interpreter)
-            // -------------------------
             else -> {
-                "\"${task.interpreterPath}\" ${interpOpts} \"${file}\" ${opts}"
+                "\"${task.interpreterPath}\" $interpOpts \"${file}\" $opts"
             }
         }
     }
@@ -227,9 +226,10 @@ object TerminalExecution {
 
 
 
+
 }
 
-fun TaskModel.buildCommand():GeneralCommandLine{
+fun TaskModel.buildCommand(): GeneralCommandLine{
     val commandLine = PtyCommandLine()
         .withConsoleMode(executeInTerminal)
         .withInitialColumns(160)
@@ -241,7 +241,12 @@ fun TaskModel.buildCommand():GeneralCommandLine{
     if (interpreterOptions.isNotEmpty()) {
         commandLine.addParameters(ParametersListUtil.parse(interpreterOptions))
     }
-    if (!executeInTerminal) {
+    if(scriptFile.isEmpty() && scriptText.isNotEmpty() && executeInTerminal){
+        commandLine.addParameters("-i")
+    }
+    if (isLocal && executeInTerminal && scriptFile.isEmpty()) {
+
+    } else {
         if (scriptFile.isNotEmpty()) {
             if (scriptOptions.isNotEmpty()) {
                 commandLine.addParameters(ParametersListUtil.parse(scriptOptions))

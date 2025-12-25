@@ -34,7 +34,6 @@ import kotlin.time.Duration.Companion.milliseconds
  * @property server The target server configuration.
  */
  class SshProcessHandler(
-    termSize: TermSize,
     val server: Server,
     val interactive: Boolean = true
 ) : ProcessHandler() {
@@ -68,7 +67,6 @@ import kotlin.time.Duration.Companion.milliseconds
     init {
         LOG.debug("SSH channel connected for ${server.host}")
         sshTtyConnector = SshTtyConnector(server, interactive = interactive)
-        sshTtyConnector.resize(termSize)
     }
 
     /**
@@ -82,6 +80,9 @@ import kotlin.time.Duration.Companion.milliseconds
         val RED = "\u001B[31m"
         return try {
             LOG.debug("Executing command '$command'")
+            if(!interactive){
+                notifyTextAvailable("$command\r\n", ProcessOutputTypes.STDOUT)
+            }
             val (exitCode,errorMessage) = sshTtyConnector.sendCommand(command)
             exitStatus = exitCode
             exitMessage = errorMessage

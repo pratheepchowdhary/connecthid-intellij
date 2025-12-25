@@ -26,5 +26,6 @@ data class TaskModel(
     @Attribute var downloadFiles: String = "",
     @Attribute var uploadFiles: String = "",
     @Attribute var createTimeStamp: Long = 0L,
-    @Attribute var updatedTimeStamp: Long = 0L
+    @Attribute var updatedTimeStamp: Long = 0L,
+    @Attribute var isLocal: Boolean = true
 )

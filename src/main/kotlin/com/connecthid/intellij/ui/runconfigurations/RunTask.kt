@@ -3,6 +3,8 @@ package com.connecthid.intellij.ui.runconfigurations
 
 import com.connecthid.intellij.connection.sftp.downloadSftpFiles
 import com.connecthid.intellij.connection.sftp.uploadSftpFiles
+import com.connecthid.intellij.connection.terminal.PtyProcessHandler
+import com.connecthid.intellij.connection.terminal.SshProcessHandler
 import com.connecthid.intellij.connection.terminal.TerminalExecution
 import com.connecthid.intellij.getSSHService
 import com.connecthid.intellij.models.TaskModel
@@ -189,17 +191,16 @@ class RunTask(
      * Build and execute local command line.
      */
     private suspend fun startTask(task: TaskModel) : Int{
-        log("----- ${task.scriptName} task started ----")
-        val termSize = console.terminalWidget.terminal.size
-        val processHandler = TerminalExecution.runInConsole(termSize,task,(if(task.server.equals("localhost", ignoreCase = true)) null else service.getServer(task.server)))
-        console.attachToProcess(processHandler)
+        //log("----- ${task.scriptName} task started ----")
+        val processHandler = TerminalExecution.runInConsole(task,(if(task.server.equals("localhost", ignoreCase = true)) null else service.getServer(task.server)))
+        processHandler.startNotify()
+        if(processHandler is SshProcessHandler){
+            console.attachToProcess(processHandler,processHandler.sshTtyConnector,true)
+        }else if(processHandler is PtyProcessHandler){
+            console.attachToProcess(processHandler,processHandler.connector,true)
+        }
         synchronized(activeHandlers) {
             activeHandlers.add(processHandler)
-        }
-        processHandler.startNotify()
-
-        if(processHandler is KillableProcessHandler && taskModel.executeInTerminal){
-            console.terminalWidget.ttyConnector.write("${TerminalExecution.buildInterpreterCommand(taskModel)} \n")
         }
 
         while (!processHandler.isProcessTerminated) {
@@ -210,11 +211,11 @@ class RunTask(
             activeHandlers.remove(processHandler)
         }
         val resultCode = processHandler.exitCode?:-1
-        if(resultCode == 0){
-            log("----- ${task.scriptName} task completed ----")
-        } else {
-            log("${task.scriptName} task failed", ConsoleViewContentType.LOG_ERROR_OUTPUT)
-        }
+//        if(resultCode == 0){
+//            log("---------------")
+//        } else {
+//            log("${task.scriptName} task failed", ConsoleViewContentType.LOG_ERROR_OUTPUT)
+//        }
         return resultCode
     }
 
@@ -272,7 +273,7 @@ class RunTask(
                 log("Task cancelled.")
                 notifyProcessTerminated(130)
             } else {
-                log("Task finished successfully")
+                //log("Task finished successfully")
                 notifyProcessTerminated(0)
             }
         }

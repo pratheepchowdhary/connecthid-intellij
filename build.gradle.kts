@@ -27,6 +27,7 @@ dependencies {
     implementation("org.apache.commons:commons-pool2:2.12.1")
     implementation("org.slf4j:slf4j-api:2.0.12")
     implementation("ch.qos.logback:logback-classic:1.4.14")
+    //implementation("com.hierynomus:sshj:0.40.0")
 
     intellijPlatform {
         intellijIdeaCommunity("2025.1")

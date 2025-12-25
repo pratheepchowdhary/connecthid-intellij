@@ -309,6 +309,7 @@ class TaskForm(private val project: Project, private val taskType: RunConfigurat
         if(task.createTimeStamp == 0L){
             task.createTimeStamp = task.updatedTimeStamp
         }
+        task.isLocal = localhost.equals(downloadFiles!!.host)
     }
     fun save(){
         setData()

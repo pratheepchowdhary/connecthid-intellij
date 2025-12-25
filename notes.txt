@@ -1,0 +1,1 @@
+this the requirement command should build in such a way that can be execute in any os
