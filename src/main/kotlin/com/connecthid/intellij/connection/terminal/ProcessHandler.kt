@@ -12,7 +12,7 @@ import java.nio.charset.StandardCharsets
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.time.Duration.Companion.milliseconds
 
-abstract class CProcessHandler: ProcessHandler() {
+abstract class ProcessHandler: ProcessHandler() {
 
     protected val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val processStdin: PipedOutputStream = PipedOutputStream()

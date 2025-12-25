@@ -16,7 +16,7 @@ import java.io.OutputStream
  class SshProcessHandler(
     val server: Server,
     val interactive: Boolean = true
-) : CProcessHandler() {
+) : ProcessHandler() {
 
     private companion object {
         private val LOG = Logger.getInstance(SshProcessHandler::class.java)

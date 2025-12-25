@@ -10,7 +10,6 @@ import com.connecthid.intellij.getSSHService
 import com.connecthid.intellij.models.TaskModel
 import com.connecthid.intellij.utils.*
 import com.intellij.execution.configurations.GeneralCommandLine
-import com.intellij.execution.process.KillableProcessHandler
 import com.intellij.execution.process.OSProcessHandler
 import com.intellij.execution.process.ProcessHandler
 import com.intellij.execution.process.ProcessOutputTypes

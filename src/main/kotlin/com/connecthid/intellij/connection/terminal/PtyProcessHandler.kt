@@ -10,7 +10,7 @@ class PtyProcessHandler(
     private val command: List<String>,
     private val workingDir: String,
     private val env: Map<String, String>
-) : CProcessHandler() {
+) : ProcessHandler() {
 
     private lateinit var pty: PtyProcess
     lateinit var connector: LocalPtyConnector

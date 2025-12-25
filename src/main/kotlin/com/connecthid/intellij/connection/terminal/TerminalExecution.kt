@@ -14,8 +14,6 @@ import com.intellij.util.execution.ParametersListUtil
 import com.intellij.util.io.BaseOutputReader
 import com.jediterm.terminal.ProcessTtyConnector
 import com.jediterm.terminal.TtyConnector
-import com.pty4j.PtyProcess
-import com.pty4j.PtyProcessBuilder
 import org.apache.commons.lang3.StringUtils
 import org.jetbrains.plugins.terminal.ProxyTtyConnector
 import org.jetbrains.plugins.terminal.TerminalToolWindowManager
