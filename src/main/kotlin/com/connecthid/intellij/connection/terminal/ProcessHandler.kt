@@ -2,6 +2,7 @@ package com.connecthid.intellij.connection.terminal
 
 import com.intellij.execution.process.ProcessHandler
 import com.intellij.execution.process.ProcessOutputTypes
+import com.jediterm.terminal.TtyConnector
 import kotlinx.coroutines.*
 import java.io.IOException
 import java.io.InputStream
@@ -15,6 +16,7 @@ import kotlin.time.Duration.Companion.milliseconds
 abstract class ProcessHandler: ProcessHandler() {
 
     protected val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    lateinit var connector: TtyConnector
     private val processStdin: PipedOutputStream = PipedOutputStream()
     protected lateinit var shellInput: PipedInputStream
 
@@ -23,9 +25,15 @@ abstract class ProcessHandler: ProcessHandler() {
 
     abstract fun getProcessOutputStream(): OutputStream
     abstract fun getProcessInputStream(): InputStream
-    abstract fun isConnected(): Boolean
-    abstract fun disconnect()
     abstract fun executeCommand(command: String): Int
+
+    open fun isConnected(): Boolean = if (::connector.isInitialized) connector.isConnected else false
+
+    open fun disconnect() {
+        if (::connector.isInitialized) {
+            runCatching { connector.close() }
+        }
+    }
 
     override fun getProcessInput(): OutputStream = processStdin
 
@@ -45,10 +53,10 @@ abstract class ProcessHandler: ProcessHandler() {
     private fun setupForwarding() {
         val outputJob = scope.launch {
             val buffer = ByteArray(8192)
-            val stream = getProcessInputStream()
             try {
                 while (isConnected() && isActive) {
                     ensureActive()
+                    val stream = getProcessInputStream()
                     val n = stream.read(buffer)
                     if (n < 0) break
                     if (n > 0) {
@@ -62,10 +70,10 @@ abstract class ProcessHandler: ProcessHandler() {
 
         val inputJob = scope.launch {
             val buffer = ByteArray(1024)
-            val remoteOut = getProcessOutputStream()
             try {
                 while (inputForwardingActive.get() && isActive) {
                     ensureActive()
+                    val remoteOut = getProcessOutputStream()
                     val n = shellInput.read(buffer)
                     if (n < 0) break
                     if (n > 0) {
@@ -87,6 +95,11 @@ abstract class ProcessHandler: ProcessHandler() {
 
     override fun destroyProcessImpl() {
         inputForwardingActive.set(false)
+        
+        // Close streams FIRST to unblock the read() calls in the coroutines
+        runCatching { processStdin.close() }
+        disconnect()
+        
         scope.cancel()
         try {
             runBlocking {
@@ -99,8 +112,6 @@ abstract class ProcessHandler: ProcessHandler() {
         }
 
         notifyProcessDetached()
-        runCatching { processStdin.close() }
-        disconnect()
         notifyProcessTerminated(0)
     }
 

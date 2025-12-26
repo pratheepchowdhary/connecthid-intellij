@@ -22,28 +22,17 @@ import java.io.OutputStream
         private val LOG = Logger.getInstance(SshProcessHandler::class.java)
     }
 
-    val sshTtyConnector: SshTtyConnector
-    var generalCommandLine: GeneralCommandLine? = null
+
     var exitStatus = 0
 
     init {
         LOG.debug("SSH channel connected for ${server.host}")
-        sshTtyConnector = SshTtyConnector(server, interactive = interactive)
+        connector = SshTtyConnector(server, interactive = interactive)
     }
 
-    override fun getProcessOutputStream(): OutputStream = sshTtyConnector.outputStream
-    override fun getProcessInputStream(): InputStream = sshTtyConnector.inputStream
-    override fun isConnected(): Boolean = sshTtyConnector.isConnected
-
-    override fun disconnect() {
-        runCatching { sshTtyConnector.close() }.onFailure { LOG.warn("Cleanup error", it) }
-    }
-
-    override fun onStart() {
-        generalCommandLine?.let {
-            executeCommand(it.commandLineString)
-        }
-    }
+    private val sshConnector: SshTtyConnector get() = connector as SshTtyConnector
+    override fun getProcessOutputStream(): OutputStream = sshConnector.outputStream
+    override fun getProcessInputStream(): InputStream = sshConnector.inputStream
 
     override fun executeCommand(command: String): Int {
         var exitMessage = ""
@@ -53,7 +42,7 @@ import java.io.OutputStream
             if(!interactive){
                 notifyTextAvailable("$command\r\n", ProcessOutputTypes.STDOUT)
             }
-            val (exitCode,errorMessage) = sshTtyConnector.sendCommand(command)
+            val (exitCode,errorMessage) = sshConnector.sendCommand(command)
             exitStatus = exitCode
             exitMessage = errorMessage
             LOG.debug("Command '$command' completed with exit status: $exitStatus")

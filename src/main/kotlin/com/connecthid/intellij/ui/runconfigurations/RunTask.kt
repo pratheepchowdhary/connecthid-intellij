@@ -3,8 +3,6 @@ package com.connecthid.intellij.ui.runconfigurations
 
 import com.connecthid.intellij.connection.sftp.downloadSftpFiles
 import com.connecthid.intellij.connection.sftp.uploadSftpFiles
-import com.connecthid.intellij.connection.terminal.PtyProcessHandler
-import com.connecthid.intellij.connection.terminal.SshProcessHandler
 import com.connecthid.intellij.connection.terminal.TerminalExecution
 import com.connecthid.intellij.getSSHService
 import com.connecthid.intellij.models.TaskModel
@@ -191,13 +189,21 @@ class RunTask(
      */
     private suspend fun startTask(task: TaskModel) : Int{
         //log("----- ${task.scriptName} task started ----")
-        val processHandler = TerminalExecution.runInConsole(task,(if(task.server.equals("localhost", ignoreCase = true)) null else service.getServer(task.server)))
-        processHandler.startNotify()
-        if(processHandler is SshProcessHandler){
-            console.attachToProcess(processHandler,processHandler.sshTtyConnector,true)
-        }else if(processHandler is PtyProcessHandler){
-            console.attachToProcess(processHandler,processHandler.connector,true)
+        val (processHandler, command) = TerminalExecution.runInConsole(
+            task,
+            (if (task.server.equals("localhost", ignoreCase = true)) null else service.getServer(task.server))
+        )
+        if (processHandler is com.connecthid.intellij.connection.terminal.ProcessHandler) {
+            console.attachToProcess(processHandler, processHandler.connector, true)
+            if (taskModel.executeInTerminal || !taskModel.isLocal) {
+                val command = if(!taskModel.isLocal && !taskModel.executeInTerminal) command.commandLineString else TerminalExecution.buildInterpreterCommand(taskModel)
+                processHandler.executeCommand(command)
+            }
+        } else {
+            console.attachToProcess(processHandler)
         }
+
+        processHandler.startNotify()
         synchronized(activeHandlers) {
             activeHandlers.add(processHandler)
         }

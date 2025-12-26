@@ -126,15 +126,12 @@ object TerminalExecution {
         }
     }
 
-    fun runInConsole(task: TaskModel, server: Server?): ProcessHandler {
+    fun runInConsole(task: TaskModel, server: Server?): Pair<ProcessHandler, GeneralCommandLine> {
         val command = task.buildCommand()
         if (server == null) {
-            val processHandler = createProcessHandler(command,task.executeInTerminal)
-            return processHandler
+            return Pair(createProcessHandler(command,task.executeInTerminal),command)
         } else{
-            return SshProcessHandler(server,task.executeInTerminal).also {
-                it.generalCommandLine = command
-            }
+            return Pair(SshProcessHandler(server,task.executeInTerminal),command)
         }
     }
 

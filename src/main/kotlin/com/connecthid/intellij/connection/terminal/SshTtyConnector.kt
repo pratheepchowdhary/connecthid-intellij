@@ -100,9 +100,16 @@ open class SshTtyConnector(
     }
 
     override fun resize(termSize: TermSize) {
-        shell?.changeWindowDimensions(termSize.columns, termSize.rows, 800, 600)
-        if(shell == null && connectionPool!!.second is SessionChannel){
-            (connectionPool!!.second as SessionChannel).changeWindowDimensions(termSize.columns, termSize.rows, 800, 600)
+        if (isConnected) {
+            shell?.changeWindowDimensions(termSize.columns, termSize.rows, 800, 600)
+            if (shell == null && connectionPool!!.second is SessionChannel) {
+                (connectionPool!!.second as SessionChannel).changeWindowDimensions(
+                    termSize.columns,
+                    termSize.rows,
+                    800,
+                    600
+                )
+            }
         }
     }
     fun sendCommand(command: String) : Pair<Int, String>{

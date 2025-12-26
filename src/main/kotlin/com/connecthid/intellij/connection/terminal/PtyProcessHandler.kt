@@ -4,18 +4,16 @@ import com.pty4j.PtyProcess
 import com.pty4j.PtyProcessBuilder
 import java.io.InputStream
 import java.io.OutputStream
-import java.nio.charset.StandardCharsets
 
 class PtyProcessHandler(
-    private val command: List<String>,
-    private val workingDir: String,
-    private val env: Map<String, String>
+    command: List<String>,
+    workingDir: String,
+    env: Map<String, String>
 ) : ProcessHandler() {
 
-    private lateinit var pty: PtyProcess
-    lateinit var connector: LocalPtyConnector
+    private var pty: PtyProcess
 
-    override fun startNotify() {
+    init {
         pty = PtyProcessBuilder()
             .setCommand(command.toTypedArray())
             .setDirectory(workingDir)
@@ -23,23 +21,19 @@ class PtyProcessHandler(
             .start()
 
         connector = LocalPtyConnector(pty)
-        super.startNotify()
     }
-
     override fun getProcessOutputStream(): OutputStream = pty.outputStream
     override fun getProcessInputStream(): InputStream = pty.inputStream
-    override fun isConnected(): Boolean = pty.isAlive
-
-    override fun disconnect() {
-        runCatching { pty.destroy() }
-    }
 
     override fun executeCommand(command: String): Int {
         return try {
             val cmd = if (command.endsWith("\n")) command else "$command\n"
-            pty.outputStream.write(cmd.toByteArray(StandardCharsets.UTF_8))
-            pty.outputStream.flush()
-            0
+            if (connector.isConnected) {
+                connector.write(cmd)
+                0
+            } else {
+                -1
+            }
         } catch (e: Exception) {
             -1
         }
