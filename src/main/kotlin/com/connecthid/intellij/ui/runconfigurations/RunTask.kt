@@ -193,6 +193,7 @@ class RunTask(
             task,
             (if (task.server.equals("localhost", ignoreCase = true)) null else service.getServer(task.server))
         )
+        processHandler.startNotify()
         if (processHandler is com.connecthid.intellij.connection.terminal.ProcessHandler) {
             console.attachToProcess(processHandler, processHandler.connector, true)
             if (taskModel.executeInTerminal || !taskModel.isLocal) {
@@ -202,8 +203,6 @@ class RunTask(
         } else {
             console.attachToProcess(processHandler)
         }
-
-        processHandler.startNotify()
         synchronized(activeHandlers) {
             activeHandlers.add(processHandler)
         }
