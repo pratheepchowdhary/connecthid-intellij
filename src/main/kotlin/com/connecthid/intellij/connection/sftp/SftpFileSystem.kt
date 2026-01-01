@@ -14,9 +14,11 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileListener
 import com.intellij.openapi.vfs.VirtualFileSystem
 import net.schmizz.sshj.sftp.FileAttributes
+import net.schmizz.sshj.sftp.FileMode
 import net.schmizz.sshj.sftp.OpenMode
 import net.schmizz.sshj.sftp.SFTPClient
 import org.slf4j.LoggerFactory
+import java.io.File
 import java.io.IOException
 import java.util.*
 
@@ -284,4 +286,69 @@ fun Project.openFileInIDE(file: VirtualFile): Boolean {
 
     }
     return false
+}
+
+fun SFTPClient.mkdirIfNotExists(remoteDir: String) {
+    val path = if (remoteDir.endsWith("/")) remoteDir.dropLast(1) else remoteDir
+    val parts = path.split("/").filter { it.isNotEmpty() }
+
+    var current = ""
+    for (part in parts) {
+        current += "/$part"
+
+        try {
+            // Check if directory exists
+            val attrs = stat(current)
+            if (attrs.type != FileMode.Type.DIRECTORY) {
+                throw RuntimeException("Remote path exists but is not a directory: $current")
+            }
+        } catch (e: Exception) {
+            // Directory does not exist → create it
+            println("Creating remote directory: $current")
+            mkdir(current)
+        }
+    }
+}
+
+fun SFTPClient.updateMTime(remotePath: String, millis: Long) {
+    val seconds = (millis / 1000)
+
+    val attrs = FileAttributes.Builder()
+        .withAtimeMtime(seconds,seconds)
+        .build()
+
+    this.setattr(remotePath, attrs)
+}
+
+
+fun SFTPClient.uploadIfMTimeDifferent( localPath: String, remotePath: String) {
+    val localTime = getLocalMTime(localPath)
+    val remoteTime = getRemoteMTime(this, remotePath)
+    if (remoteTime == null) {
+        mkdirIfNotExists(remotePath)
+        println("Remote file missing → Uploading")
+        this.put(localPath, remotePath)
+        return
+    }
+    if (remoteTime != localTime) {
+        println("mtime differs → Uploading")
+        this.put(localPath, remotePath)
+        // Optional: update remote file mtime to match local
+        this.updateMTime(remotePath, localTime)
+    } else {
+        println("mtime is same → Skipping upload")
+    }
+}
+
+fun SFTPClient.getRemoteMTime(sftp: SFTPClient, remotePath: String): Long? {
+    return try {
+        val attrs = sftp.stat(remotePath)
+        attrs.mtime * 1000   // convert seconds → milliseconds
+    } catch (e: Exception) {
+        null // file does not exist
+    }
+}
+
+fun getLocalMTime(path: String): Long {
+    return File(path).lastModified()
 }

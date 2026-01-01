@@ -4,6 +4,7 @@ package com.connecthid.intellij.ui.runconfigurations
 import com.connecthid.intellij.connection.sftp.downloadSftpFiles
 import com.connecthid.intellij.connection.sftp.uploadSftpFiles
 import com.connecthid.intellij.connection.terminal.TerminalExecution
+import com.connecthid.intellij.connection.terminal.attachToProcessHandler
 import com.connecthid.intellij.getSSHService
 import com.connecthid.intellij.models.TaskModel
 import com.connecthid.intellij.utils.*
@@ -194,15 +195,7 @@ class RunTask(
             (if (task.server.equals("localhost", ignoreCase = true)) null else service.getServer(task.server))
         )
         processHandler.startNotify()
-        if (processHandler is com.connecthid.intellij.connection.terminal.ProcessHandler) {
-            console.attachToProcess(processHandler, processHandler.connector, true)
-            if (taskModel.executeInTerminal || !taskModel.isLocal) {
-                val command = if(!taskModel.isLocal && !taskModel.executeInTerminal) command.commandLineString else TerminalExecution.buildInterpreterCommand(taskModel)
-                processHandler.executeCommand(command)
-            }
-        } else {
-            console.attachToProcess(processHandler)
-        }
+        console.attachToProcessHandler(processHandler,taskModel,command)
         synchronized(activeHandlers) {
             activeHandlers.add(processHandler)
         }
@@ -283,3 +276,4 @@ class RunTask(
         }
     }
 }
+

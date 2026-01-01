@@ -1,5 +1,6 @@
 package com.connecthid.intellij.connection.terminal
 
+import com.connecthid.intellij.models.TaskModel
 import com.intellij.execution.process.ProcessHandler
 import com.intellij.execution.process.ProcessOutputTypes
 import com.jediterm.terminal.TtyConnector
@@ -25,7 +26,7 @@ abstract class ProcessHandler: ProcessHandler() {
 
     abstract fun getProcessOutputStream(): OutputStream
     abstract fun getProcessInputStream(): InputStream
-    abstract fun executeCommand(command: String): Int
+    abstract fun executeCommand(command: String, task: TaskModel): Int
 
     open fun isConnected(): Boolean = if (::connector.isInitialized) connector.isConnected else false
 

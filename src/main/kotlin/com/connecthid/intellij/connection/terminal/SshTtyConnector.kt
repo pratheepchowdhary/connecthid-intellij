@@ -26,7 +26,7 @@ open class SshTtyConnector(
     private var isRunning = false
     val service = getSSHService()
     private var connectionPool: Pair<SSHConnection, Session>? = null
-    private var connection: SSHJConnection? = null
+    var connection: SSHJConnection? = null
     private var shell: Session.Shell?=null
 
     init {

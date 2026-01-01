@@ -3,49 +3,26 @@ package com.connecthid.intellij.connection.terminal
 import com.connecthid.intellij.models.Server
 import com.connecthid.intellij.models.TaskModel
 import com.connecthid.intellij.utils.Utils.mapStringToEnvMap
+import com.connecthid.intellij.utils.Utils.parseSftpUrl
 import com.intellij.execution.configurations.GeneralCommandLine
 import com.intellij.execution.configurations.PtyCommandLine
 import com.intellij.execution.process.KillableProcessHandler
 import com.intellij.execution.process.ProcessHandler
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.ui.Messages
+import com.intellij.terminal.TerminalExecutionConsole
 import com.intellij.terminal.ui.TerminalWidget
 import com.intellij.util.execution.ParametersListUtil
 import com.intellij.util.io.BaseOutputReader
 import com.jediterm.terminal.ProcessTtyConnector
 import com.jediterm.terminal.TtyConnector
-import org.apache.commons.lang3.StringUtils
 import org.jetbrains.plugins.terminal.ProxyTtyConnector
 import org.jetbrains.plugins.terminal.TerminalToolWindowManager
-import org.jetbrains.plugins.terminal.TerminalUtil
 import java.nio.file.Path
 
 
 object TerminalExecution {
 
 
-    fun executeInTerminal(project: Project, command: String) {
-        executeInTerminal(project, command, null, null)
-    }
-
-
-    fun executeInTerminal(project: Project, command: String, workingDir: Path) {
-        executeInTerminal(project, command, workingDir, null)
-    }
-
-
-    fun executeInTerminal(project: Project, command: String, terminalTabTitle: String) {
-        executeInTerminal(project, command, null, terminalTabTitle)
-    }
-
-    
-    fun executeInTerminal(project: Project, command: String, workingDir: Path?, terminalTabTitle: String?) {
-        val terminalWidget = createTerminalWidget(project, workingDir, terminalTabTitle)
-        terminalWidget.ttyConnectorAccessor.executeWithTtyConnector {
-            terminalWidget.sendCommandToExecute(command)
-        }
-
-    }
     fun openSshSession(
         project: Project,
         server: Server,
@@ -56,65 +33,11 @@ object TerminalExecution {
         manager.createNewSession(runner)
     }
 
-    fun openSshSession1(
-        project: Project,
-        server: Server,
-        terminalTabTitle: String = "SSH: ${server.username}@${server.host}"
-    ) {
-        // Create terminal widget
-
-        try {
-            val connector = SshTtyConnector(server = server)
-            val terminalWidget = createTerminalWidget(project, null, terminalTabTitle)
-            terminalWidget.connectToTty(connector, terminalWidget.termSize!!)
-            terminalWidget.ttyConnectorAccessor.executeWithTtyConnector {
-                terminalWidget.sendCommandToExecute("ls")
-            }
-            terminalWidget.requestFocus()
-        } catch (e: Exception) {
-            Messages.showErrorDialog(
-                project,
-                "Failed to open SSH session: ${e.message}",
-                "SSH Connection Error"
-            )
-        }
-    }
-    
-    
-
     
     fun createTerminalWidget(project: Project, workingDir: Path?, terminalTabTitle: String?): TerminalWidget {
         val manager = TerminalToolWindowManager.getInstance(project)
         val workingDirectory = workingDir?.toString()
         return manager.createShellWidget(workingDirectory, terminalTabTitle, true, true)
-    }
-
-    fun createSshTerminalWidget(project: Project, workingDir: Path?, terminalTabTitle: String?): TerminalWidget {
-        val manager = TerminalToolWindowManager.getInstance(project)
-
-        val workingDirectory = workingDir?.toString()
-        manager.createNewSession()
-        return manager.createShellWidget(workingDirectory, terminalTabTitle, true, true)
-
-    }
-
-    
-    fun getOrCreateTerminalWidget(project: Project, workingDir: Path?, terminalTabTitle: String?): TerminalWidget {
-        val manager = TerminalToolWindowManager.getInstance(project)
-        val workingDirectory = workingDir?.toString()
-        return manager.terminalWidgets
-            .firstOrNull { widget ->
-                (terminalTabTitle.isNullOrBlank() || StringUtils.equals(widget.terminalTitle.buildTitle(), terminalTabTitle)) &&
-                        !hasRunningCommands(widget)
-            } ?: manager.createShellWidget(workingDirectory, terminalTabTitle, true, true)
-    }
-
-    
-    fun hasRunningCommands(widget: TerminalWidget): Boolean {
-        val connector = widget.ttyConnector ?: return false
-        val processTtyConnector = getProcessTtyConnector(connector)
-        return processTtyConnector?.let { TerminalUtil.hasRunningCommands(it) }
-            ?: throw IllegalStateException("Cannot determine if there are running processes for ${connector.javaClass}")
     }
 
     
@@ -127,7 +50,7 @@ object TerminalExecution {
     }
 
     fun runInConsole(task: TaskModel, server: Server?): Pair<ProcessHandler, GeneralCommandLine> {
-        val command = task.buildCommand()
+        val command = task.buildCommand(server?.systemInfo?.connectHidDir ?: "")
         if (server == null) {
             return Pair(createProcessHandler(command,task.executeInTerminal),command)
         } else{
@@ -143,7 +66,6 @@ object TerminalExecution {
                 }
             }
         }
-
         val cmd = commandLine.commandLineString.split(" ").toList()
         val env = commandLine.environment+ mapOf(
             "TERM" to "xterm-256color",
@@ -223,7 +145,7 @@ object TerminalExecution {
 
 }
 
-fun TaskModel.buildCommand(): GeneralCommandLine{
+fun TaskModel.buildCommand(path: String): GeneralCommandLine{
     val commandLine = PtyCommandLine()
         .withConsoleMode(executeInTerminal)
         .withInitialColumns(160)
@@ -235,24 +157,59 @@ fun TaskModel.buildCommand(): GeneralCommandLine{
     if (interpreterOptions.isNotEmpty()) {
         commandLine.addParameters(ParametersListUtil.parse(interpreterOptions))
     }
-    if(scriptFile.isEmpty() && scriptText.isNotEmpty() && executeInTerminal){
-        commandLine.addParameters("-i")
+    //local script text non interactive
+    if(isLocal&& !isScriptFile && !executeInTerminal){
+        commandLine.addParameters("-c")
+        commandLine.addParameters(scriptText)
+    }  else if (isLocal&&!executeInTerminal){
+        if(scriptOptions.isNotEmpty()){
+            commandLine.addParameters(ParametersListUtil.parse(scriptOptions))
+        }
+        commandLine.addParameters(scriptFile)
     }
-    if (isLocal && executeInTerminal && scriptFile.isEmpty()) {
 
-    } else {
-        if (scriptFile.isNotEmpty()) {
-            if (scriptOptions.isNotEmpty()) {
-                commandLine.addParameters(ParametersListUtil.parse(scriptOptions))
-            }
-            commandLine.addParameter(scriptFile)
+    // remote script
+    if(!isLocal && !isScriptFile){
+        commandLine.addParameters("-c")
+        commandLine.addParameters(scriptText)
+    }  else if (!isLocal){
+        if(scriptOptions.isNotEmpty()){
+            commandLine.addParameters(ParametersListUtil.parse(scriptOptions))
+        }
+        if (scriptFile.startsWith("sftp")) {
+            val url  = parseSftpUrl(scriptFile)
+            commandLine.addParameters(url.path)
         } else {
-            commandLine.addParameters("-c")
-            commandLine.addParameters(scriptText)
+            commandLine.addParameters(path.plus("/tasks/").plus(Path.of(scriptFile).fileName.toString()))
         }
     }
     return commandLine
 }
+
+
+
+fun TerminalExecutionConsole.attachToProcessHandler(
+    processHandler: ProcessHandler,
+    taskModel: TaskModel,
+    command: GeneralCommandLine
+){
+    if (processHandler is com.connecthid.intellij.connection.terminal.ProcessHandler) {
+        attachToProcess(processHandler, processHandler.connector, true)
+        if(taskModel.isLocal&& !taskModel.isScriptFile){
+            command.addParameters("-c")
+            command.addParameters(taskModel.scriptText)
+        }  else if (taskModel.isLocal){
+            if(taskModel.scriptOptions.isNotEmpty()){
+                command.addParameters(ParametersListUtil.parse(taskModel.scriptOptions))
+            }
+            command.addParameters(taskModel.scriptFile)
+        }
+        processHandler.executeCommand(command.commandLineString,taskModel)
+    } else {
+        attachToProcess(processHandler)
+    }
+}
+
 
 fun Project.openTerminal(server: Server,path: String?=null){
     TerminalExecution.openSshSession(this,server,path)

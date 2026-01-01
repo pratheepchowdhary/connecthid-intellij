@@ -1,11 +1,18 @@
 package com.connecthid.intellij.connection.terminal
 
+import com.connecthid.intellij.connection.sftp.mkdirIfNotExists
+import com.connecthid.intellij.connection.sftp.updateMTime
+import com.connecthid.intellij.connection.sftp.uploadIfMTimeDifferent
 import com.connecthid.intellij.models.Server
-import com.intellij.execution.configurations.GeneralCommandLine
+import com.connecthid.intellij.models.TaskModel
 import com.intellij.execution.process.ProcessOutputTypes
 import com.intellij.openapi.diagnostic.Logger
+import net.schmizz.sshj.SSHClient
+import net.schmizz.sshj.sftp.SFTPClient
+import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
+import java.nio.file.Path
 
 /**
  * A ProcessHandler implementation for managing an interactive SSH shell session.
@@ -34,7 +41,14 @@ import java.io.OutputStream
     override fun getProcessOutputStream(): OutputStream = sshConnector.outputStream
     override fun getProcessInputStream(): InputStream = sshConnector.inputStream
 
-    override fun executeCommand(command: String): Int {
+
+
+    override fun executeCommand(command: String, task: TaskModel): Int {
+        if(task.isScriptFile && task.scriptFile.isNotEmpty() && !task.scriptFile.startsWith("sftp")){
+            sshConnector.connection?.withSftp {
+                it.uploadIfMTimeDifferent(task.scriptFile,server.systemInfo.connectHidDir.plus("/tasks/"))
+            }
+        }
         var exitMessage = ""
         val RED = "\u001B[31m"
         return try {
@@ -61,4 +75,5 @@ import java.io.OutputStream
             }
         }
     }
+
 }

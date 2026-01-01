@@ -1,5 +1,6 @@
 package com.connecthid.intellij.connection.terminal
 
+import com.connecthid.intellij.models.TaskModel
 import com.pty4j.PtyProcess
 import com.pty4j.PtyProcessBuilder
 import java.io.InputStream
@@ -25,7 +26,7 @@ class PtyProcessHandler(
     override fun getProcessOutputStream(): OutputStream = pty.outputStream
     override fun getProcessInputStream(): InputStream = pty.inputStream
 
-    override fun executeCommand(command: String): Int {
+    override fun executeCommand(command: String, scriptFile: TaskModel): Int {
         return try {
             val cmd = if (command.endsWith("\n")) command else "$command\n"
             if (connector.isConnected) {

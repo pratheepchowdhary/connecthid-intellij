@@ -10,6 +10,7 @@ import com.connecthid.sshjpool.SSHConnection
 import com.connecthid.sshjpool.SSHConnectionPool
 import net.schmizz.sshj.connection.channel.direct.Session
 import net.schmizz.sshj.sftp.SFTPClient
+import net.schmizz.sshj.xfer.scp.SCPFileTransfer
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
@@ -99,6 +100,11 @@ class SSHJConnection(
     @Throws(IOException::class)
     fun <T> withExc(action: (Session) -> T): T {
         return sshPool.withExc (action)
+    }
+
+    @Throws(IOException::class)
+    fun <T> withScp(action: (SCPFileTransfer) -> T): T {
+        return sshPool.withScp (action)
     }
 
     fun getSftpClient():Pair<SSHConnection, SFTPClient>  {
