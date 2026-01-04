@@ -187,7 +187,13 @@ class SftpFile(
                 activeStreams.incrementAndGet()
             }
             val sftp = getSftpClient()?.second ?: throw IOException("Unable to connect to server")
-            this.outputHandle = sftp.open(pathLocation, setOf(OpenMode.WRITE))
+            this.outputHandle = sftp.open(
+                pathLocation, setOf(
+                    OpenMode.WRITE,
+                    OpenMode.CREAT,
+                    OpenMode.TRUNC
+                )
+            )
 
             object : FilterOutputStream(outputHandle!!.RemoteFileOutputStream()) {
                 private var closed = false
