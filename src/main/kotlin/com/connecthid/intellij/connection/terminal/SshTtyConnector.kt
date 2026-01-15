@@ -120,6 +120,7 @@ open class SshTtyConnector(
                 return Pair(0,"")
             } else {
                 val cmd = connectionPool!!.second.exec(command)
+               // connectionPool.second.setEnvVar()
                 cmd.autoExpand = true
                 inputStream = cmd.inputStream
                 outputStream = cmd.outputStream

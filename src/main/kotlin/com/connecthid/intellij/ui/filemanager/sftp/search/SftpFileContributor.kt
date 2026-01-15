@@ -146,7 +146,9 @@ class SftpFileContributor(p01: AnActionEvent) : SearchEverywhereContributor<Sftp
         indicator: ProgressIndicator,
         consumer: Processor<in SftpPsiElement>
     ) {
-
+       if(pattern.trim().isEmpty()){
+           return
+       }
 
         sshService.searchServers.forEach { server ->
             val connection = sshService.getConnection(server.stmpName)
