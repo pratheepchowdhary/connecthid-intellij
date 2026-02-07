@@ -14,6 +14,7 @@ internal class ConnectHIDRunConfigurationType : ConfigurationTypeBase(
     init {
         addFactory(ConnectHIDConfigurationFactory(this, RunConfigurationTaskType.Script))
         addFactory(ConnectHIDConfigurationFactory(this, RunConfigurationTaskType.ScpFileTransfer))
+        addFactory(ConnectHIDConfigurationFactory(this, RunConfigurationTaskType.AOSP))
     }
 
     override fun getConfigurationFactories(): Array<ConfigurationFactory> {

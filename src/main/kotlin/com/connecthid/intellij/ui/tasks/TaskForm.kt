@@ -35,6 +35,8 @@ import java.awt.Component
 import java.awt.Point
 import java.util.*
 import javax.swing.*
+import com.intellij.ui.components.JBTextField
+import javax.swing.DefaultComboBoxModel
 
 class TaskForm(private val project: Project, private val taskType: RunConfigurationTaskType, taskModel: TaskModel?=null, val fromRunConfiguration: Boolean=false) {
     val propertyGraph = PropertyGraph()
@@ -62,6 +64,19 @@ class TaskForm(private val project: Project, private val taskType: RunConfigurat
     private val service = getSSHService()
     private val virtualFileSystem =
         VirtualFileManager.getInstance().getFileSystem(SftpFileSystem.PROTOCOL) as SftpFileSystem
+
+    // AOSP Components
+    private var aospRootPath: TextFieldWithBrowseButton? = null
+    private var lunchTargetBox: ComboBox<String>? = null
+    private var fetchLunchTargetsButton: JButton? = null
+    private var buildTargetTypeModule: JBRadioButton? = null
+
+    private var buildTargetTypePath: JBRadioButton? = null
+    private var buildTargetField: TextFieldWithBrowseButton? = null
+    private var buildTargetModuleBox: ComboBox<String>? = null
+    private var binaryOutputPanel: FilesPickerPanel? = null
+    private var buildActionBox: ComboBox<String>? = null
+    private var adbDeviceIdField: JBTextField? = null
 
     private var runAfter: RunAfterTasksPanel?=null
     private var downloadFiles: FilesPickerPanel?=null
@@ -107,6 +122,34 @@ class TaskForm(private val project: Project, private val taskType: RunConfigurat
             chooseFile(selectedServer, PluginBundle.message("sh.label.choose.interpreter")) {
                 myInterpreterSelector!!.text = it
             }
+        }
+    }
+    
+    private fun setupAospPickers() {
+        aospRootPath?.addActionListener {
+            val selectedServer = getSelectedServer() ?: return@addActionListener
+            chooseFolder(selectedServer, "Choose AOSP Root") {
+                aospRootPath!!.text = it
+                fetchLunchTargets() // Auto-fetch on root selection
+            }
+        }
+        
+        lunchTargetBox?.addActionListener {
+             fetchModules() // Auto-fetch modules when lunch target changes
+        }
+
+        buildTargetField?.addActionListener {
+            val selectedServer = getSelectedServer() ?: return@addActionListener
+            // If path mode is selected, show folder picker
+            if (buildTargetTypePath?.isSelected == true) {
+                chooseFolder(selectedServer, "Choose Build Path") {
+                    buildTargetField!!.text = it
+                }
+            }
+        }
+        
+        buildTargetModuleBox?.addActionListener {
+             fetchModuleOutput()
         }
     }
 
@@ -228,7 +271,27 @@ class TaskForm(private val project: Project, private val taskType: RunConfigurat
                 }
             }
         }
+    
+        
+        // AOSP init
+        aospRootPath = TextFieldWithBrowseButton()
+        lunchTargetBox = ComboBox(arrayOf())
+        lunchTargetBox!!.isEditable = true
+        fetchLunchTargetsButton = JButton("Fetch")
+        fetchLunchTargetsButton!!.addActionListener {
+            fetchLunchTargets()
+        }
+        buildTargetField = TextFieldWithBrowseButton()
+        buildTargetModuleBox = ComboBox(arrayOf()) // Mock
+        buildTargetModuleBox!!.isEditable = true
+        buildTargetTypeModule = JBRadioButton("Module")
+        buildTargetTypePath = JBRadioButton("Path")
+        binaryOutputPanel = FilesPickerPanel(project, isRemote = true)
+        buildActionBox = ComboBox(arrayOf("Build Only", "Build & Download", "Build & Download & Push"))
+        adbDeviceIdField = JBTextField()
+
         setupPickers()
+        setupAospPickers()
         return createUI()
     }
 
@@ -241,7 +304,7 @@ class TaskForm(private val project: Project, private val taskType: RunConfigurat
         myScriptSelector!!.text = configuration.scriptFile
         myScriptOptions!!.text = configuration.scriptOptions
         myScriptFileWorkingDirectory!!.text = configuration.workingDir
-        downloadFiles!!.host=servers.selectedItem as String
+    downloadFiles!!.host=servers.selectedItem as String
 
         if (configuration.interpreterPath.isEmpty()) {
             if (localhost.equals(downloadFiles!!.host)) {
@@ -266,7 +329,21 @@ class TaskForm(private val project: Project, private val taskType: RunConfigurat
         localDownloadPath!!.text = configuration.localFolder
         downloadFiles!!.setFiles(configuration.downloadFiles)
         downloadFiles!!.host = servers.selectedItem as String
+        downloadFiles!!.host = servers.selectedItem as String
         uploadFiles!!.setFiles(configuration.uploadFiles)
+        
+        // AOSP Fields
+        aospRootPath?.text = configuration.aospRootPath
+        lunchTargetBox?.selectedItem = configuration.lunchTarget
+        lunchTargetBox?.selectedItem = configuration.lunchTarget
+        buildTargetField?.text = configuration.buildTarget
+        buildTargetModuleBox?.selectedItem = configuration.buildTarget
+        if (configuration.buildTargetType == 0) buildTargetTypeModule?.isSelected = true else buildTargetTypePath?.isSelected = true
+        buildActionBox?.selectedIndex = configuration.buildAction
+        binaryOutputPanel?.setFiles(configuration.binaryOutputLocation)
+        adbDeviceIdField?.text = configuration.adbDeviceId
+
+        selectMode()
     }
 
     private fun selectMode() {
@@ -276,7 +353,15 @@ class TaskForm(private val project: Project, private val taskType: RunConfigurat
         myScriptTypeJPanel?.isVisible = taskType == RunConfigurationTaskType.Script
         myUploadsJPanel?.isVisible = taskType == RunConfigurationTaskType.ScpFileTransfer
         myDownloadsJPanel?.isVisible = taskType == RunConfigurationTaskType.ScpFileTransfer
-        hostJPanel?.isVisible = taskType == RunConfigurationTaskType.Script
+        hostJPanel?.isVisible = taskType == RunConfigurationTaskType.Script || taskType == RunConfigurationTaskType.AOSP
+        // Hide script panels if AOSP
+        if (taskType == RunConfigurationTaskType.AOSP) {
+            myScriptPathPanel?.isVisible = false
+            myScriptTextPanel?.isVisible = false
+            myScriptTypeJPanel?.isVisible = false
+            myUploadsJPanel?.isVisible = false
+            myDownloadsJPanel?.isVisible = false
+        }
     }
 
     private fun getServersList(): List<String> {
@@ -305,6 +390,18 @@ class TaskForm(private val project: Project, private val taskType: RunConfigurat
         task.uploadFiles = uploadFiles!!.getFiles()
         task.localFolder = localDownloadPath!!.text
         task.remoteFolder = remoteUploadPath!!.text
+        
+        task.aospRootPath = aospRootPath?.text ?: ""
+        task.lunchTarget = lunchTargetBox?.selectedItem as? String ?: ""
+        task.buildTarget = if (buildTargetTypeModule?.isSelected == true) 
+            (buildTargetModuleBox?.selectedItem as? String ?: "") 
+        else 
+            (buildTargetField?.text ?: "")
+        task.buildTargetType = if (buildTargetTypeModule?.isSelected == true) 0 else 1
+        task.buildAction = buildActionBox?.selectedIndex ?: 0
+        task.binaryOutputLocation = binaryOutputPanel?.getFiles() ?: ""
+        task.adbDeviceId = adbDeviceIdField?.text ?: ""
+
         task.updatedTimeStamp = System.currentTimeMillis()
         if(task.createTimeStamp == 0L){
             task.createTimeStamp = task.updatedTimeStamp
@@ -323,8 +420,11 @@ class TaskForm(private val project: Project, private val taskType: RunConfigurat
                     textField().bindText(taskName).resizableColumn().align(Align.FILL)
                 }
             }
-            row("Server:") {
-                cell(hostBox!!).resizableColumn().align(Align.FILL)
+             // General Server Selection (visible for Script & AOSP)
+            if (taskType != RunConfigurationTaskType.ScpFileTransfer) {
+                 row("Server:") {
+                    cell(hostBox!!).resizableColumn().align(Align.FILL)
+                }
             }
             if(taskType == RunConfigurationTaskType.Script){
                 row {
@@ -396,6 +496,60 @@ class TaskForm(private val project: Project, private val taskType: RunConfigurat
                     cell(remoteUploadPath!!).resizableColumn().align(Align.FILL)
                 }
             }
+            if (taskType == RunConfigurationTaskType.AOSP) {
+                row("AOSP Root:") {
+                    cell(aospRootPath!!).resizableColumn().align(Align.FILL)
+                }
+                row("Lunch Target:") {
+                    cell(lunchTargetBox!!).resizableColumn().align(Align.FILL)
+                    cell(fetchLunchTargetsButton!!)
+                }
+                row("Environment Variables:") {
+                    cell(myEnvComponent!!).resizableColumn().align(Align.FILL)
+                }
+                row("Build Target:") {
+                    panel {
+                        buttonsGroup {
+                            row {
+                                radioButton("Module").applyToComponent { 
+                                    buildTargetTypeModule = this; 
+                                    isSelected=true 
+                                    addActionListener { 
+                                        buildTargetModuleBox?.isVisible = true
+                                        buildTargetField?.isVisible = false
+                                    }
+                                }
+                                radioButton("Path").applyToComponent { 
+                                    buildTargetTypePath = this 
+                                    addActionListener { 
+                                        buildTargetModuleBox?.isVisible = false
+                                        buildTargetField?.isVisible = true
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                row("Target Value:") {
+                    cell(buildTargetField!!).resizableColumn().align(Align.FILL)
+                        .visibleIf(buildTargetTypePath!!.selected)
+                    cell(buildTargetModuleBox!!).resizableColumn().align(Align.FILL)
+                        .visibleIf(buildTargetTypeModule!!.selected)
+                }
+                
+                row {
+                    cell(binaryOutputPanel!!).resizableColumn().align(Align.FILL)
+                } 
+                
+
+                row("Action:") {
+                    cell(buildActionBox!!).resizableColumn().align(Align.FILL)
+                }
+
+                row("ADB Device ID:") {
+                    cell(adbDeviceIdField!!).resizableColumn().align(Align.FILL)
+                }.visibleIf(buildActionBox!!.selectedValueMatches { it == "Build & Push" })
+            }
             with(collapsibleGroup("Run After Tasks") {
                 row {
                     cell(runAfter!!).resizableColumn().align(Align.FILL)
@@ -403,6 +557,8 @@ class TaskForm(private val project: Project, private val taskType: RunConfigurat
             }) {
                 expanded = task.runAfter.isNotEmpty()
             }
+            
+
         }
         resetEditorFrom()
         return panel
@@ -411,4 +567,170 @@ class TaskForm(private val project: Project, private val taskType: RunConfigurat
 
 
 
+    
+
+    private fun fetchLunchTargets() {
+        val selectedServer = getSelectedServer()
+        val rootPath = aospRootPath?.text
+        
+        if (selectedServer == null || rootPath.isNullOrEmpty()) {
+            return
+        }
+        
+        val serverConfig = service.getServer(selectedServer) ?: return
+        fetchLunchTargetsButton!!.isEnabled = false
+        
+        com.intellij.openapi.application.ApplicationManager.getApplication().executeOnPooledThread {
+            try {
+                service.getConnection(serverConfig)?.let { conn ->
+                    // Command to source envsetup and print menu. 
+                    // dependent on shell, typically bash is used for AOSP
+                    val cmd = "bash -c 'cd ${rootPath} && source build/envsetup.sh && print_lunch_menu'"
+                    val output = conn.execute(cmd, 15) // Short timeout for menu
+                    
+                    val targets = mutableListOf<String>()
+                    // Regex to match "1. target-name"
+                    val regex = Regex("^\\s*\\d+\\.\\s+(\\S+)", RegexOption.MULTILINE)
+                    regex.findAll(output).forEach { match ->
+                         targets.add(match.groupValues[1])
+                    }
+                    
+                    SwingUtilities.invokeLater {
+                        if (targets.isNotEmpty()) {
+                            lunchTargetBox?.model = DefaultComboBoxModel(targets.toTypedArray())
+                            lunchTargetBox?.selectedItem = targets[0]
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                SwingUtilities.invokeLater {
+                    fetchLunchTargetsButton!!.isEnabled = true
+                }
+            }
+        }
+    }
+
+    private fun fetchModules() {
+        val selectedServer = getSelectedServer()
+        val rootPath = aospRootPath?.text
+        val selectedLunch = lunchTargetBox?.selectedItem as? String
+        
+        if (selectedServer == null || rootPath.isNullOrEmpty() || selectedLunch.isNullOrEmpty()) {
+            return
+        }
+        
+        val serverConfig = service.getServer(selectedServer) ?: return
+        
+        // Indicate loading...
+        
+        com.intellij.openapi.application.ApplicationManager.getApplication().executeOnPooledThread {
+             try {
+                service.getConnection(serverConfig)?.let { conn ->
+                    // Command: source envsetup -> lunch -> allmod
+                    // 'allmod' lists modules. We assume it prints them to stdout.
+                    val cmd = "bash -c 'cd ${rootPath} && source build/envsetup.sh && lunch ${selectedLunch} && allmod'"
+                    val output = conn.execute(cmd, 60) // Longer timeout for module listing
+                    
+                    val modules = mutableListOf<String>()
+                    // Parse output lines, strict filtering for module names
+                    // Module names are typically alphanumeric, no spaces, no slashes
+                    output.lines().forEach { line ->
+                         val t = line.trim()
+                         if(t.isNotEmpty() && 
+                            !t.contains(" ") && 
+                            !t.contains("/") && 
+                            !t.contains("\\") &&
+                            !t.startsWith("[") &&
+                            !t.startsWith("make") &&
+                            !t.startsWith("INFO:") &&
+                            !t.startsWith("WARNING:") &&
+                            !t.contains("=")) {
+                             modules.add(t)
+                         }
+                    }
+                    
+                    SwingUtilities.invokeLater {
+                        if (modules.isNotEmpty()) {
+                            buildTargetModuleBox?.model = DefaultComboBoxModel(modules.toTypedArray())
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    private fun fetchModuleOutput() {
+        if(buildTargetTypeModule?.isSelected == false) return
+
+        val selectedServer = getSelectedServer()
+        val rootPath = aospRootPath?.text
+        val selectedLunch = lunchTargetBox?.selectedItem as? String
+        val selectedModule = buildTargetModuleBox?.selectedItem as? String
+        
+        if (selectedServer == null || rootPath.isNullOrEmpty() || selectedLunch.isNullOrEmpty() || selectedModule.isNullOrEmpty()) {
+            return
+        }
+        
+        val serverConfig = service.getServer(selectedServer) ?: return
+         // Update host for pickers
+         binaryOutputPanel!!.host = selectedServer
+         downloadFiles!!.host = selectedServer
+         uploadFiles!!.host  = selectedServer
+
+        
+        com.intellij.openapi.application.ApplicationManager.getApplication().executeOnPooledThread {
+             try {
+                service.getConnection(serverConfig)?.let { conn ->
+                    // Command: source envsetup -> lunch -> outmod
+                    // 'outmod' lists output files.
+                    val cmd = "bash -c 'cd ${rootPath} && source build/envsetup.sh && lunch ${selectedLunch} && outmod ${selectedModule}'"
+                    val output = conn.execute(cmd, 30)
+                    
+                    val files = mutableListOf<String>()
+                    // Parse output lines - outmod typically outputs file paths
+                    // Filter strictly for actual file paths
+                     output.lines().forEach { line ->
+                         val t = line.trim()
+                         // Skip empty lines, log messages, build output, and non-path lines
+                         if(t.isNotEmpty() && 
+                            !t.startsWith("INFO:") && 
+                            !t.startsWith("WARNING:") &&
+                            !t.startsWith("ERROR:") &&
+                            !t.startsWith("[") &&
+                            !t.startsWith("=") &&
+                            !t.startsWith("PRODUCT_") &&
+                            !t.startsWith("TARGET_") &&
+                            !t.contains("============") &&
+                            !t.contains("including") &&
+                            !t.contains("envsetup") &&
+                            !t.contains("lunch") &&
+                            (t.startsWith("/") || t.startsWith("out/"))) {
+                             // Valid path - either absolute or relative starting with out/
+                             if(t.startsWith("/")) {
+                                 files.add(t)
+                             } else {
+                                  files.add("${rootPath}/${t}")
+                             }
+                         }
+                    }
+                    
+                    SwingUtilities.invokeLater {
+                        if (files.isNotEmpty()) {
+                            // Convert paths to SFTP URLs
+                            val sftpUrls = files.map { path ->
+                                "sftp://${serverConfig.username}@${serverConfig.host}:${serverConfig.port}${path}"
+                            }
+                            binaryOutputPanel?.setFiles(sftpUrls.joinToString(";"))
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
 }

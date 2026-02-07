@@ -194,6 +194,12 @@ class TasksPanel(
                 createTask(RunConfigurationTaskType.ScpFileTransfer)
             }
         })
+        actionGroup.addSeparator()
+        actionGroup.add(object : AnAction({ "AOSP" }, MyIcons.Android) {
+            override fun actionPerformed(e: AnActionEvent) {
+                createTask(RunConfigurationTaskType.AOSP)
+            }
+        })
         val popupMenu = ActionManager.getInstance().createActionPopupMenu("WorkspacePopup", actionGroup)
         popupMenu.component.show(button, button.width/2, button.height)
     }

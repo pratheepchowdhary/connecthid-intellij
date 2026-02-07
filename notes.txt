@@ -1,1 +1,23 @@
 this the requirement command should build in such a way that can be execute in any os
+
+
+
+
+Need to implment  one more  aosp support for run configations task 
+
+On create run configation of aosp 
+
+show dialog
+1)where user can select server location it will both local system or remote ssh server
+2)asop project root path
+3) select lunch target from avable 
+4) need take env varable for aosp
+5) select module or path that need build binary 
+6) on selecting module get binary out location based on module 
+7) on selecting folder path  get list of moudle from location using pathmod
+ and get output directories for that moudles and store .
+
+ and give option just build 
+ and downaload binaries using scp once build done
+ and give option push binary using adb 
+

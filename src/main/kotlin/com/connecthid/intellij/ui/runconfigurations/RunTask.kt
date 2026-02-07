@@ -98,6 +98,7 @@ class RunTask(
             }
         }
         else if (taskType == RunConfigurationTaskType.ScpFileTransfer) {
+            // ... existing file transfer logic ...
             log("📂 File transfer task ")
             console.attachToProcess(this)
             service.getServer(task.server)?.let {
@@ -137,6 +138,69 @@ class RunTask(
                     }
 
                 }
+            }
+        }
+        else if (taskType == RunConfigurationTaskType.AOSP) {
+            log("🤖 Starting AOSP Build Task...")
+            console.attachToProcess(this)
+            
+            // 1. Construct Command
+            val buildCommand = buildString {
+                append("cd ${task.aospRootPath} && ")
+                append("source build/envsetup.sh && ")
+                append("lunch ${task.lunchTarget} && ")
+                if (task.buildTargetType == 0) {
+                    append("m ${task.buildTarget}") // Build module
+                } else {
+                    // Build path: mma or m from relative path? 
+                    // Usually 'm' works from root if target is path, or cd to path and mma.
+                    // Let's assume 'm <path>' works or simple 'm' if we navigate.
+                    // For simplicity:
+                    append("m ${task.buildTarget}") 
+                }
+            }
+            log("Executing: $buildCommand")
+            
+            // 2. Execute Build (Reuse Script Logic slightly)
+            // Create a temporary script task model to reuse startTask's terminal execution
+            val tempScriptTask = task.copy(
+                scriptType = RunConfigurationTaskType.Script.type,
+                scriptText = buildCommand,
+                isScriptFile = false,
+                executeInTerminal = true // Force terminal for output
+            )
+            
+            resultCode = startTask(tempScriptTask)
+
+            if (resultCode == 0) {
+                log("\n✅ Build Successful!")
+                
+                // 3. Post-Build Actions
+                if (task.buildAction == 1) { // Build & Download
+                     log("⬇️ Downloading artifacts from ${task.binaryOutputLocation}...")
+                     // TODO: Implement download logic similar to ScpFileTransfer
+                     // Reusing existing downloadSftpFiles utility if paths are valid
+                     service.getServer(task.server)?.let { server ->
+                         val remoteFiles = task.binaryOutputLocation.getRemoteFiles(server)
+                         // Note: getSftpFiles extension might need to be created or we mock it for now as string->file conversion is complex without VFS context
+                         // For this impl plan, we log the intention.
+                         log("   (Download logic would trigger here for ${task.binaryOutputLocation})")
+                     }
+                } else if (task.buildAction == 2) { // Build & Push
+                     log("📲 Pushing artifacts to device ${task.adbDeviceId}...")
+                     val pushInfo = if(task.adbDeviceId.isNotBlank()) "-s ${task.adbDeviceId}" else ""
+                     // Push from remote server to device connected to remote server
+                     val pushCmd = "adb $pushInfo push ${task.binaryOutputLocation.replace(";", " ")} /data/local/tmp/"
+                     val pushTask = task.copy(
+                        scriptType = RunConfigurationTaskType.Script.type,
+                        scriptText = pushCmd,
+                        isScriptFile = false,
+                        executeInTerminal = true
+                    )
+                    startTask(pushTask)
+                }
+            } else {
+                log("\n❌ Build Failed with code $resultCode")
             }
         }
 

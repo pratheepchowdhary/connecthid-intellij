@@ -27,5 +27,12 @@ data class TaskModel(
     @Attribute var uploadFiles: String = "",
     @Attribute var createTimeStamp: Long = 0L,
     @Attribute var updatedTimeStamp: Long = 0L,
-    @Attribute var isLocal: Boolean = true
+    @Attribute var isLocal: Boolean = true,
+    @Attribute var aospRootPath: String = "",
+    @Attribute var lunchTarget: String = "",
+    @Attribute var buildTarget: String = "",
+    @Attribute var buildTargetType: Int = 0, // 0 = Module, 1 = Path
+    @Attribute var buildAction: Int = 0, // 0 = Build Only, 1 = Build & Download, 2 = Build & Push
+    @Attribute var binaryOutputLocation: String = "",
+    @Attribute var adbDeviceId: String = ""
 )

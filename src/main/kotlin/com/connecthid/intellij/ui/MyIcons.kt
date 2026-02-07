@@ -18,4 +18,7 @@ object MyIcons {
     @JvmField
     val Script: Icon = IconLoader.getIcon("/icons/ConcurrencyDiagram.svg", javaClass)
 
+    @JvmField
+    val Android: Icon = IconLoader.getIcon("/icons/android.svg", javaClass)
+
 }
